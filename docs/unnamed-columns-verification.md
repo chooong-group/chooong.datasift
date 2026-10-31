@@ -1,4 +1,8 @@
-# XLSX-Zusatzspalten ohne Überschrift
+# Historisch: XLSX-Zusatzspalten ohne Überschrift
+
+Dieser Zwischenstand ist überholt. Maßgeblich sind die
+[expliziten Tabellenquellen](table-sources-verification.md): Ungebundene Zusatzwerte
+werden nicht ausgegeben; die `__column_*`-Funktion ist entfernt.
 
 ## Prüfstand und Urteil
 

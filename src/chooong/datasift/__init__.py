@@ -4,6 +4,7 @@ from ._models import (
     AllOf,
     AnyOf,
     CellValue,
+    ColumnBinding,
     EmptyCondition,
     Expression,
     FilterMask,
@@ -13,6 +14,7 @@ from ._models import (
     Operator,
     Row,
     ScalarCondition,
+    TableSource,
     TextCondition,
 )
 from ._reader import BatchIterator, MaskInput, iter_matching_batches, iter_matching_rows
@@ -22,6 +24,7 @@ __all__ = [
     "AnyOf",
     "BatchIterator",
     "CellValue",
+    "ColumnBinding",
     "EmptyCondition",
     "Expression",
     "FilterMask",
@@ -33,6 +36,7 @@ __all__ = [
     "Row",
     "ScalarCondition",
     "TextCondition",
+    "TableSource",
     "iter_matching_batches",
     "iter_matching_rows",
 ]

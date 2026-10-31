@@ -32,5 +32,26 @@
         ]
       }
     ]
+  },
+  "source": {
+    "columns": [
+      {
+        "name": "Kunde",
+        "column": "A"
+      },
+      {
+        "name": "Land",
+        "column": "B"
+      },
+      {
+        "name": "Umsatz",
+        "column": "C"
+      },
+      {
+        "name": "Status",
+        "column": "D"
+      }
+    ],
+    "data_start_row": 2
   }
 }

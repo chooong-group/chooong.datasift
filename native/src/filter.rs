@@ -15,6 +15,85 @@ pub struct Config {
     pub header_row: u32,
     #[serde(rename = "where")]
     pub predicate: Json,
+    pub source: Option<TableSource>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ColumnBinding {
+    name: String,
+    column: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TableSource {
+    columns: Vec<ColumnBinding>,
+    pub data_start_row: u32,
+    pub data_end_row: Option<u32>,
+    #[serde(default)]
+    pub skip_rows: HashSet<u32>,
+}
+
+impl TableSource {
+    pub fn contains_row(&self, row: u32) -> bool {
+        row >= self.data_start_row
+            && self.data_end_row.is_none_or(|end| row <= end)
+            && !self.skip_rows.contains(&row)
+    }
+
+    pub fn headers(&self) -> Result<HeaderLookup, String> {
+        let mut names = HashSet::new();
+        let columns = self
+            .columns
+            .iter()
+            .map(|binding| {
+                if binding.name.trim().is_empty() || !names.insert(binding.name.clone()) {
+                    return Err(
+                        "Ausgabenamen in source.columns müssen nichtleer und eindeutig sein".into(),
+                    );
+                }
+                Ok((binding.name.clone(), column_index(&binding.column)?))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let lookup = columns
+            .iter()
+            .map(|(name, index)| (name.clone(), *index))
+            .collect();
+        Ok((columns, lookup))
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        let end = self.data_end_row.unwrap_or(1_048_576);
+        if !(1..=1_048_576).contains(&self.data_start_row)
+            || end < self.data_start_row
+            || end > 1_048_576
+            || self.columns.is_empty()
+            || self.columns.len() > 16_384
+            || self
+                .skip_rows
+                .iter()
+                .any(|row| *row < self.data_start_row || *row > end)
+        {
+            return Err("Ungültiger Datenbereich in source".into());
+        }
+        self.headers()?;
+        Ok(())
+    }
+}
+
+pub fn column_index(column: &str) -> Result<usize, String> {
+    if column.is_empty() || column.len() > 3 || !column.bytes().all(|b| b.is_ascii_uppercase()) {
+        return Err("Excel-Spalte muss zwischen A und XFD liegen".into());
+    }
+    let mut number = 0_usize;
+    for letter in column.bytes() {
+        number = number * 26 + usize::from(letter - b'A' + 1);
+    }
+    if number > 16_384 {
+        return Err("Excel-Spalte muss zwischen A und XFD liegen".into());
+    }
+    Ok(number - 1)
 }
 
 fn default_header_row() -> u32 {
@@ -29,6 +108,12 @@ impl Config {
         }
         if !(1..=1_048_576).contains(&spec.header_row) {
             return Err("'header_row' muss zwischen 1 und 1048576 liegen".into());
+        }
+        if let Some(source) = &spec.source {
+            if spec.header_row != 1 {
+                return Err("header_row ist nur ohne source zulässig".into());
+            }
+            source.validate()?;
         }
         Ok(spec)
     }
@@ -232,21 +317,7 @@ impl Expr {
     }
 }
 
-type HeaderLookup = (Vec<(String, usize)>, HashMap<String, usize>);
-
-pub fn unnamed_column_name(position: usize, headers: &HashSet<String>) -> String {
-    let mut number = position + 1;
-    let mut column = String::new();
-    while number > 0 {
-        column.insert(0, char::from(b'A' + ((number - 1) % 26) as u8));
-        number = (number - 1) / 26;
-    }
-    let mut name = format!("__column_{column}");
-    while headers.contains(&name) {
-        name.push('_');
-    }
-    name
-}
+pub type HeaderLookup = (Vec<(String, usize)>, HashMap<String, usize>);
 
 pub fn headers_from_row(row: &[CellValue]) -> Result<HeaderLookup, String> {
     let mut list = Vec::new();

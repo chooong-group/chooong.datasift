@@ -1,6 +1,8 @@
 # Prüfprotokoll
 
-Aktueller Bugfix-Nachtrag: [XLSX-Zusatzspalten](unnamed-columns-verification.md).
+Aktueller Nachtrag: [Explizite Tabellenquellen](table-sources-verification.md).
+Der [Zusatzspalten-Nachtrag](unnamed-columns-verification.md) ist historisch und
+wurde nach der Präzisierung des Extraktionsziels durch die Quellauswahl ersetzt.
 Die folgenden Abschnitte dokumentieren den initialen Package-Prüfstand. Der
 damalige Push-Blocker D08 wurde durch Nutzerfreigabe und den bestehenden PR #1
 aufgehoben; aktuelle offene Abnahmen stehen im Nachtrag.

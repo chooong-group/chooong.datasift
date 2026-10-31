@@ -1,5 +1,6 @@
 //! Bounded-memory XLSX reader. Worksheet XML is parsed while it is decompressed.
 //! Only the shared-string table and workbook metadata are materialized.
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -11,7 +12,7 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use zip::ZipArchive;
 
-use crate::filter::{headers_from_row, Config, Expr};
+use crate::filter::{column_index, headers_from_row, Config, Expr, HeaderLookup};
 use crate::Message;
 
 const MAX_XML_METADATA_BYTES: u64 = 16 * 1024 * 1024;
@@ -328,14 +329,7 @@ fn column_from_cell_reference(reference: &str) -> Result<usize, String> {
     if letters == 0 || letters == bytes.len() || !bytes[letters..].iter().all(u8::is_ascii_digit) {
         return Err(format!("Ungültige Zellreferenz: {reference:?}"));
     }
-    let mut number: usize = 0;
-    for letter in &bytes[..letters] {
-        number = number * 26 + (letter.to_ascii_uppercase() - b'A' + 1) as usize;
-        if number > MAX_COLS {
-            return Err("Zellreferenz liegt außerhalb von XFD".into());
-        }
-    }
-    Ok(number - 1)
+    column_index(&reference[..letters].to_ascii_uppercase())
 }
 
 fn finish_cell(
@@ -396,30 +390,54 @@ struct Sink<'a> {
     cancelled: &'a Arc<AtomicBool>,
     batch_size: usize,
     headers: Option<Vec<(String, usize)>>,
+    selected_positions: Option<HashSet<usize>>,
     predicate: Option<Expr>,
     buffer: Vec<Vec<CellValue>>,
 }
 
 impl Sink<'_> {
+    fn prepare_headers(&mut self, (names, lookup): HeaderLookup) -> Result<(), String> {
+        let predicate = Expr::compile(&self.config.predicate, &lookup)?;
+        if self.config.source.is_some() {
+            self.selected_positions = Some(names.iter().map(|(_, index)| *index).collect());
+        }
+        self.sender
+            .send(Message::Ready(names.clone()))
+            .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
+        self.headers = Some(names);
+        self.predicate = Some(predicate);
+        Ok(())
+    }
+
+    fn selects_cell(&self, row: u32, column: usize) -> bool {
+        self.config
+            .source
+            .as_ref()
+            .is_none_or(|source| source.contains_row(row))
+            && self
+                .selected_positions
+                .as_ref()
+                .is_none_or(|positions| positions.contains(&column))
+    }
+
     fn on_row(&mut self, number: u32, row: Vec<CellValue>) -> Result<(), String> {
         if self.cancelled.load(Ordering::Relaxed) {
             return Ok(());
         }
-        if number < self.config.header_row {
-            return Ok(());
-        }
-        if number == self.config.header_row {
-            if self.headers.is_some() {
-                return Err("Doppelte Kopfzeile".into());
+        if let Some(source) = &self.config.source {
+            if !source.contains_row(number) {
+                return Ok(());
             }
-            let (names, lookup) = headers_from_row(&row)?;
-            let predicate = Expr::compile(&self.config.predicate, &lookup)?;
-            self.sender
-                .send(Message::Ready(names.clone()))
-                .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
-            self.headers = Some(names);
-            self.predicate = Some(predicate);
-            return Ok(());
+        } else {
+            if number < self.config.header_row {
+                return Ok(());
+            }
+            if number == self.config.header_row {
+                if self.headers.is_some() {
+                    return Err("Doppelte Kopfzeile".into());
+                }
+                return self.prepare_headers(headers_from_row(&row)?);
+            }
         }
         let predicate = self
             .predicate
@@ -471,9 +489,13 @@ pub fn scan(
         cancelled,
         batch_size,
         headers: None,
+        selected_positions: None,
         predicate: None,
         buffer: Vec::with_capacity(batch_size),
     };
+    if let Some(source) = &config.source {
+        sink.prepare_headers(source.headers()?)?;
+    }
 
     let mut row = Vec::new();
     let mut in_sheet_data = false;
@@ -560,7 +582,9 @@ pub fn scan(
                         return Err("Unsortierte Excel-Zelle".into());
                     }
                     next_cell_col = cell_col + 1;
-                    put_cell(&mut row, cell_col, CellValue::Empty)?;
+                    if sink.selects_cell(row_num, cell_col) {
+                        put_cell(&mut row, cell_col, CellValue::Empty)?;
+                    }
                 }
                 _ => (),
             },
@@ -584,11 +608,13 @@ pub fn scan(
                 b"rPh" => in_phonetic = false,
                 b"is" => in_inline = false,
                 b"c" if in_cell => {
-                    let value = finish_cell(&cell_kind, &raw_value, &inline_value, &shared)
-                        .map_err(|e| {
-                            format!("Excel-Zeile {row_num}, Spalte {}: {e}", cell_col + 1)
-                        })?;
-                    put_cell(&mut row, cell_col, value)?;
+                    if sink.selects_cell(row_num, cell_col) {
+                        let value = finish_cell(&cell_kind, &raw_value, &inline_value, &shared)
+                            .map_err(|e| {
+                                format!("Excel-Zeile {row_num}, Spalte {}: {e}", cell_col + 1)
+                            })?;
+                        put_cell(&mut row, cell_col, value)?;
+                    }
                     in_cell = false;
                     field = Field::None;
                 }

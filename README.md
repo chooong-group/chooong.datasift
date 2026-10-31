@@ -17,10 +17,16 @@ uv pip install .
 ```
 
 ```python
-from chooong.datasift import FilterMask, Operator, ScalarCondition, iter_matching_batches
+from chooong.datasift import (
+    ColumnBinding, FilterMask, Operator, ScalarCondition, TableSource, iter_matching_batches,
+)
 
 mask = FilterMask(
     sheet="Daten",
+    source=TableSource(
+        columns=(ColumnBinding(name="Land", column="B"),),
+        data_start_row=2,
+    ),
     where=ScalarCondition(column="Land", op=Operator.EQ, value="DE"),
 )
 with iter_matching_batches("daten.xlsx", mask, batch_size=1024) as batches:
@@ -45,8 +51,12 @@ Abbruch den Generator schließen oder den Batch-Kontextmanager verwenden.
 `BatchIterator`, `iter_matching_batches` und `iter_matching_rows`. Masken können
 als `FilterMask`, Mapping, JSON-Text oder Dateipfad übergeben werden. Ergebniszeilen
 sind unveränderliche `Row`-Mappings mit dynamischen Excel-Spaltennamen.
-Zusatzwerte in Spalten ohne Überschrift bleiben etwa als `__column_M` erhalten;
-Filter arbeiten weiterhin mit den benannten Spalten der Kopfzeile.
+`source` ordnet Ausgabenamen tatsächlichen Excel-Spalten zu und begrenzt die
+Datenzeilen. Damit lassen sich Tabellen nebeneinander, beliebige Startpositionen,
+mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur die
+zugeordneten Felder passender Zeilen werden ausgegeben. Beispiel für eine Tabelle
+ab C7: [examples/layout-filter.json](examples/layout-filter.json). Ohne `source`
+bleibt die einfache Auswahl über eine einzelne `header_row` möglich.
 
 [Filtervertrag und Grenzen](docs/contract.md) beschreiben Operatoren, Typen,
 Fehler und Ressourcenlimits. Es gibt keine Umgebungsvariablen oder Diensteinstellungen.

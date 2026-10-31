@@ -149,7 +149,7 @@ def test_duplicate_headers_fail_eagerly(
         iter_matching_batches(path, _mask())
 
 
-def test_unnamed_data_is_never_silently_lost(tmp_path: Path) -> None:
+def test_unbound_data_is_not_extracted(tmp_path: Path) -> None:
     path = tmp_path / "unnamed.xlsx"
     make_workbook(path)
     _rewrite(path, "xl/sharedStrings.xml", "<t>Status</t>", "<t></t>")
@@ -158,7 +158,7 @@ def test_unnamed_data_is_never_silently_lost(tmp_path: Path) -> None:
     )
     rows = list(iter_matching_rows(path, mask))
     assert len(rows) == 7
-    assert rows[0]["__column_D"] == "Aktiv"
+    assert set(rows[0]) == {"Kunde", "Land", "Umsatz"}
     assert "Status" not in rows[0]
     assert rows[0]["Kunde"] == "ABC GmbH"
 
@@ -278,7 +278,7 @@ def test_unsafe_xml_and_paths_fail_closed(
 
 
 @pytest.mark.parametrize("batch_size", [1, 3, 1024])
-def test_sparse_extra_columns_preserve_types_and_replay(tmp_path: Path, batch_size: int) -> None:
+def test_sparse_unbound_columns_are_ignored_with_replay(tmp_path: Path, batch_size: int) -> None:
     path = tmp_path / "extras.xlsx"
     make_workbook(path)
     extra_row = (
@@ -306,17 +306,11 @@ def test_sparse_extra_columns_preserve_types_and_replay(tmp_path: Path, batch_si
         "Land": "DE",
         "Umsatz": 5000,
         "Status": "Aktiv",
-        "__column_M": "ABC GmbH",
-        "__column_U": 12.5,
-        "__column_V": False,
-        "__column_AA": "",
-        "__column_XFD": 42,
     }
-    assert actual[-1]["__column_V"] is False
     assert "__column_M" not in actual[0]
 
 
-def test_extra_keys_do_not_overwrite_named_columns(tmp_path: Path) -> None:
+def test_unbound_cells_do_not_overwrite_named_columns(tmp_path: Path) -> None:
     path = tmp_path / "collision.xlsx"
     make_workbook(path)
     _rewrite(path, "xl/sharedStrings.xml", "<t>Kunde</t>", "<t>__column_M</t>")
@@ -333,10 +327,10 @@ def test_extra_keys_do_not_overwrite_named_columns(tmp_path: Path) -> None:
     rows = list(iter_matching_rows(path, mask))
     assert rows[0]["__column_M"] == "ABC GmbH"
     assert rows[0]["__column_M_"] == "Aktiv"
-    assert rows[0]["__column_M__"] == "synthetic extra"
+    assert "__column_M__" not in rows[0]
 
 
-def test_generated_output_keys_are_not_filter_headers(tmp_path: Path) -> None:
+def test_unbound_columns_are_not_filter_headers(tmp_path: Path) -> None:
     path = tmp_path / "unknown-header.xlsx"
     make_workbook(path)
     mask = FilterMask(
@@ -346,7 +340,7 @@ def test_generated_output_keys_are_not_filter_headers(tmp_path: Path) -> None:
         iter_matching_batches(path, mask)
 
 
-def test_cli_preserves_sparse_extra_values_in_ndjson(tmp_path: Path) -> None:
+def test_cli_extracts_only_bound_fields_in_ndjson(tmp_path: Path) -> None:
     path = tmp_path / "cli-extras.xlsx"
     make_workbook(path)
     before = '<c r="D5" t="s"><v>6</v></c></row>'
@@ -376,6 +370,6 @@ def test_cli_preserves_sparse_extra_values_in_ndjson(tmp_path: Path) -> None:
     assert not result.stderr
     rows = [json.loads(line) for line in destination.read_text().splitlines()]
     assert len(rows) == 6
-    assert [row["__column_M"] for row in rows if "__column_M" in row] == [123]
+    assert all(set(row) == {"Kunde", "Land", "Umsatz", "Status"} for row in rows)
     assert path.read_bytes() == original
     assert not list(tmp_path.glob(".result.ndjson.*.tmp"))

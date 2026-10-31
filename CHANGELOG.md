@@ -4,6 +4,9 @@
 
 ### Added
 
+- Explizite `TableSource`-/`ColumnBinding`-Maske für beliebige Tabellenpositionen,
+  doppelte/mehrzeilige Header, Datenbereich und auszuschließende Kommentarzeilen.
+
 - Installierbares `chooong.datasift` mit nativer Rust-XLSX-/XLSM-Streaming-Engine.
 - Typisierte Filtermodelle, unveränderliche Ergebniszeilen und schließbare Batches.
 - CLI `chooong-datasift` mit atomarer NDJSON-Dateiausgabe.
@@ -17,9 +20,8 @@
 
 ### Fixed
 
-- Zusatzwerte in Spalten ohne Überschrift brechen den Scan nicht mehr ab:
-  Sie bleiben unter kollisionsfreien Excel-Spaltenschlüsseln wie `__column_M`
-  erhalten. Filter und bereits unterstützte Zeilen behalten ihre Semantik.
+- Contract-Korrektur: Nur ausgewählte Felder passender Zeilen werden extrahiert;
+  die lokal eingeführten `__column_*`-Zusatzfelder entfallen.
 - Threadsicherheit des nativen Empfängers und Erkennung unvollständiger XML-Dokumente.
 - Ungültige doppelte Build-Konfiguration und projektfremde CI-Kommandos ersetzt.
 - CLI schützt auch die Filterdatei vor Überschreiben.

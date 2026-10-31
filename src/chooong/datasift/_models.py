@@ -6,9 +6,9 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, model_validator
 
 FiniteFloat = Annotated[float, Field(strict=True, allow_inf_nan=False)]
 CellValue = StrictStr | StrictBool | StrictInt | FiniteFloat | None
@@ -89,10 +89,53 @@ AnyOf.model_rebuild()
 Not.model_rebuild()
 
 
+RowNumber = Annotated[StrictInt, Field(ge=1, le=1048576)]
+ExcelColumn = Annotated[
+    StrictStr, Field(pattern=r"^(?:[A-Z]{1,2}|[A-W][A-Z]{2}|X[A-E][A-Z]|XF[A-D])$")
+]
+
+
+class ColumnBinding(_Model):
+    """An output/filter name bound to an absolute Excel column, A through XFD."""
+
+    name: Annotated[StrictStr, Field(min_length=1, pattern=r"\S")]
+    column: ExcelColumn
+
+
+class TableSource(_Model):
+    """Explicit extraction scope, independent of workbook header formatting."""
+
+    columns: Annotated[tuple[ColumnBinding, ...], Field(min_length=1, max_length=16384)]
+    data_start_row: RowNumber
+    data_end_row: RowNumber | None = None
+    skip_rows: tuple[RowNumber, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> Self:
+        if self.data_end_row is not None and self.data_end_row < self.data_start_row:
+            raise ValueError("data_end_row muss mindestens data_start_row sein")
+        names = [binding.name for binding in self.columns]
+        if len(names) != len(set(names)):
+            raise ValueError("Ausgabenamen in source.columns müssen eindeutig sein")
+        if any(
+            row < self.data_start_row or (self.data_end_row is not None and row > self.data_end_row)
+            for row in self.skip_rows
+        ):
+            raise ValueError("skip_rows müssen innerhalb des Datenbereichs liegen")
+        return self
+
+
 class FilterMask(_Model):
     sheet: Annotated[StrictStr, Field(min_length=1, pattern=r"\S")]
     header_row: Annotated[StrictInt, Field(ge=1, le=1048576)] = 1
     where: Expression
+    source: TableSource | None = None
+
+    @model_validator(mode="after")
+    def validate_source(self) -> Self:
+        if self.source is not None and self.header_row != 1:
+            raise ValueError("header_row ist nur ohne source zulässig")
+        return self
 
 
 @dataclass(frozen=True, slots=True)
