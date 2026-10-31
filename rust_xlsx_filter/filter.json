@@ -1,0 +1,36 @@
+{
+  "sheet": "Daten",
+  "where": {
+    "all": [
+      {
+        "column": "Kunde",
+        "op": "starts_with",
+        "value": "ABC"
+      },
+      {
+        "column": "Land",
+        "op": "eq",
+        "value": "DE"
+      },
+      {
+        "column": "Umsatz",
+        "op": "gte",
+        "value": 1000
+      },
+      {
+        "any": [
+          {
+            "column": "Status",
+            "op": "eq",
+            "value": "Aktiv"
+          },
+          {
+            "column": "Status",
+            "op": "eq",
+            "value": "Offen"
+          }
+        ]
+      }
+    ]
+  }
+}
