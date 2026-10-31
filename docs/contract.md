@@ -209,4 +209,4 @@ Greenfield-Übernahme des PoC, keine zugesicherte Kompatibilität für
 `rust_xlsx_filter` oder `extract_rows`. JSON-Ausdrücke und Filtersemantik bleiben
 erhalten; Ergebniszeilen sind jetzt `Row` statt veränderlicher Dicts. Direkte
 Consumer im Repository sind CLI, Tests und Benchmark; keine anderen Consumer
-sind hier vorhanden. Das PoC ist eine historische Referenz und wird nicht mitgebaut.
+sind hier vorhanden. Der ursprüngliche PoC ist entfernt und nur noch in der Git-Historie verfügbar.

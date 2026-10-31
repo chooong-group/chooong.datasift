@@ -376,3 +376,50 @@ PR-HEAD, keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
 konfigurierte Python-/Rust-/Artefakt-Gates einschließlich strikter Importregel
 und bestehender Negativ-/Replay-Tests erfolgreich. Abhängigkeit: Runner-Toolchain.
 Consumer-Auswirkung: andere Plattformen bleiben bis Remote-Nachweis UNVERIFIED.
+
+## Nachtrag P01 — restliche Nutzeränderungen
+
+Prüfstand 31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`,
+Basis `a847719fa05cab14215bf30217de64075f711339`, bestehender PR #1.
+Exakter Diff nach Commit: `git diff a847719...feat/datasift-package`.
+Dieser Nachtrag ersetzt ältere Aussagen über einen vorhandenen PoC im Checkout.
+
+P01 (P2, unabhängige Schließung offen): Beauftragte Nutzeränderungen übernommen:
+`.data/` wird ignoriert, `examples/filter_schmutzig.json` wird als Beispielmaske
+versioniert und der historische Ordner `rust_xlsx_filter/` entfernt. Seine
+bisherigen Python-/Rust-Dateien, Manifeste, README, Beispiel und Benchmark sind
+keine Consumer des aktuellen Package-Builds. Die Git-Historie bleibt erhalten.
+README und Contract beschreiben den aktuellen Stand, der obsolete Pre-Commit-
+Ausschluss des entfernten Ordners entfällt. Kein Runtime-Code, Filterformat,
+öffentlicher Import oder CLI-Pfad geändert; keine neue Abhängigkeit oder Version.
+
+GEPRÜFT: .gitignore, neue Beispielmaske, alle zwölf gezielt entfernten PoC-Dateien
+und ihr Ausschluss aus dem aktuellen Build, .pre-commit-config.yaml, README.md,
+CHANGELOG.md, docs/contract.md und dieses Protokoll. Aktuelle Python-/Rust-Quellen,
+pyproject.toml, Workflows, Lockfiles und direkte Consumer unverändert. Historische
+Prüfprotokolle bleiben als historische Prüfstände erhalten. Keine Excel-/NDJSON-
+Dateien und keine lokalen `.data/`-Inhalte werden versioniert oder verpackt.
+
+Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format, mypy
+(5 Dateien), pytest --cov (130 bestanden, 99,54 % Python-Coverage),
+`pre-commit validate-config`, Pydantic-Validierung aller drei Beispielmasken,
+Maturin-Wheel/sdist, Twine und `git diff --check`. Artefaktinventar bestätigt:
+neue Beispielmaske im sdist, kein PoC und keine lokalen Beispieldaten.
+
+Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokale Checks liegen vor,
+unabhängiges Review und Remote-CI UNVERIFIED.
+
+TODO P01-Review: Basis und Dateien wie oben. Reviewer prüft vollständigen Diff,
+insbesondere auf unbeabsichtigte Löschungen außerhalb des historischen PoC,
+Beispielmasken-Validität, Ignore-Regel und aktuelle Doku. Soll: aktuelles Package
+und öffentliche Pfade bleiben unverändert; keine privaten Beispieldaten im Commit
+oder Artefakt. Bestehende Contract-/Negativ-/Replay-Tests sowie README-Prüfbefehle
+wiederholen. Abnahme: keine offenen Daten-/Build-/Contract-Befunde. Abhängigkeit:
+unabhängiger Reviewer. Consumer-Auswirkung: historischer PoC entfernt, der bereits
+vorher keine zugesicherte API war; aktueller Import-/Maskencontract bleibt stabil.
+
+TODO P01-CI: gleicher Basis-/Dateiumfang; Nutzer prüft regulären CI-Lauf am finalen
+PR-HEAD. Keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
+konfigurierte Python-/Rust-/Artefakt-Gates einschließlich bestehender
+Negativ-/Replay-Tests erfolgreich. Abhängigkeit: Runner-Toolchain.
+Consumer-Auswirkung: Remote-Build bleibt bis zu diesem Nachweis UNVERIFIED.

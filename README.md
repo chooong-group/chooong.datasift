@@ -53,6 +53,8 @@ werden Blätter ohne passende Filterspalten übersprungen. Die erste Zeile mit a
 Maskenspalten wird automatisch als Kopfzeile erkannt; Titel und Kommentare davor
 benötigen keine Zeilennummer. Ausgegeben werden ausschließlich Spalten aus `where`. Mit `source` gilt dieselbe
 Zuordnung auf jedem Blatt. [examples/filter.json](examples/filter.json) zeigt dies.
+[examples/filter_schmutzig.json](examples/filter_schmutzig.json) filtert automatisch
+erkannte mehrzeilige Zellnamen mit verschachtelten Bedingungen.
 `source` ordnet Ausgabenamen tatsächlichen Excel-Spalten zu und begrenzt die
 Datenzeilen. Damit lassen sich Tabellen nebeneinander, beliebige Startpositionen,
 mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur in `where` verwendete Felder passender Zeilen werden ausgegeben. Beispiel für eine Tabelle
@@ -88,9 +90,9 @@ uv run --frozen twine check dist/*
 uv run --frozen python scripts/bench.py --rows 250000
 ```
 
-`uv.lock` und `native/Cargo.lock` fixieren die Entwicklungsabhängigkeiten. Der
-ursprüngliche, unveränderte Entwurf liegt unter `rust_xlsx_filter/`; er gehört
-nicht zum Package, Build oder unterstützten API. Die Root-Konfiguration ist verbindlich.
+`uv.lock` und `native/Cargo.lock` fixieren die Entwicklungsabhängigkeiten.
+Der ursprüngliche PoC wurde entfernt; seine Historie bleibt in Git erhalten.
+Lokale Beispieldaten unter `.data/` werden nicht versioniert.
 
 [Changelog](CHANGELOG.md) · [Prüfprotokoll](docs/verification.md) ·
 [Apache-2.0-Lizenz](LICENSE)

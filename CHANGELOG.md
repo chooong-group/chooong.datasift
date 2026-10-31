@@ -4,6 +4,9 @@
 
 ### Added
 
+- Beispielmaske `examples/filter_schmutzig.json` für mehrzeilige Zellnamen und
+  verschachtelte Bedingungen ohne feste Headerposition.
+
 - `sheet: null` durchsucht alle Arbeitsblätter und führt Treffer in Workbook-
   Reihenfolge zusammen; die atomare Ausgabe gilt über alle Blätter hinweg.
 
@@ -40,3 +43,8 @@
 - Threadsicherheit des nativen Empfängers und Erkennung unvollständiger XML-Dokumente.
 - Ungültige doppelte Build-Konfiguration und projektfremde CI-Kommandos ersetzt.
 - CLI schützt auch die Filterdatei vor Überschreiben.
+
+### Removed
+
+- Historischen PoC `rust_xlsx_filter/` entfernt; das Package liegt ausschließlich
+  unter `src/chooong/datasift` und `native`.
