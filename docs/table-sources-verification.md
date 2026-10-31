@@ -192,3 +192,76 @@ plattformübergreifender Build-/Contract-Nachweis bleibt bis dahin UNVERIFIED.
 Der erste Commitversuch scheiterte mit Exit 128 (`agent refused operation`).
 Nach Rückmeldung des Nutzers wird Commit/Push mit unveränderter SSH-Signierung
 erneut ausgeführt; der endgültige Commit wird am PR-HEAD ausgewiesen.
+
+## Nachtrag A01 — automatische Headersuche und Maskenprojektion
+
+Prüfstand 31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`,
+Basis `2b9bb9822079687ab09327b86082452772326c0b`, bestehender PR #1.
+Exakter Diff nach Commit: `git diff 2b9bb98...feat/datasift-package`.
+Dieser Nachtrag ersetzt die Header-/Ausgabeaussagen älterer Prüfstände.
+
+A01 (P1, unabhängige Schließung offen): Die bisherige feste Headerzeile machte
+Zeilenpositionen zum Maskenwissen und erklärte fremde Kommentartexte zu Spalten.
+Die vorhandene Streaming-Engine löst nun die erste Zeile mit sämtlichen
+Maskenspalten als Header auf. Sie projiziert Filtereingabe und Ausgabe auf die
+referenzierten Spalten, einschließlich `any`/`not`, auch bei `source`.
+Lösungsleiter: vorhandene Headerauflösung und Filterreferenzen wiederverwendet,
+kein zweiter Reader, keine Formatierungsheuristik und keine neue Abhängigkeit.
+
+Invarianten: Versetzte Header und Titel davor benötigen keine Zeilenangabe;
+Kommentar-/Nachbarspalten gelangen nicht in Ergebnisse. Referenzierte Spalten
+bleiben eindeutig und in physischer Reihenfolge (bei `source`: Bindungsreihenfolge).
+Nach Schemaerkennung werden Fremdspalten nicht konvertiert. Beschädigte gewählte
+Werte und strukturell beschädigtes XML bleiben Fehler; atomare Ausgabe bleibt
+auch bei späten Fehlern erhalten. Batchgröße und Replay verändern keine Werte.
+
+Expliziter Breaking Change im Greenfield-Contract: `header_row` ist entfernt;
+Masken entfernen das Feld. Unbenutzte Header/Source-Aliase erscheinen nicht mehr
+in Ergebnissen. Erkennung ist auf den ersten vollständigen Header pro Blatt
+begrenzt. Text mit Zeilenumbruch in einer Zelle bleibt ein exakter Name; über
+mehrere physische Zeilen verteilte Header werden nicht geraten. Wiederholte
+Headertexte in gewählten Spalten werden übersprungen. Für echte Daten mit exakt
+diesen Texten oder abweichende Layouts bleiben explizite `source`-Bindungen.
+
+GEPRÜFT, vollständig und geändert: `_models.py`, `native/src/filter.rs`,
+`native/src/xlsx.rs`, `tests/test_auto_headers.py`, `tests/test_all_sheets.py`,
+`tests/test_contract.py`, `tests/test_header_indexing.py`, `tests/test_engine.py`,
+`tests/test_cli.py`, `tests/test_sources.py`, README.md, CHANGELOG.md, docs/contract.md
+und dieses Protokoll. GEPRÜFT, direkte Consumer unverändert: `_reader.py`,
+`__main__.py`, `native/src/lib.rs`, `native/src/value.rs`, `scripts/bench.py`.
+GEPRÜFT, unverändert: Build-Konfiguration, Lockfiles, Workflows, öffentliche Exporte
+und versionierte Beispiele. Keine Cross-Repo-Consumer geändert. Benutzerdateien
+bleiben unversioniert und werden nicht als Fixtures oder Artefakte hochgeladen.
+Die lokale Maske `examples/filter_schmutzig.json` wurde um `header_row` bereinigt;
+die lokale Ausgabe wurde mit dem beauftragten CLI-Pfad neu erstellt.
+
+Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format, mypy
+(5 Dateien), cargo fmt, Clippy `--locked --offline --all-targets -- -D warnings`,
+cargo test (8 bestanden), pytest --cov (120 bestanden, 99,54 % Python-Coverage),
+Maturin-Wheel und sdist, Twine, `git diff --check`. Isolierte Wheel-Installation
+unter Python 3.13/3.14: jeweils 120 Tests bestanden. Der sdist wird gezielt aus
+versionierten Quellen plus neuem synthetischem Test gebaut; keine lokalen
+Benutzerdateien enthalten. Regressionen prüfen Header ab Zeile 7, versetzte
+Spalten, Zell-Zeilenumbrüche, Titel/Zahlen/Teilheader davor, Kommentare zwischen
+Header und Daten, wiederholte Header, unbenutzte Kollisionen und beschädigte
+Fremdwerte nach Headererkennung, Batchgrößen 1/2/1024 und Replay.
+Realer CLI-Pfad: Exit 0, weiterhin 2 Treffer mit genau 3 Maskenspalten, Werte
+identisch zur Projektion der vorherigen Ausgabe; Eingabe-Hash unverändert.
+
+Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokale Umsetzung nachgewiesen,
+unabhängiges Review und Remote-CI UNVERIFIED.
+
+TODO A01-Review: Basis wie oben, vollständigen Diff der aufgelisteten Dateien
+unabhängig lesen. Soll: automatische eindeutige Schemaauflösung ohne Ausgabe
+fremder Spalten. `tests/test_auto_headers.py`, Header-/Source-/Atomicity-Tests und
+README-Prüfbefehle wiederholen; Negativfälle fehlende/mehrdeutige Header,
+`header_row`-Ablehnung und beschädigte gewählte Werte prüfen. Abnahme: kein
+offener Datenintegritätsbefund, identische Ergebnisse bei Replay/Batchvarianten.
+Abhängigkeit: unabhängiger Reviewer. Consumer-Auswirkung: dokumentierter neuer
+Header-/Projektionscontract; keine Consumer-Integration zugesagt.
+
+TODO A01-CI: gleicher Basis-/Dateiumfang. Regulären CI-Lauf am endgültigen PR-HEAD
+durch Nutzer prüfen; keine manuelle Auslösung oder Polling durch den Agenten.
+Abnahme: konfigurierte Lint-/Typ-/Test-/Build-Gates inklusive Negativ-/Replay-Tests
+erfolgreich. Abhängigkeit: Runner-Toolchain. Consumer-Auswirkung: unterstützte
+Plattformen bleiben bis zum Remote-Nachweis UNVERIFIED.

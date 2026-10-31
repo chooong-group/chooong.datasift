@@ -15,7 +15,9 @@ from test_contract import _rewrite
 from test_engine import _cell, make_workbook
 
 from chooong.datasift import (
+    AllOf,
     ColumnBinding,
+    EmptyCondition,
     FilterMask,
     Operator,
     ScalarCondition,
@@ -105,7 +107,15 @@ def _book(path: Path, *sheets: _Sheet) -> None:
 
 
 def _mask(sheet: str | None = None) -> FilterMask:
-    return FilterMask(sheet=sheet, where=ScalarCondition(column="Land", op=Operator.EQ, value="DE"))
+    return FilterMask(
+        sheet=sheet,
+        where=AllOf(
+            conditions=(
+                ScalarCondition(column="Land", op=Operator.EQ, value="DE"),
+                EmptyCondition(column="Value", op=Operator.NOT_EMPTY),
+            )
+        ),
+    )
 
 
 @pytest.mark.parametrize("batch_size", [1, 2, 1024])
@@ -127,8 +137,8 @@ def test_all_sheets_preserve_order_and_resolve_headers_per_sheet(
     original = path.read_bytes()
     expected = [
         {"Land": "DE", "Value": 101},
-        {"Value": 202, "Land": "DE", "Note": "second"},
-        {"Value": 203, "Land": "DE", "Note": "repeat"},
+        {"Value": 202, "Land": "DE"},
+        {"Value": 203, "Land": "DE"},
     ]
     assert [
         dict(row) for row in iter_matching_rows(path, _mask(), batch_size=batch_size)
@@ -168,9 +178,7 @@ def test_source_scope_applies_to_every_sheet(tmp_path: Path) -> None:
         ),
         where=ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
     )
-    assert [dict(row) for row in iter_matching_rows(path, mask)] == [
-        {"Country": "DE", "Amount": 202}
-    ]
+    assert [dict(row) for row in iter_matching_rows(path, mask)] == [{"Country": "DE"}]
 
 
 def test_no_matching_schema_is_an_empty_result(tmp_path: Path) -> None:

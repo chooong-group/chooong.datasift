@@ -209,7 +209,7 @@ def make_workbook(path: Path, *, malformed: bool = False, header_row: int = 1) -
             + "</row>"
         )
         if malformed:
-            rows.append(f'<row r="{base + 9}">' + _cell("A", base + 9, 99_999, "shared") + "</row>")
+            rows.append(f'<row r="{base + 9}">' + _cell("B", base + 9, 99_999, "shared") + "</row>")
         z.writestr(
             "xl/worksheets/data42.xml",
             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
@@ -320,7 +320,6 @@ def test_header_row_offset(tmp_path: Path) -> None:
     make_workbook(xlsx, header_row=2)
     mask = {
         "sheet": "Daten",
-        "header_row": 2,
         "where": {"column": "Status", "op": "eq", "value": "Aktiv"},
     }
     assert len(list(iter_matching_rows(xlsx, mask))) == 6
@@ -353,7 +352,7 @@ def test_sparse_empty_and_null_comparisons(xlsx: Path) -> None:
         },
     }
     assert [dict(row) for row in iter_matching_rows(xlsx, mask)] == [
-        {"Kunde": "ABC Leer", "Land": "DE", "Umsatz": None, "Status": "Aktiv"}
+        {"Kunde": "ABC Leer", "Umsatz": None}
     ]
     mask["where"]["all"][1] = {"column": "Umsatz", "op": "eq", "value": None}
     assert len(list(iter_matching_rows(xlsx, mask))) == 1

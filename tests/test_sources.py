@@ -12,7 +12,9 @@ from test_contract import _rewrite
 from test_engine import _cell, make_workbook
 
 from chooong.datasift import (
+    AllOf,
     ColumnBinding,
+    EmptyCondition,
     FilterMask,
     Operator,
     ScalarCondition,
@@ -103,8 +105,8 @@ def test_offset_multiline_duplicate_headers_comments_and_neighbor_table(
     _layout_workbook(path)
     original = path.read_bytes()
     expected = [
-        {"Kunde": "ABC One", "Umsatz": 120, "UmsatzVorjahr": 80},
-        {"Kunde": "ABC Two", "Umsatz": 200, "UmsatzVorjahr": 180},
+        {"Kunde": "ABC One", "Umsatz": 120},
+        {"Kunde": "ABC Two", "Umsatz": 200},
     ]
     assert [
         dict(row) for row in iter_matching_rows(path, _source_mask(), batch_size=batch_size)
@@ -148,7 +150,12 @@ def test_end_of_sheet_and_multiple_aliases_for_same_column(tmp_path: Path) -> No
             ),
             data_start_row=10,
         ),
-        where=TextCondition(column="Kunde", op=Operator.STARTS_WITH, value="ABC"),
+        where=AllOf(
+            conditions=(
+                TextCondition(column="Kunde", op=Operator.STARTS_WITH, value="ABC"),
+                EmptyCondition(column="Copy", op=Operator.NOT_EMPTY),
+            )
+        ),
     )
     assert [dict(row) for row in iter_matching_rows(path, mask)] == [
         {"Kunde": "ABC Two", "Copy": "ABC Two"},
@@ -258,6 +265,6 @@ def test_layout_example_cli_output(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert [json.loads(line) for line in output.read_text().splitlines()] == [
-        {"Kunde": "ABC One", "Umsatz": 120, "UmsatzVorjahr": 80},
-        {"Kunde": "ABC Two", "Umsatz": 200, "UmsatzVorjahr": 180},
+        {"Kunde": "ABC One", "Umsatz": 120},
+        {"Kunde": "ABC Two", "Umsatz": 200},
     ]

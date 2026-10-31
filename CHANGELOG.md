@@ -19,6 +19,10 @@
 
 ### Changed
 
+- **Breaking Change:** Automatische Headersuche anhand aller Maskenspalten;
+  `header_row` entfällt. Ausgabe und Zellkonvertierung sind auf in `where`
+  referenzierte Spalten beschränkt, auch bei expliziten `source`-Bindungen.
+
 - Greenfield-Übernahme des PoC: Importpfad `chooong.datasift`, Ergebnisse als `Row`.
   `rust_xlsx_filter` und `extract_rows` sind keine unterstützten APIs.
 - Metadaten verwenden die Apache-2.0-Lizenz des Repositorys.

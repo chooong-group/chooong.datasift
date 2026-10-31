@@ -43,8 +43,7 @@ def test_cli_writes_real_rows(
     output = destination.read_text() if file_output else capsys.readouterr().out
     rows = [json.loads(line) for line in output.splitlines()]
     assert len(rows) == 7
-    assert rows[0]["Kunde"] == "ABC GmbH"
-    assert rows[-1]["Umsatz"] is True
+    assert all(row == {"Land": "DE"} for row in rows)
     assert workbook.read_bytes() == original
 
 

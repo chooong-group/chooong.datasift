@@ -12,8 +12,6 @@ use crate::value::CellValue;
 pub struct Config {
     #[serde(deserialize_with = "Option::<String>::deserialize")]
     pub sheet: Option<String>,
-    #[serde(default = "default_header_row")]
-    pub header_row: u32,
     #[serde(rename = "where")]
     pub predicate: Json,
     pub source: Option<TableSource>,
@@ -99,10 +97,6 @@ pub fn column_index(column: &str) -> Result<usize, String> {
     Ok(number - 1)
 }
 
-fn default_header_row() -> u32 {
-    1
-}
-
 impl Config {
     pub fn parse(input: &str) -> Result<Self, String> {
         let mut spec: Config = serde_json::from_str(input).map_err(|e| format!("JSON: {e}"))?;
@@ -113,29 +107,21 @@ impl Config {
         {
             return Err("'sheet' darf nicht leer sein".into());
         }
-        if !(1..=1_048_576).contains(&spec.header_row) {
-            return Err("'header_row' muss zwischen 1 und 1048576 liegen".into());
-        }
         if let Some(source) = &spec.source {
-            if spec.header_row != 1 {
-                return Err("header_row ist nur ohne source zulässig".into());
-            }
             source.validate()?;
         }
-        if spec.sheet.is_none() {
-            spec.required_columns = referenced_columns(&spec.predicate);
-            let lookup = if let Some(source) = &spec.source {
-                source.headers()?.1
-            } else {
-                spec.required_columns
-                    .iter()
-                    .enumerate()
-                    .map(|(index, name)| (name.clone(), index))
-                    .collect()
-            };
-            // Reject invalid filters even when every worksheet is empty/incompatible.
-            Expr::compile(&spec.predicate, &lookup)?;
-        }
+        spec.required_columns = referenced_columns(&spec.predicate);
+        let lookup = if let Some(source) = &spec.source {
+            source.headers()?.1
+        } else {
+            spec.required_columns
+                .iter()
+                .enumerate()
+                .map(|(index, name)| (name.clone(), index))
+                .collect()
+        };
+        // Reject invalid filters even when every worksheet is empty/incompatible.
+        Expr::compile(&spec.predicate, &lookup)?;
         Ok(spec)
     }
 }
@@ -364,26 +350,20 @@ impl Expr {
 
 pub type HeaderLookup = (Vec<(String, usize)>, HashMap<String, usize>);
 
-pub fn headers_from_row(row: &[CellValue]) -> Result<HeaderLookup, String> {
+pub fn headers_from_row(
+    row: &[CellValue],
+    required: &HashSet<String>,
+) -> Result<HeaderLookup, String> {
     let mut list = Vec::new();
     let mut lookup = HashMap::new();
     let mut counts = HashMap::new();
     for (position, value) in row.iter().enumerate() {
         let name = match value {
             CellValue::Text(name) if !name.trim().is_empty() => name,
-            CellValue::Empty | CellValue::Text(_) => continue,
-            _ => {
-                return Err(format!(
-                    "Spaltenname in Excel-Spalte {} ist kein Text",
-                    position + 1
-                ))
-            }
+            _ => continue,
         };
         *counts.entry(name.clone()).or_insert(0_usize) += 1;
         list.push((name.clone(), position));
-    }
-    if list.is_empty() {
-        return Err("Keine benannten Spalten in der Kopfzeile".into());
     }
     let mut occurrences = HashMap::new();
     for (name, position) in &mut list {
@@ -392,12 +372,16 @@ pub fn headers_from_row(row: &[CellValue]) -> Result<HeaderLookup, String> {
             *occurrence += 1;
             *name = format!("{name}_{occurrence}");
         }
+        if !required.contains(name) {
+            continue;
+        }
         if lookup.insert(name.clone(), *position).is_some() {
             return Err(
                 "Spaltennamen sind nach Indizierung nicht eindeutig; source.columns mit eindeutigen Namen verwenden".into(),
             );
         }
     }
+    list.retain(|(name, _)| required.contains(name));
     Ok((list, lookup))
 }
 
@@ -463,7 +447,8 @@ mod tests {
     fn header_indices_are_one_based_and_ignore_empty_columns() {
         let mut row = vec![CellValue::Empty];
         row.extend((0..12).map(|_| CellValue::Text("Umsatz".into())));
-        let (names, lookup) = headers_from_row(&row).unwrap();
+        let (names, lookup) =
+            headers_from_row(&row, &(1..=12).map(|i| format!("Umsatz_{i}")).collect()).unwrap();
         assert_eq!(names[0], ("Umsatz_1".into(), 1));
         assert_eq!(names[11], ("Umsatz_12".into(), 12));
         assert_eq!(lookup["Umsatz_10"], 10);

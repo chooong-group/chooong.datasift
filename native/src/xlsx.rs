@@ -414,28 +414,27 @@ struct Sink<'a> {
     batch_size: usize,
     headers: Option<Vec<(String, usize)>>,
     selected_positions: Option<HashSet<usize>>,
-    skipped: bool,
+    header_values: Vec<(usize, CellValue)>,
     predicate: Option<Expr>,
     buffer: Vec<Vec<CellValue>>,
 }
 
 impl Sink<'_> {
     fn prepare_headers(&mut self, (names, lookup): HeaderLookup) -> Result<(), String> {
-        if self.config.sheet.is_none()
-            && self.config.source.is_none()
-            && self
-                .config
-                .required_columns
-                .iter()
-                .any(|name| !lookup.contains_key(name))
+        if self
+            .config
+            .required_columns
+            .iter()
+            .any(|name| !lookup.contains_key(name))
         {
-            self.skipped = true;
             return Ok(());
         }
         let predicate = Expr::compile(&self.config.predicate, &lookup)?;
-        if self.config.source.is_some() {
-            self.selected_positions = Some(names.iter().map(|(_, index)| *index).collect());
-        }
+        let names: Vec<_> = names
+            .into_iter()
+            .filter(|(name, _)| self.config.required_columns.contains(name))
+            .collect();
+        self.selected_positions = Some(names.iter().map(|(_, index)| *index).collect());
         self.sender
             .send(Message::Ready(names.clone()))
             .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
@@ -445,12 +444,10 @@ impl Sink<'_> {
     }
 
     fn selects_cell(&self, row: u32, column: usize) -> bool {
-        !self.skipped
-            && self
-                .config
-                .source
-                .as_ref()
-                .is_none_or(|source| source.contains_row(row))
+        self.config
+            .source
+            .as_ref()
+            .is_none_or(|source| source.contains_row(row))
             && self
                 .selected_positions
                 .as_ref()
@@ -458,46 +455,31 @@ impl Sink<'_> {
     }
 
     fn on_row(&mut self, number: u32, row: Vec<CellValue>) -> Result<(), String> {
-        if self.skipped || self.cancelled.load(Ordering::Relaxed) {
+        if self.cancelled.load(Ordering::Relaxed) {
             return Ok(());
         }
         if let Some(source) = &self.config.source {
             if !source.contains_row(number) {
                 return Ok(());
             }
-        } else {
-            if number < self.config.header_row {
-                return Ok(());
+        } else if self.headers.is_none() {
+            let headers = headers_from_row(&row, &self.config.required_columns)?;
+            self.prepare_headers(headers)?;
+            if let Some(names) = &self.headers {
+                self.header_values = names
+                    .iter()
+                    .map(|(_, index)| (*index, row[*index].clone()))
+                    .collect();
             }
-            if number == self.config.header_row {
-                if self.headers.is_some() {
-                    return Err("Doppelte Kopfzeile".into());
-                }
-                if self.config.sheet.is_none() {
-                    // Search mode only considers textual header cells; summary numbers
-                    // are not column labels. Corrupt ZIP/XML is still rejected.
-                    let text_headers: Vec<CellValue> = row
-                        .iter()
-                        .map(|cell| match cell {
-                            CellValue::Text(_) => cell.clone(),
-                            _ => CellValue::Empty,
-                        })
-                        .collect();
-                    if text_headers.iter().all(|cell| match cell {
-                        CellValue::Text(name) => name.trim().is_empty(),
-                        _ => true,
-                    }) {
-                        self.skipped = true;
-                        return Ok(());
-                    }
-                    return self.prepare_headers(headers_from_row(&text_headers)?);
-                }
-                return self.prepare_headers(headers_from_row(&row)?);
-            }
-            if self.config.sheet.is_none() && self.headers.is_none() {
-                self.skipped = true;
-                return Ok(());
-            }
+            return Ok(());
+        } else if self
+            .header_values
+            .iter()
+            .all(|(index, value)| row.get(*index) == Some(value))
+        {
+            // ponytail: identical selected labels are repeated headers. Indistinguishable
+            // real values need explicit source bounds instead of automatic discovery.
+            return Ok(());
         }
         let predicate = self
             .predicate
@@ -552,7 +534,7 @@ pub fn scan(
             batch_size,
             headers: None,
             selected_positions: None,
-            skipped: false,
+            header_values: Vec::new(),
             predicate: None,
             buffer: Vec::with_capacity(batch_size),
         };
@@ -716,10 +698,10 @@ fn scan_worksheet(
                     return Err("Tabellen-XML ist unvollständig".into());
                 }
                 if sink.headers.is_none() && sink.config.sheet.is_some() {
-                    return Err(format!(
-                        "Excel-Kopfzeile {} ist nicht vorhanden",
-                        sink.config.header_row
-                    ));
+                    return Err(
+                        "Keine Kopfzeile mit allen Maskenspalten gefunden (Unbekannte Spalte)"
+                            .into(),
+                    );
                 }
                 sink.flush()?;
                 return Ok(());

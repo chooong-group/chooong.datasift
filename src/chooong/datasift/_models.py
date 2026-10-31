@@ -127,15 +127,8 @@ class TableSource(_Model):
 
 class FilterMask(_Model):
     sheet: Annotated[StrictStr, Field(min_length=1, pattern=r"\S")] | None
-    header_row: Annotated[StrictInt, Field(ge=1, le=1048576)] = 1
     where: Expression
     source: TableSource | None = None
-
-    @model_validator(mode="after")
-    def validate_source(self) -> Self:
-        if self.source is not None and self.header_row != 1:
-            raise ValueError("header_row ist nur ohne source zulässig")
-        return self
 
 
 @dataclass(frozen=True, slots=True)

@@ -39,10 +39,9 @@ def _workbook(
     _rewrite(path, "xl/worksheets/data42.xml", before, after)
 
 
-def _mask(header_row: int = 1) -> FilterMask:
+def _mask() -> FilterMask:
     return FilterMask(
         sheet="Daten",
-        header_row=header_row,
         where=AllOf(
             conditions=(
                 NumericCondition(column="Umsatz_1", op=Operator.GTE, value=1000),
@@ -63,14 +62,14 @@ def test_duplicate_headers_are_indexed_for_filters_and_output(
     _workbook(path, header_row=header_row)
     original = path.read_bytes()
     expected = [
-        {"Kunde": "ABC GmbH", "Land": "DE", "Umsatz_1": 5000, "Umsatz_2": "Aktiv"},
-        {"Kunde": "XYZ AG", "Land": "AT", "Umsatz_1": 8000, "Umsatz_2": "Aktiv"},
-        {"Kunde": "ABC München", "Land": "DE", "Umsatz_1": 3200, "Umsatz_2": "Aktiv"},
+        {"Umsatz_1": 5000, "Umsatz_2": "Aktiv"},
+        {"Umsatz_1": 8000, "Umsatz_2": "Aktiv"},
+        {"Umsatz_1": 3200, "Umsatz_2": "Aktiv"},
     ]
     assert [
-        dict(row) for row in iter_matching_rows(path, _mask(header_row), batch_size=batch_size)
+        dict(row) for row in iter_matching_rows(path, _mask(), batch_size=batch_size)
     ] == expected
-    with iter_matching_batches(path, _mask(header_row), batch_size=batch_size) as batches:
+    with iter_matching_batches(path, _mask(), batch_size=batch_size) as batches:
         assert [dict(row) for batch in batches for row in batch] == expected
     assert path.read_bytes() == original
 
@@ -89,8 +88,8 @@ def test_three_occurrences_retain_physical_order_and_values(tmp_path: Path) -> N
         ),
     )
     assert [dict(row) for row in iter_matching_rows(path, mask)] == [
-        {"Kunde": "ABC GmbH", "Umsatz_1": "DE", "Umsatz_2": 5000, "Umsatz_3": "Aktiv"},
-        {"Kunde": "ABC München", "Umsatz_1": "DE", "Umsatz_2": 3200, "Umsatz_3": "Aktiv"},
+        {"Umsatz_1": "DE", "Umsatz_2": 5000, "Umsatz_3": "Aktiv"},
+        {"Umsatz_1": "DE", "Umsatz_2": 3200, "Umsatz_3": "Aktiv"},
     ]
 
 
@@ -111,10 +110,10 @@ def test_index_collision_fails_before_iterator_is_returned(
         iter_matching_batches(path, _mask())
 
 
-def test_nontext_header_is_still_invalid(tmp_path: Path) -> None:
+def test_missing_text_header_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "numeric-header.xlsx"
     _workbook(path, headers=("Kunde", "Land", 123, "Status"))
-    with pytest.raises(ValueError, match="kein Text"):
+    with pytest.raises(ValueError, match="Keine Kopfzeile"):
         iter_matching_batches(path, _mask())
 
 

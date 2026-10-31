@@ -11,7 +11,7 @@ Eingabemodell; `FilterMask.model_json_schema(by_alias=True)` erzeugt das Schema.
 Unbekannte Felder, Operatoren und falsche Werttypen werden abgewiesen.
 
 ```json
-{"sheet":"Daten","header_row":1,"where":{"column":"Land","op":"eq","value":"DE"}}
+{"sheet":"Daten","where":{"column":"Land","op":"eq","value":"DE"}}
 ```
 
 `sheet` ist ein erforderliches Feld: ein nichtleerer Blattname wählt genau dieses
@@ -21,18 +21,44 @@ Ein fehlendes Feld, leere Strings und andere Typen sind kein Ersatz für `null`.
 Die Treffer werden ohne Deduplizierung und ohne zusätzliche Metadatenfelder
 zusammengeführt. Gleiche Datensätze auf zwei Blättern bleiben zwei Treffer.
 
-Im Modus `sheet: null` wird jedes Blatt unabhängig ausgewertet. Ohne `source`
-gilt `header_row` auf jedem Blatt: Leere Blätter, fehlende Kopfzeilen oder fehlende
-Filterspalten liefern keine Treffer; numerische Kopfzellen sind keine Spaltennamen.
-Die übrigen Text-Header werden einschließlich ihrer Indizes pro Blatt aufgelöst.
-Ist kein Blattschema passend, ist das Ergebnis leer. Mit `source` gelten dieselben
-expliziten Spalten-/Zeilengrenzen auf jedem Blatt; es wird kein Header interpretiert.
-Fehlerhafte Filter (einschließlich Rust-Regex) werden auch bei leeren Workbooks vor
-Iterator-Rückgabe abgewiesen. ZIP-/XML-Fehler, mehrdeutige Header und ungültige Werte
-in ausgewerteten Bereichen bleiben Fehler. Die Schemaauflösung weiterer Blätter
-kann erst während der Iteration erfolgen; entsprechende Fehler sind `RuntimeError`.
-Batches überschreiten keine Blattgrenzen, und `--output` bleibt über alle Blätter
-atomar. Shared Strings werden einmal für das Workbook geladen.
+Ohne `source` sucht die Engine auf jedem Blatt von oben nach unten die erste
+Zeile, die alle in `where` referenzierten Spalten enthält. Nur Textzellen gelten
+als Header; Titel, Zahlen und unvollständige Zeilen davor werden übersprungen.
+Zeilenumbrüche innerhalb einer Headerzelle gehören zum exakten Namen. Doppelte
+Header erhalten die unten beschriebenen Indizes. Kommentare und Nachbartabellen
+werden nicht zu Ausgabespalten. Nach der Erkennung werden ausschließlich die
+Maskenspalten konvertiert und ausgegeben, in physischer Spaltenreihenfolge.
+Wiederholte Header mit denselben Werten in den gewählten Spalten werden übersprungen.
+Echte Datensätze mit exakt diesen Headertexten sind dabei nicht unterscheidbar;
+dafür explizite `source`-Bindungen und Datenzeilen verwenden.
+
+Ein gewähltes Blatt ohne vollständigen Header ist ein `ValueError`; bei `sheet: null`
+werden solche Blätter übersprungen. Ein Workbook ohne passendes Schema liefert
+in diesem Modus keine Treffer. Alle Filterspalten werden auch bei `any` und `not`
+benötigt: fehlende Spalten werden nicht als leere Werte interpretiert.
+Mit `source` gelten die expliziten Bindungen auf jedem Blatt; auch hier werden nur
+in `where` verwendete Namen ausgegeben, in Bindungsreihenfolge.
+
+Die automatische Zuordnung verwendet den ersten vollständigen Header pro Blatt,
+keine Formatierungs-/Inhaltsheuristik. Über mehrere physische Zeilen verteilte
+Header werden nicht zusammengefügt; dafür bleiben explizite Bindungen verfügbar.
+Zeilen unterhalb des Headers werden anhand von `where` ausgewertet: Kommentare
+mit denselben passenden Werten sind ohne zusätzliche fachliche Regel nicht von
+Datensätzen unterscheidbar. Für feste Bereiche/Kommentare bleibt `source` verfügbar.
+
+Fehlerhafte Filter einschließlich Rust-Regex werden vor Iterator-Rückgabe abgewiesen.
+ZIP-/XML-Fehler, Mehrdeutigkeiten ausgewählter Header und ungültige ausgewählte
+Zellwerte bleiben Fehler. Bei der Suche werden vor Headererkennung alle Zellwerte
+benötigt; beschädigte Zellwerte in diesen Zeilen werden nicht kaschiert.
+Die Schemaauflösung weiterer Blätter erfolgt während der Iteration; entsprechende
+Fehler sind `RuntimeError`. Batches überschreiten keine Blattgrenzen, und `--output`
+bleibt über alle Blätter atomar. Shared Strings werden einmal geladen.
+
+**Breaking Change im Greenfield-Contract v1:** `header_row` ist entfernt und wird
+als unbekanntes Feld abgewiesen. Vorhandene Masken entfernen diesen Schlüssel.
+Die Ausgabe enthält nur noch die in `where` referenzierten Spalten; wer weitere
+Werte benötigt, muss diese in die fachliche Maske aufnehmen. Keine Versionsanhebung
+oder Veröffentlichung in diesem Auftrag.
 
 `source` trennt die Quellauswahl von der
 Filterbedingung. Beispiel: Eine Tabelle mit ein-/mehrzeiligen Headern oberhalb von
@@ -57,7 +83,7 @@ Zeile 7 liegt in C–E; eine zweite Tabelle kann daneben stehen:
 
 - `ColumnBinding(name, column)` bindet einen eindeutigen Ausgabe-/Filternamen an
   eine absolute Excel-Spalte A..XFD (Großbuchstaben). Mehrere Namen dürfen bewusst
-  dieselbe physische Spalte referenzieren. Ohne Bindung wird kein Feld extrahiert.
+  dieselbe physische Spalte referenzieren. Nur in `where` verwendete Bindungen werden extrahiert.
 - `TableSource.columns` ist eine nichtleere Liste mit höchstens 16384 Bindungen.
   Die Listenreihenfolge bestimmt die Ausgabereihenfolge. Tatsächliche Headertexte
   werden in diesem Modus nicht als Schema interpretiert: gleiche Überschriften,
@@ -76,24 +102,20 @@ Zeile 7 liegt in C–E; eine zweite Tabelle kann daneben stehen:
   ZIP-/XML-Struktur, Zellkoordinaten und Ressourcenlimits werden weiterhin geprüft,
   auch hinter `data_end_row`. Ein beschädigtes Gesamt-XML bleibt ein Fehler.
 
-Ohne `source` gilt der einfache Header-Modus: `header_row` (Standard 1) bezeichnet
-exakt eine Kopfzeile. Benannte Spalten werden ausgegeben, leere Überschriften und
-Zusatzdaten ohne Überschrift nicht. Wiederholt sich ein exakter Headername,
+Ohne `source` gilt die automatische Headersuche. Nur referenzierte Spalten
+werden ausgegeben; leere oder unbenutzte Überschriften nicht. Wiederholt sich ein exakter Headername,
 erhalten **alle** seine Vorkommen ab 1 einen Index von links nach rechts:
 `Umsatz`, `Umsatz` werden `Umsatz_1`, `Umsatz_2`. Bei drei Vorkommen kommt
 `Umsatz_3` hinzu. Eindeutige Header bleiben unverändert. Die indizierten Namen
 gelten gleichermaßen für Filter und Ausgabe; der mehrdeutige Name `Umsatz`
 ist dann kein gültiger Filtername. Leere Spalten verändern die Nummerierung nicht.
-Eine Kollision mit einer schon vorhandenen Überschrift (etwa `Umsatz_1` neben
+Eine Kollision eines ausgewählten Namens mit einer schon vorhandenen Überschrift (etwa `Umsatz_1` neben
 zweimal `Umsatz`) wird vor Treffern des jeweiligen Blatts abgewiesen; für diesen Fall lassen
-sich mit `source.columns` explizit eindeutige Namen vergeben. Bei expliziter Blattauswahl bleiben nichttextuelle
-Überschriften ein Fehler. Namen werden weder getrimmt noch in ihrer
+sich mit `source.columns` explizit eindeutige Namen vergeben. Nichttextuelle Zellen sind keine Header. Namen werden weder getrimmt noch in ihrer
 Groß-/Kleinschreibung geändert. Explizite `source.columns.name` sind bereits
 gewählte Aliase und müssen weiterhin eindeutig sein.
-`header_row` darf mit `source` nicht auf einen anderen Wert als seinen ungenutzten
-Standard 1 gesetzt werden. Unbekannte Aliase bei einem gewählten Blatt bzw. bei
-expliziten `source`-Bindungen werden abgewiesen. Die oben beschriebene Suche über
-alle Blätter ohne `source` überspringt dagegen unpassende Blattschemas.
+Unbekannte Aliase in `source` werden abgewiesen. Bei automatischer Suche muss
+eine Kopfzeile mit sämtlichen ausgewählten Namen gefunden werden.
 
 **Contract-Korrektur:** Die zuvor lokal eingeführten `__column_*`-Zusatzfelder
 entfallen. Die Maske bestimmt den Extraktionsumfang. Bestehende einfache Masken

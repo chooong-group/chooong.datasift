@@ -52,9 +52,9 @@ def test_typed_models_roundtrip_and_immutable_rows(tmp_path: Path) -> None:
     with iter_matching_batches(path, mask, batch_size=2) as batches:
         rows = [row for batch in batches for row in batch]
     assert len(rows) == 6
-    assert rows[0]["Kunde"] == "ABC GmbH"
-    assert tuple(rows[0]) == ("Kunde", "Land", "Umsatz", "Status")
-    assert len(rows[0]) == 4
+    assert rows[0]["Land"] == "DE"
+    assert tuple(rows[0]) == ("Kunde", "Land", "Status")
+    assert len(rows[0]) == 3
     assert not list(batches)
     with pytest.raises(TypeError):
         rows[0].cells["Kunde"] = "changed"
@@ -150,9 +150,9 @@ def test_unbound_data_is_not_extracted(tmp_path: Path) -> None:
     )
     rows = list(iter_matching_rows(path, mask))
     assert len(rows) == 7
-    assert set(rows[0]) == {"Kunde", "Land", "Umsatz"}
+    assert set(rows[0]) == {"Land"}
     assert "Status" not in rows[0]
-    assert rows[0]["Kunde"] == "ABC GmbH"
+    assert rows[0]["Land"] == "DE"
 
 
 def test_cli_protects_mask_and_redacts_invalid_values(tmp_path: Path) -> None:
@@ -234,7 +234,10 @@ def test_operator_wire_contract_against_native_engine(
     condition: dict[str, object] = {"column": column, "op": op}
     if op not in {Operator.IS_EMPTY, Operator.NOT_EMPTY}:
         condition["value"] = value
-    rows = iter_matching_rows(path, {"sheet": "Daten", "where": condition})
+    rows = iter_matching_rows(
+        path,
+        {"sheet": "Daten", "where": {"all": [condition, {"column": "Kunde", "op": "not_empty"}]}},
+    )
     assert [row["Kunde"] for row in rows] == expected
 
 
@@ -296,7 +299,6 @@ def test_sparse_unbound_columns_are_ignored_with_replay(tmp_path: Path, batch_si
     assert actual[-1] == {
         "Kunde": "ABC Extra",
         "Land": "DE",
-        "Umsatz": 5000,
         "Status": "Aktiv",
     }
     assert "__column_M" not in actual[0]
@@ -317,8 +319,7 @@ def test_unbound_cells_do_not_overwrite_named_columns(tmp_path: Path) -> None:
         sheet="Daten", where=ScalarCondition(column="Land", op=Operator.EQ, value="DE")
     )
     rows = list(iter_matching_rows(path, mask))
-    assert rows[0]["__column_M"] == "ABC GmbH"
-    assert rows[0]["__column_M_"] == "Aktiv"
+    assert dict(rows[0]) == {"Land": "DE"}
     assert "__column_M__" not in rows[0]
 
 
@@ -362,6 +363,6 @@ def test_cli_extracts_only_bound_fields_in_ndjson(tmp_path: Path) -> None:
     assert not result.stderr
     rows = [json.loads(line) for line in destination.read_text().splitlines()]
     assert len(rows) == 6
-    assert all(set(row) == {"Kunde", "Land", "Umsatz", "Status"} for row in rows)
+    assert all(set(row) == {"Kunde", "Land", "Status"} for row in rows)
     assert path.read_bytes() == original
     assert not list(tmp_path.glob(".result.ndjson.*.tmp"))

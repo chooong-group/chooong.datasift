@@ -18,15 +18,11 @@ uv pip install .
 
 ```python
 from chooong.datasift import (
-    ColumnBinding, FilterMask, Operator, ScalarCondition, TableSource, iter_matching_batches,
+    FilterMask, Operator, ScalarCondition, iter_matching_batches,
 )
 
 mask = FilterMask(
-    sheet="Daten",
-    source=TableSource(
-        columns=(ColumnBinding(name="Land", column="B"),),
-        data_start_row=2,
-    ),
+    sheet=None,
     where=ScalarCondition(column="Land", op=Operator.EQ, value="DE"),
 )
 with iter_matching_batches("daten.xlsx", mask, batch_size=1024) as batches:
@@ -53,14 +49,15 @@ als `FilterMask`, Mapping, JSON-Text oder Dateipfad übergeben werden. Ergebnisz
 sind unveränderliche `Row`-Mappings mit dynamischen Excel-Spaltennamen.
 `sheet: null` durchsucht alle Arbeitsblätter in Workbook-Reihenfolge und führt
 Treffer zusammen; ein Blattname wählt weiterhin genau ein Blatt. Ohne `source`
-werden Blätter ohne passende Filterspalten übersprungen. Mit `source` gilt dieselbe
+werden Blätter ohne passende Filterspalten übersprungen. Die erste Zeile mit allen
+Maskenspalten wird automatisch als Kopfzeile erkannt; Titel und Kommentare davor
+benötigen keine Zeilennummer. Ausgegeben werden ausschließlich Spalten aus `where`. Mit `source` gilt dieselbe
 Zuordnung auf jedem Blatt. [examples/filter.json](examples/filter.json) zeigt dies.
 `source` ordnet Ausgabenamen tatsächlichen Excel-Spalten zu und begrenzt die
 Datenzeilen. Damit lassen sich Tabellen nebeneinander, beliebige Startpositionen,
-mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur die
-zugeordneten Felder passender Zeilen werden ausgegeben. Beispiel für eine Tabelle
+mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur in `where` verwendete Felder passender Zeilen werden ausgegeben. Beispiel für eine Tabelle
 ab C7: [examples/layout-filter.json](examples/layout-filter.json). Ohne `source`
-bleibt die einfache Auswahl über eine einzelne `header_row` möglich.
+erfolgt die Zuordnung automatisch anhand der Spaltennamen. `header_row` entfällt.
 Wiederholte Header heißen dabei von links nach rechts etwa `Umsatz_1` und
 `Umsatz_2`; diese Namen werden zum Filtern und in der Ausgabe verwendet.
 
