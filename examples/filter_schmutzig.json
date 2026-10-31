@@ -1,0 +1,33 @@
+{
+  "sheet": null,
+  "where": {
+    "all": [
+      {
+        "any": [
+          {
+            "column": "Kostenstelle\nCode",
+            "op": "eq",
+            "value": "HR-30"
+          },
+          {
+            "column": "Kostenstelle\nCode",
+            "op": "eq",
+            "value": "OPS-40"
+          }
+        ]
+      },
+      {
+        "column": "Jan\nEUR",
+        "op": "gte",
+        "value": 900
+      },
+      {
+        "not": {
+          "column": "Owner\n/ Status",
+          "op": "contains",
+          "value": "review"
+        }
+      }
+    ]
+  }
+}

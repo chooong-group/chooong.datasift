@@ -1,0 +1,101 @@
+name: Release to private GitLab PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  release:
+    runs-on: [self-hosted, linux, x64, chooong-ci]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Wait for the successful CI run of this commit and resolve its id
+        id: ci
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, sys, time, urllib.request
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          sha = os.environ["GITHUB_SHA"]
+          api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+          token = os.environ["GH_TOKEN"]
+          ci_path = ".github/workflows/ci.yml"
+          deadline = time.time() + 75 * 60
+
+          def fetch_runs() -> list[dict]:
+              request = urllib.request.Request(
+                  f"{api}/repos/{repo}/actions/runs?head_sha={sha}&per_page=100",
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Accept": "application/vnd.github+json",
+                      "User-Agent": "chooong-release-gate",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response).get("workflow_runs", [])
+
+          while True:
+              runs = [run for run in fetch_runs() if run.get("path") == ci_path]
+              if runs:
+                  run = max(runs, key=lambda candidate: candidate["id"])
+                  if run.get("status") == "completed":
+                      if run.get("conclusion") != "success":
+                          sys.exit(
+                              f"CI run {run['id']} for {sha} concluded "
+                              f"{run.get('conclusion')}; refusing to release"
+                          )
+                      with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+                          handle.write(f"run_id={run['id']}\n")
+                      print(f"using successful CI run {run['id']} for {sha}")
+                      break
+                  print(f"CI run {run['id']} is {run.get('status')}; waiting")
+              else:
+                  print(f"no CI run yet for {sha}; waiting")
+              if time.time() > deadline:
+                  sys.exit(f"timed out waiting for a successful CI run for {sha}")
+              time.sleep(20)
+          PY
+      - name: Download the tested artifact (no rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+          run-id: ${{ steps.ci.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify tag, commit, version and wheel SHA-256
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib
+          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          meta = json.loads(pathlib.Path("dist/release-metadata.json").read_text())
+          assert meta["version"] == tag, (meta["version"], tag)
+          assert meta["commit"] == os.environ["GITHUB_SHA"], (
+              meta["commit"], os.environ["GITHUB_SHA"],
+          )
+          wheels = sorted(pathlib.Path("dist").glob("*.whl"))
+          assert len(wheels) == 1, wheels
+          assert wheels[0].name == meta["wheel_filename"], (wheels[0].name, meta["wheel_filename"])
+          sha = hashlib.sha256(wheels[0].read_bytes()).hexdigest()
+          assert sha == meta["wheel_sha256"], (sha, meta["wheel_sha256"])
+          print(f"publishing the tested artifact {wheels[0].name} {sha}")
+          PY
+      - run: uv sync --frozen --python 3.13
+      - run: uv run --frozen twine check dist/*.whl
+      - run: uv venv --python 3.13 "$RUNNER_TEMP/wheel-venv"
+      - run: uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" dist/*.whl
+      - run: uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" pytest
+      - name: Verify the installed candidate against actual XLSX fixtures
+        run: env -u PYTHONPATH "$RUNNER_TEMP/wheel-venv/bin/python" -m pytest -o addopts= tests
+      - name: Publish via OIDC broker (the tested wheel only)
+        run: ci-env publish -- uv publish dist/*.whl

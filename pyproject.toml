@@ -1,0 +1,150 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "chooong.datasift"
+version = "0.1.0"
+description = "Streaming XLSX/XLSM filtering with native Rust predicates"
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{name = "Chooong"}]
+dependencies = ["pydantic>=2.12,<3"]
+classifiers = [
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Typing :: Typed",
+]
+
+[project.scripts]
+chooong-datasift = "chooong.datasift.__main__:main"
+
+[tool.maturin]
+manifest-path = "native/Cargo.toml"
+module-name = "chooong.datasift.rust"
+python-source = "src"
+features = ["pyo3/extension-module"]
+include = [
+    {path = "tests/**/*.py", format = "sdist"},
+    {path = "scripts/**/*.py", format = "sdist"},
+    {path = "docs/**/*.md", format = "sdist"},
+    {path = "examples/**/*.json", format = "sdist"},
+    {path = "CHANGELOG.md", format = "sdist"},
+    {path = "uv.lock", format = "sdist"},
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.10,<2",
+    "pre-commit>=4,<5",
+    "pytest>=8.2,<10",
+    "pytest-cov>=5,<8",
+    "ruff>=0.16.3",
+    "twine>=5.1,<7",
+]
+
+[tool.ruff]
+required-version = ">=0.16.3"
+target-version = "py313"
+extend-exclude = [".cache"]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "ANN",   # flake8-annotations
+    "ASYNC", # flake8-async
+    "C4",    # flake8-comprehensions
+    "C901",  # mccabe complexity
+    "DTZ",   # flake8-datetimez
+    "E",     # pycodestyle errors
+    "F",     # Pyflakes
+    "G",     # flake8-logging-format
+    "I",     # isort
+    "LOG",   # flake8-logging
+    "PERF",  # Perflint
+    "PLR",   # Pylint Refactor
+    "PT",    # flake8-pytest-style
+    "PTH",   # flake8-use-pathlib
+    "RET",   # flake8-return
+    "S105",  # hardcoded-password-string
+    "S106",  # hardcoded-password-func-arg
+    "S107",  # hardcoded-password-default
+    "SIM",   # flake8-simplify
+    "T20",   # flake8-print
+    "UP",    # pyupgrade (für deprecated Python Syntax/Types)
+]
+ignore = [
+    "ANN401", # Dynamic Any-Annotations allowed
+]
+extend-select = ["TID252"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 7
+max-branches = 12
+max-returns = 6
+max-statements = 50
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/**/*.py" = [
+    "ANN",
+    "C901",
+    "E501",
+    "PERF401",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR2004",
+    "SLF001",
+    "T201",
+    "DTZ",
+]
+"tests/**/*.py" = [
+    "ANN",
+    "DTZ",
+    "PLR2004",
+    "S101",
+    "SLF001",
+    "T201",
+]
+"**/runtime/cli.py" = ["T201"]
+"__init__.py" = [
+    "F401",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+mypy_path = "src"
+explicit_package_bases = true
+exclude = "^(tests|scripts)/"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["chooong.datasift"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+exclude_also = ["if TYPE_CHECKING:", "if __name__ == .__main__.:"]
