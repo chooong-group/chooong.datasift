@@ -322,7 +322,7 @@ pub type HeaderLookup = (Vec<(String, usize)>, HashMap<String, usize>);
 pub fn headers_from_row(row: &[CellValue]) -> Result<HeaderLookup, String> {
     let mut list = Vec::new();
     let mut lookup = HashMap::new();
-    let mut seen = HashSet::new();
+    let mut counts = HashMap::new();
     for (position, value) in row.iter().enumerate() {
         let name = match value {
             CellValue::Text(name) if !name.trim().is_empty() => name,
@@ -334,14 +334,24 @@ pub fn headers_from_row(row: &[CellValue]) -> Result<HeaderLookup, String> {
                 ))
             }
         };
-        if !seen.insert(name.clone()) {
-            return Err(format!("Doppelter Spaltenname: {name:?}"));
-        }
+        *counts.entry(name.clone()).or_insert(0_usize) += 1;
         list.push((name.clone(), position));
-        lookup.insert(name.clone(), position);
     }
     if list.is_empty() {
         return Err("Keine benannten Spalten in der Kopfzeile".into());
+    }
+    let mut occurrences = HashMap::new();
+    for (name, position) in &mut list {
+        if counts[name.as_str()] > 1 {
+            let occurrence = occurrences.entry(name.clone()).or_insert(0_usize);
+            *occurrence += 1;
+            *name = format!("{name}_{occurrence}");
+        }
+        if lookup.insert(name.clone(), *position).is_some() {
+            return Err(
+                "Spaltennamen sind nach Indizierung nicht eindeutig; source.columns mit eindeutigen Namen verwenden".into(),
+            );
+        }
     }
     Ok((list, lookup))
 }
@@ -402,6 +412,17 @@ mod tests {
         ]
         .into_iter()
         .collect()
+    }
+
+    #[test]
+    fn header_indices_are_one_based_and_ignore_empty_columns() {
+        let mut row = vec![CellValue::Empty];
+        row.extend((0..12).map(|_| CellValue::Text("Umsatz".into())));
+        let (names, lookup) = headers_from_row(&row).unwrap();
+        assert_eq!(names[0], ("Umsatz_1".into(), 1));
+        assert_eq!(names[11], ("Umsatz_12".into(), 12));
+        assert_eq!(lookup["Umsatz_10"], 10);
+        assert!(!lookup.contains_key("Umsatz"));
     }
 
     #[test]

@@ -58,8 +58,18 @@ Zeile 7 liegt in C–E; eine zweite Tabelle kann daneben stehen:
 
 Ohne `source` gilt der einfache Header-Modus: `header_row` (Standard 1) bezeichnet
 exakt eine Kopfzeile. Benannte Spalten werden ausgegeben, leere Überschriften und
-Zusatzdaten ohne Überschrift nicht. Doppelte oder nichttextuelle Überschriften
-bleiben hier ein kontrollierter Fehler; für solche Blätter `source` verwenden.
+Zusatzdaten ohne Überschrift nicht. Wiederholt sich ein exakter Headername,
+erhalten **alle** seine Vorkommen ab 1 einen Index von links nach rechts:
+`Umsatz`, `Umsatz` werden `Umsatz_1`, `Umsatz_2`. Bei drei Vorkommen kommt
+`Umsatz_3` hinzu. Eindeutige Header bleiben unverändert. Die indizierten Namen
+gelten gleichermaßen für Filter und Ausgabe; der mehrdeutige Name `Umsatz`
+ist dann kein gültiger Filtername. Leere Spalten verändern die Nummerierung nicht.
+Eine Kollision mit einer schon vorhandenen Überschrift (etwa `Umsatz_1` neben
+zweimal `Umsatz`) wird vor Iterator-Rückgabe abgewiesen; für diesen Fall lassen
+sich mit `source.columns` explizit eindeutige Namen vergeben. Nichttextuelle
+Überschriften bleiben ein Fehler. Namen werden weder getrimmt noch in ihrer
+Groß-/Kleinschreibung geändert. Explizite `source.columns.name` sind bereits
+gewählte Aliase und müssen weiterhin eindeutig sein.
 `header_row` darf mit `source` nicht auf einen anderen Wert als seinen ungenutzten
 Standard 1 gesetzt werden. Unbekannte Filter-Aliase werden immer abgewiesen.
 

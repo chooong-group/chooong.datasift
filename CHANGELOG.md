@@ -4,6 +4,8 @@
 
 ### Added
 
+- Automatische Indizes für wiederholte Header: `Umsatz_1`, `Umsatz_2`, …;
+  eindeutige Namen bleiben unverändert, Namenskollisionen werden abgewiesen.
 - Explizite `TableSource`-/`ColumnBinding`-Maske für beliebige Tabellenpositionen,
   doppelte/mehrzeilige Header, Datenbereich und auszuschließende Kommentarzeilen.
 

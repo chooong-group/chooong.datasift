@@ -130,23 +130,15 @@ def test_truncated_xml_is_not_success(tmp_path: Path, part: str) -> None:
         list(iter_matching_rows(path, _mask(), batch_size=1))
 
 
-@pytest.mark.parametrize(
-    ("before", "after", "error"),
-    [
-        ("<t>Land</t>", "<t>Kunde</t>", "Doppelter Spaltenname"),
-    ],
-)
-def test_duplicate_headers_fail_eagerly(
-    tmp_path: Path,
-    before: str,
-    after: str,
-    error: str,
-) -> None:
+def test_unindexed_duplicate_name_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "headers.xlsx"
     make_workbook(path)
-    _rewrite(path, "xl/sharedStrings.xml", before, after)
-    with pytest.raises(ValueError, match=error):
-        iter_matching_batches(path, _mask())
+    _rewrite(path, "xl/sharedStrings.xml", "<t>Status</t>", "<t>Umsatz</t>")
+    mask = FilterMask(
+        sheet="Daten", where=ScalarCondition(column="Umsatz", op=Operator.EQ, value=5000)
+    )
+    with pytest.raises(ValueError, match="Unbekannte Spalte"):
+        iter_matching_batches(path, mask)
 
 
 def test_unbound_data_is_not_extracted(tmp_path: Path) -> None:

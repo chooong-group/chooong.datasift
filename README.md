@@ -57,6 +57,8 @@ mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur die
 zugeordneten Felder passender Zeilen werden ausgegeben. Beispiel für eine Tabelle
 ab C7: [examples/layout-filter.json](examples/layout-filter.json). Ohne `source`
 bleibt die einfache Auswahl über eine einzelne `header_row` möglich.
+Wiederholte Header heißen dabei von links nach rechts etwa `Umsatz_1` und
+`Umsatz_2`; diese Namen werden zum Filtern und in der Ausgabe verwendet.
 
 [Filtervertrag und Grenzen](docs/contract.md) beschreiben Operatoren, Typen,
 Fehler und Ressourcenlimits. Es gibt keine Umgebungsvariablen oder Diensteinstellungen.

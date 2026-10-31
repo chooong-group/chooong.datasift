@@ -97,3 +97,39 @@ aufgeweicht. Die lokale native Erweiterung wurde aus diesem Wheel aktualisiert.
 - Abhängigkeiten: Reviewer, Workspace-Freigabeprüfung, bereitgestellte Runner-Toolchain.
 - Consumer-Auswirkung: optionale neue `source`-Maske und explizite Ausgabeprojektion;
   keine automatisch erzeugten Zusatzfelder mehr. Kein Versions-/Releaseauftrag.
+
+## Nachtrag H01 — automatische Header-Indizes
+
+Basis `f30f8cd9b60af58145fdaa0123194088e9d350bb`, 31.10.2026. Der Nutzer hat
+präzisiert: Wiederholte Excel-Header erhalten ab 1 Suffixe wie `Umsatz_1` und
+`Umsatz_2`. Die gemeinsame Headerauflösung setzt dies vor Filterkompilierung und
+Iterator-Rückgabe um, in physischer Spaltenreihenfolge und unabhängig vom Batch.
+Eindeutige Namen bleiben unverändert. Namen nach Indizierung müssen eindeutig
+sein; Kollisionen mit bestehenden Suffix-Namen sind ein kontrollierter Fehler.
+`source.columns.name` sind explizite Aliase und bleiben von dieser Automatik getrennt.
+
+GEPRÜFT: native/src/filter.rs (Ursache und Namensbildung), direkter Consumer
+native/src/xlsx.rs (Headerauflösung), native/src/lib.rs (Ready-/Ausgabevertrag),
+tests/test_contract.py, tests/test_header_indexing.py, README.md, docs/contract.md
+und CHANGELOG.md. CLI, Python-Reader, Modelle und Workflows sind unverändert;
+bestehende Contract-/Quellen-/Atomicity-Tests bleiben relevant und bestanden.
+Keine Version, Abhängigkeit, Migration oder Ruff-Regel geändert.
+
+Abschließende Prüfungen mit Exit-Code 0: Ruff check/format, mypy (5 Dateien),
+pytest --cov (99 bestanden, 99,55 % Python-Coverage), cargo fmt, Clippy mit
+`-D warnings`, cargo test (7 bestanden), Maturin-Wheel/sdist und Twine. Das isolierte
+Wheel besteht je 99 Tests unter Python 3.13 und 3.14. Regressionen prüfen zwei/drei
+Wiederholungen, Indizes bis 12, leere Spalten, verschobene Kopfzeilen, typisierte
+Werte, verschiedene Batchgrößen, Replay, CLI-Schlüssel, nichttextuelle Header und
+Suffix-Kollisionen vor Iterator-Rückgabe. Benutzerdaten bleiben außerhalb von Git
+und Package-Artefakten.
+
+TODO H01 (P1, unabhängige Schließung offen): Reviewer prüft das Delta ab obiger
+Basis, insbesondere `headers_from_row`, Kollisionsbehandlung und Filter-/Ausgabe-
+Zuordnung. `tests/test_header_indexing.py`, Rust-Tests und README-Qualitätsbefehle
+wiederholen; auf den finalen regulären PR-CI-Lauf prüfen, ohne ihn manuell zu
+starten/pollen. Abnahme: eindeutige Zuordnung ohne Wertverlust/Überschreiben,
+unveränderte eindeutige Header, alle Prüfungen erfolgreich. Abhängigkeiten:
+unabhängiger Reviewer und bereitgestellte Runner-Toolchain. Consumer-Auswirkung:
+vormals abgewiesene doppelte Header werden über ihre indizierten Namen auswählbar.
+Gesamtfreigabe bleibt NICHT ENTSCHEIDBAR bis Review und Remote-Nachweis.
