@@ -1,6 +1,6 @@
 """Stream matching Excel rows using a native Rust filter."""
 
-from ._models import (
+from chooong.datasift.models import (
     AllOf,
     AnyOf,
     CellValue,
@@ -17,7 +17,12 @@ from ._models import (
     TableSource,
     TextCondition,
 )
-from ._reader import BatchIterator, MaskInput, iter_matching_batches, iter_matching_rows
+from chooong.datasift.reader import (
+    BatchIterator,
+    MaskInput,
+    iter_matching_batches,
+    iter_matching_rows,
+)
 
 __all__ = [
     "AllOf",

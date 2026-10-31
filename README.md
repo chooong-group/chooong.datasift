@@ -65,6 +65,9 @@ Wiederholte Header heißen dabei von links nach rechts etwa `Umsatz_1` und
 
 [Filtervertrag und Grenzen](docs/contract.md) beschreiben Operatoren, Typen,
 Fehler und Ressourcenlimits. Es gibt keine Umgebungsvariablen oder Diensteinstellungen.
+`models.py` enthält die Pydantic-Modelle, `reader.py` den Dateiadapter und
+`rust.pyi` die Typen der nativen Erweiterung `rust`. `__init__.py` und
+`__main__.py` sind die Python-Einstiegspunkte. Alle Imports sind absolut.
 Pydantic validiert die Eingabe; der Python-Dateiadapter reicht die Maske an die
 Rust-Engine weiter. Rust trennt Filterlogik und Zellwerte von XLSX-I/O und PyO3.
 Eine zusätzliche Service-/Port-Schicht wäre hier ohne eigenen Use Case redundant.

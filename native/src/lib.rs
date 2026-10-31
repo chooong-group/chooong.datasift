@@ -23,7 +23,7 @@ pub(crate) enum Message {
     Failure(String),
 }
 
-#[pyclass(module = "chooong.datasift._rust")]
+#[pyclass(module = "chooong.datasift.rust")]
 pub struct BatchIterator {
     receiver: Mutex<Option<Receiver<Message>>>,
     cancelled: Arc<AtomicBool>,
@@ -190,7 +190,7 @@ fn iter_batches_native(
 }
 
 #[pymodule]
-fn _rust(module: &Bound<'_, PyModule>) -> PyResult<()> {
+fn rust(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<BatchIterator>()?;
     module.add_function(wrap_pyfunction!(iter_batches_native, module)?)?;
     Ok(())

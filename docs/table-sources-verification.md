@@ -318,3 +318,61 @@ PR-HEAD, keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
 konfigurierte Tests/Typ-/Lint-/Build-Gates erfolgreich, einschließlich
 Zeilenenden-/Zeichenreferenz-/Replay-Tests. Abhängigkeit: Runner-Toolchain.
 Consumer-Auswirkung: weitere Plattformen bleiben bis Remote-Nachweis UNVERIFIED.
+
+## Nachtrag N01 — Modulnamen und absolute Imports
+
+Prüfstand 31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`,
+Basis `d3818a32c3724c56aa5a42c5f6b46158feb030a1`, bestehender PR #1.
+Exakter Diff nach Commit: `git diff d3818a3...feat/datasift-package`.
+
+N01 (P2, unabhängige Schließung offen): `_models.py`, `_reader.py` und `_rust.pyi`
+heißen nun `models.py`, `reader.py`, `rust.pyi`. Die native Erweiterung heißt
+konsistent in Maturin, Cargo und PyO3 `chooong.datasift.rust`. Vorhandene Module
+wurden umbenannt, keine Kompatibilitätswrapper oder zusätzliche Abhängigkeiten.
+Alle Python-Imports sind absolut. Die vom Nutzer verschärften Ruff-Regeln
+(`TID252`, `ban-relative-imports = "all"`) werden unverändert übernommen und
+zusammen mit der Änderung gepusht. `__init__.py` und `__main__.py` behalten ihre
+Python-Standardnamen für Exporte und `python -m chooong.datasift`.
+
+Invarianten: öffentliche Exporte und CLI bleiben unverändert; keine Änderung an
+Filtersemantik, Maskenformat oder Ausgabe. Das Wheel enthält nur die neuen
+Implementierungsnamen und den passenden nativen Initialisierer, keinen alten
+`_rust`-Stub oder Binärcode. Frühere Implementierungsimporte waren kein
+zugesicherter Contract und erhalten keine Weiterleitungen.
+
+GEPRÜFT, vollständig und geändert: `src/chooong/datasift/models.py`, `reader.py`,
+`rust.pyi`, `__init__.py`, `__main__.py`, `native/src/lib.rs`, `native/Cargo.toml`,
+`pyproject.toml`, README.md, CHANGELOG.md, docs/contract.md und dieses Protokoll.
+GEPRÜFT, direkte Consumer: sämtliche bestehenden Python-Tests, `scripts/bench.py`
+und CLI-Entry-Point; keine Umstellung außerhalb der Package-Verdrahtung nötig.
+GEPRÜFT, unverändert: Lockfiles, Workflows und Pre-Commit-Konfiguration.
+Vorhandene Nutzerlöschungen unter `rust_xlsx_filter` bleiben ungestagt; lokale
+Excel-Dateien und Masken bleiben unversioniert. Keine Cross-Repo-Änderung.
+
+Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format mit den
+neuen Nutzerregeln, mypy (5 Dateien), pytest --cov (130 bestanden, 99,54 %
+Python-Coverage), cargo fmt, Clippy `--locked --offline --all-targets -- -D warnings`,
+cargo test (8 bestanden), Maturin-Wheel und sdist, Twine und `git diff --check`.
+Isolierte Wheel-Tests unter Python 3.13/3.14: jeweils 130 bestanden. Artefaktinventar
+prüft neue Modul-/Stub-Namen und Abwesenheit alter Namen sowie lokaler Benutzerdaten.
+Native Modulzuordnung und CLI-Start werden gegen das installierte Wheel geprüft.
+Der sdist wird aus gezielt kopierten versionierten Quellen einschließlich der
+umbenannten Module gebaut; keine unversionierten Benutzerbeispiele enthalten.
+
+Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokal nachgewiesen;
+unabhängiges Review und Remote-CI UNVERIFIED.
+
+TODO N01-Review: Basis/Dateien wie oben. Vollständigen Diff einschließlich
+Nutzer-Ruff-Regeln, Package-Exporte, Maturin-/Cargo-/PyO3-Namen unabhängig prüfen.
+Soll: keine alten Implementierungsdateien im Artefakt, keine relativen Imports,
+unveränderte öffentliche Import-/CLI-Pfade. README-Prüfbefehle, installierte
+Wheel-Tests mit bestehenden Negativ-/Replay-Fällen und CLI-Start wiederholen.
+Abnahme: keine offenen Import-/Build-/Contract-Befunde. Abhängigkeit: unabhängiger
+Reviewer. Consumer-Auswirkung: öffentliche Exporte bleiben stabil; direkte
+Implementierungsimporte sind unverändert keine zugesicherte API.
+
+TODO N01-CI: gleicher Basis-/Dateiumfang; Nutzer prüft regulären CI-Lauf am finalen
+PR-HEAD, keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
+konfigurierte Python-/Rust-/Artefakt-Gates einschließlich strikter Importregel
+und bestehender Negativ-/Replay-Tests erfolgreich. Abhängigkeit: Runner-Toolchain.
+Consumer-Auswirkung: andere Plattformen bleiben bis Remote-Nachweis UNVERIFIED.

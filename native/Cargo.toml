@@ -6,7 +6,7 @@ license = "Apache-2.0"
 description = "Streaming XLSX JSON filter with native Rust evaluation and PyO3 bindings"
 
 [lib]
-name = "_rust"
+name = "rust"
 crate-type = ["cdylib"]
 
 [dependencies]

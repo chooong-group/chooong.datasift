@@ -11,7 +11,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from . import Row, iter_matching_batches
+from chooong.datasift import Row, iter_matching_batches
 
 
 class _Arguments(BaseModel):

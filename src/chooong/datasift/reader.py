@@ -5,8 +5,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import Self
 
-from . import _rust
-from ._models import FilterMask, Row
+from chooong.datasift import rust
+from chooong.datasift.models import FilterMask, Row
 
 MaskInput = FilterMask | Mapping[str, object] | str | Path
 MAX_BATCH_SIZE = 65536
@@ -29,7 +29,7 @@ def _load_mask(mask: MaskInput) -> FilterMask:
 class BatchIterator(Iterator[list[Row]]):
     """Closeable native scan; use as context manager when stopping early."""
 
-    def __init__(self, native: _rust.BatchIterator) -> None:
+    def __init__(self, native: rust.BatchIterator) -> None:
         self._native = native
 
     def __iter__(self) -> Self:
@@ -66,7 +66,7 @@ def iter_matching_batches(
         raise ValueError("batch_size muss zwischen 1 und 65536 liegen")
     spec = _load_mask(mask)
     return BatchIterator(
-        _rust.iter_batches(str(xlsx_path), spec.model_dump_json(by_alias=True), batch_size)
+        rust.iter_batches(str(xlsx_path), spec.model_dump_json(by_alias=True), batch_size)
     )
 
 

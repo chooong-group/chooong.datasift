@@ -19,6 +19,9 @@
 
 ### Changed
 
+- Implementierungsmodule heißen `models`, `reader` und `rust`; Imports sind
+  entsprechend der verschärften Ruff-Regeln absolut. Öffentliche Exporte bleiben erhalten.
+
 - **Breaking Change:** Automatische Headersuche anhand aller Maskenspalten;
   `header_row` entfällt. Ausgabe und Zellkonvertierung sind auf in `where`
   referenzierte Spalten beschränkt, auch bei expliziten `source`-Bindungen.

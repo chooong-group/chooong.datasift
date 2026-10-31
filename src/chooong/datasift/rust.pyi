@@ -1,6 +1,6 @@
 from collections.abc import Iterator
 
-from ._models import CellValue
+from chooong.datasift.models import CellValue
 
 class BatchIterator(Iterator[list[dict[str, CellValue]]]):
     def __iter__(self) -> BatchIterator: ...

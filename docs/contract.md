@@ -4,6 +4,12 @@ Distribution: `chooong.datasift`, Import: `chooong.datasift`, CLI:
 `chooong-datasift` bzw. `python -m chooong.datasift`. Die Initialversion bleibt
 0.1.0; keine Veröffentlichung oder Consumer-Migration ist Teil dieses Auftrags.
 
+Die Implementierung liegt in `models`, `reader` und der nativen Erweiterung
+`rust` ohne führenden Unterstrich. Zugesicherte Importpfade bleiben die oben
+genannten Exporte aus `chooong.datasift`; direkte Implementierungsimporte sind
+kein zusätzlicher öffentlicher Contract. Die Python-Standardmodule `__init__`
+und `__main__` behalten ihre Namen.
+
 ## JSON-Maske
 
 Format v1 ist implizit, ohne Versionsfeld. `FilterMask` ist das kanonische
