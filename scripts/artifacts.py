@@ -453,10 +453,24 @@ def validate_artifact(path: Path, ctx: Context, receipt_kind: Kind, identifier: 
                 raise ValueError("Missing sdist metadata")
             with handle:
                 validate_metadata(handle.read(), ctx)
+            prefix = PurePosixPath(metadata[0]).parts[0]
+            license_file = archive.extractfile(prefix + "/LICENSE")
+            if license_file is None:
+                raise ValueError("Missing sdist license")
+            with license_file:
+                if license_file.read() != (ctx.repo / "LICENSE").read_bytes():
+                    raise ValueError("sdist license file mismatch")
             for suffix in (
+                "/pyproject.toml",
+                "/native/Cargo.toml",
+                "/native/src/lib.rs",
                 "/native/Cargo.lock",
                 "/rust-toolchain.toml",
                 "/uv.lock",
+                "/src/chooong/datasift/models.py",
+                "/src/chooong/datasift/reader.py",
+                "/src/chooong/datasift/rust.pyi",
+                "/src/chooong/datasift/py.typed",
                 "/tests/test_engine.py",
             ):
                 if not any(name.endswith(suffix) for name in names):
@@ -587,7 +601,9 @@ def test_artifact(ctx: Context, args: Arguments) -> None:
                     "addopts=",
                     "-p",
                     "no:cacheprovider",
-                    "--cov",
+                    "--cov=chooong.datasift",
+                    "--cov-config",
+                    str(ctx.repo / "pyproject.toml"),
                     "--cov-report=term-missing",
                     "--junitxml",
                     str(junit),

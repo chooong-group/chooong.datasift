@@ -251,6 +251,45 @@ def test_gate_rejects_inputs_outside_the_bound_commit(
     assert not bundle.output.exists()
 
 
+@pytest.mark.parametrize("failure", ["missing_sdist", "source_input", "license"])
+def test_gate_rejects_incomplete_or_inconsistent_source_distributions(
+    synthetic_bundle: SyntheticBundle, failure: str
+) -> None:
+    bundle = synthetic_bundle
+    receipt_path = bundle.receipt_paths[-1]
+    receipt = json.loads(receipt_path.read_text())
+    if failure == "missing_sdist":
+        receipt_path.unlink()
+        expected = "Incomplete or duplicate platform evidence"
+    else:
+        artifact = bundle.root / "dist" / receipt["filename"]
+        with tarfile.open(artifact) as archive:
+            parts = []
+            for member in archive.getmembers():
+                stream = archive.extractfile(member)
+                assert stream is not None
+                parts.append((member, stream.read()))
+        with tarfile.open(artifact, "w:gz") as archive:
+            for member, content in parts:
+                if failure == "source_input" and member.name.endswith("/native/src/lib.rs"):
+                    continue
+                if failure == "license" and member.name.endswith("/LICENSE"):
+                    content = b"Incorrect synthetic license"
+                    member.size = len(content)
+                archive.addfile(member, io.BytesIO(content))
+        receipt["sha256"] = _sha(artifact)
+        _write_json(receipt_path, receipt)
+        expected = (
+            "Missing source-build input"
+            if failure == "source_input"
+            else "sdist license file mismatch"
+        )
+    result = _gate(bundle)
+    assert result.returncode != 0
+    assert expected in result.stderr
+    assert not bundle.output.exists()
+
+
 def _change_receipt(receipt: dict, failure: str) -> None:
     if failure == "missing_python":
         receipt["runs"].pop()

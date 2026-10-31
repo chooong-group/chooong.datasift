@@ -223,7 +223,7 @@ __marimo__/
 .data/
 
 # Local workbooks and extraction output
-examples/*.xlsx
-examples/*.xlsm
-examples/*.xls
+*.xlsx
+*.xlsm
+*.xls
 *.ndjson
