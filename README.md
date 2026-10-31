@@ -49,8 +49,8 @@ als `FilterMask`, Mapping, JSON-Text oder Dateipfad übergeben werden. Ergebnisz
 sind unveränderliche `Row`-Mappings mit dynamischen Excel-Spaltennamen.
 `sheet: null` durchsucht alle Arbeitsblätter in Workbook-Reihenfolge und führt
 Treffer zusammen; ein Blattname wählt weiterhin genau ein Blatt. Ohne `source`
-werden Blätter ohne passende Filterspalten übersprungen. Die erste Zeile mit allen
-Maskenspalten wird automatisch als Kopfzeile erkannt; Titel und Kommentare davor
+werden Blätter ohne passende Filterspalten übersprungen. Vollständige Maskenschemas
+werden auch nebeneinander und weiter unten als Tabellenköpfe erkannt; Titel davor
 benötigen keine Zeilennummer. Ausgegeben werden ausschließlich Spalten aus `where`. Mit `source` gilt dieselbe
 Zuordnung auf jedem Blatt. [examples/filter.json](examples/filter.json) zeigt dies.
 [examples/filter_schmutzig.json](examples/filter_schmutzig.json) filtert automatisch
@@ -62,8 +62,11 @@ ab C7: [examples/layout-filter.json](examples/layout-filter.json). Ohne `source`
 erfolgt die Zuordnung automatisch anhand der Spaltennamen. `header_row` entfällt.
 XML-Zeilenumbrüche werden beim Einlesen vereinheitlicht; ein erneutes Speichern
 in Excel verändert dadurch die Zuordnung mehrzeiliger Zellnamen nicht.
-Wiederholte Header heißen dabei von links nach rechts etwa `Umsatz_1` und
+Innerhalb eines einzelnen Schemas heißen doppelte Header von links nach rechts etwa `Umsatz_1` und
 `Umsatz_2`; diese Namen werden zum Filtern und in der Ausgabe verwendet.
+Wiederholen sich dagegen alle wortgleichen Maskenspalten in getrennten Gruppen,
+werden diese als unabhängige Tabellen verarbeitet. Die Ausgabe folgt je Blatt
+der Zeilenreihenfolge und bei mehreren Treffern pro Zeile von links nach rechts.
 
 [Filtervertrag und Grenzen](docs/contract.md) beschreiben Operatoren, Typen,
 Fehler und Ressourcenlimits. Es gibt keine Umgebungsvariablen oder Diensteinstellungen.

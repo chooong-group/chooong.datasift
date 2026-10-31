@@ -12,7 +12,7 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use zip::ZipArchive;
 
-use crate::filter::{column_index, headers_from_row, Config, Expr, HeaderLookup};
+use crate::filter::{column_index, tables_from_row, Config, Expr, HeaderLookup};
 use crate::Message;
 
 const MAX_XML_METADATA_BYTES: u64 = 16 * 1024 * 1024;
@@ -410,6 +410,14 @@ fn finish_cell(
     }
 }
 
+struct Table {
+    headers: Vec<(String, usize)>,
+    predicate: Expr,
+    header_row: u32,
+    first: usize,
+    last: usize,
+}
+
 struct Sink<'a> {
     config: &'a Config,
     sender: &'a SyncSender<Message>,
@@ -417,32 +425,68 @@ struct Sink<'a> {
     batch_size: usize,
     headers: Option<Vec<(String, usize)>>,
     selected_positions: Option<HashSet<usize>>,
-    header_values: Vec<(usize, CellValue)>,
-    predicate: Option<Expr>,
+    tables: Vec<Table>,
     buffer: Vec<Vec<CellValue>>,
 }
 
 impl Sink<'_> {
-    fn prepare_headers(&mut self, (names, lookup): HeaderLookup) -> Result<(), String> {
-        if self
-            .config
-            .required_columns
-            .iter()
-            .any(|name| !lookup.contains_key(name))
-        {
-            return Ok(());
-        }
+    fn prepare_headers(
+        &mut self,
+        (names, lookup): HeaderLookup,
+        number: u32,
+    ) -> Result<(), String> {
         let predicate = Expr::compile(&self.config.predicate, &lookup)?;
         let names: Vec<_> = names
             .into_iter()
             .filter(|(name, _)| self.config.required_columns.contains(name))
             .collect();
-        self.selected_positions = Some(names.iter().map(|(_, index)| *index).collect());
-        self.sender
-            .send(Message::Ready(names.clone()))
-            .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
-        self.headers = Some(names);
-        self.predicate = Some(predicate);
+        let first = names
+            .iter()
+            .map(|(_, index)| *index)
+            .min()
+            .ok_or("Leeres Tabellenschema")?;
+        let last = names
+            .iter()
+            .map(|(_, index)| *index)
+            .max()
+            .ok_or("Leeres Tabellenschema")?;
+        // A later overlapping header starts a new vertical table in that span.
+        self.tables
+            .retain(|table| table.last < first || table.first > last);
+        if self.headers.is_none() {
+            self.use_headers(
+                names
+                    .iter()
+                    .enumerate()
+                    .map(|(index, (name, _))| (name.clone(), index))
+                    .collect(),
+            )?;
+        }
+        self.tables.push(Table {
+            headers: names,
+            predicate,
+            header_row: number,
+            first,
+            last,
+        });
+        self.tables.sort_by_key(|table| table.first);
+        self.selected_positions = Some(
+            self.tables
+                .iter()
+                .flat_map(|table| table.headers.iter().map(|(_, index)| *index))
+                .collect(),
+        );
+        Ok(())
+    }
+
+    fn use_headers(&mut self, headers: Vec<(String, usize)>) -> Result<(), String> {
+        if self.headers.as_ref() != Some(&headers) {
+            self.flush()?;
+            self.sender
+                .send(Message::Ready(headers.clone()))
+                .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
+            self.headers = Some(headers);
+        }
         Ok(())
     }
 
@@ -457,6 +501,39 @@ impl Sink<'_> {
                 .is_none_or(|positions| positions.contains(&column))
     }
 
+    fn read_cell(
+        &self,
+        row: u32,
+        column: usize,
+        kind: &str,
+        value: &str,
+        inline: &str,
+        strings: &[String],
+    ) -> Result<Option<CellValue>, String> {
+        if self.selects_cell(row, column) {
+            return finish_cell(kind, value, inline, strings).map(Some);
+        }
+        if self.config.source.is_some() {
+            return Ok(None);
+        }
+        // Outside active tables only valid text labels can begin another schema.
+        // Invalid unselected values remain outside the extraction scope.
+        let label = match kind {
+            "inlineStr" => Some(inline),
+            "s" => value
+                .trim()
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| strings.get(index))
+                .map(String::as_str),
+            "str" | "e" | "d" => Some(value),
+            _ => None,
+        };
+        Ok(label
+            .filter(|label| self.config.header_labels.contains(*label))
+            .map(|label| CellValue::Text(label.to_owned())))
+    }
+
     fn on_row(&mut self, number: u32, row: Vec<CellValue>) -> Result<(), String> {
         if self.cancelled.load(Ordering::Relaxed) {
             return Ok(());
@@ -465,35 +542,32 @@ impl Sink<'_> {
             if !source.contains_row(number) {
                 return Ok(());
             }
-        } else if self.headers.is_none() {
-            let headers = headers_from_row(&row, &self.config.required_columns)?;
-            self.prepare_headers(headers)?;
-            if let Some(names) = &self.headers {
-                self.header_values = names
-                    .iter()
-                    .map(|(_, index)| (*index, row[*index].clone()))
-                    .collect();
+        } else {
+            for headers in tables_from_row(&row, &self.config.required_columns)? {
+                self.prepare_headers(headers, number)?;
             }
-            return Ok(());
-        } else if self
-            .header_values
-            .iter()
-            .all(|(index, value)| row.get(*index) == Some(value))
-        {
-            // ponytail: identical selected labels are repeated headers. Indistinguishable
-            // real values need explicit source bounds instead of automatic discovery.
-            return Ok(());
         }
-        let predicate = self
-            .predicate
-            .as_ref()
-            .ok_or("Die angegebene Kopfzeile fehlt")?;
-        if !predicate.matches(&row) {
-            return Ok(());
-        }
-        self.buffer.push(row);
-        if self.buffer.len() >= self.batch_size {
-            self.flush()?;
+        for index in 0..self.tables.len() {
+            let table = &self.tables[index];
+            if table.header_row == number || !table.predicate.matches(&row) {
+                continue;
+            }
+            let headers = table
+                .headers
+                .iter()
+                .enumerate()
+                .map(|(position, (name, _))| (name.clone(), position))
+                .collect();
+            let values = table
+                .headers
+                .iter()
+                .map(|(_, position)| row.get(*position).cloned().unwrap_or(CellValue::Empty))
+                .collect();
+            self.use_headers(headers)?;
+            self.buffer.push(values);
+            if self.buffer.len() >= self.batch_size {
+                self.flush()?;
+            }
         }
         Ok(())
     }
@@ -537,12 +611,11 @@ pub fn scan(
             batch_size,
             headers: None,
             selected_positions: None,
-            header_values: Vec::new(),
-            predicate: None,
+            tables: Vec::new(),
             buffer: Vec::with_capacity(batch_size),
         };
         if let Some(source) = &config.source {
-            sink.prepare_headers(source.headers()?)?;
+            sink.prepare_headers(source.headers()?, 0)?;
         }
         scan_worksheet(&mut archive, &worksheet, &shared, &mut sink)?;
     }
@@ -685,11 +758,19 @@ fn scan_worksheet(
                 b"rPh" => in_phonetic = false,
                 b"is" => in_inline = false,
                 b"c" if in_cell => {
-                    if sink.selects_cell(row_num, cell_col) {
-                        let value = finish_cell(&cell_kind, &raw_value, &inline_value, shared)
-                            .map_err(|e| {
-                                format!("Excel-Zeile {row_num}, Spalte {}: {e}", cell_col + 1)
-                            })?;
+                    if let Some(value) = sink
+                        .read_cell(
+                            row_num,
+                            cell_col,
+                            &cell_kind,
+                            &raw_value,
+                            &inline_value,
+                            shared,
+                        )
+                        .map_err(|error| {
+                            format!("Excel-Zeile {row_num}, Spalte {}: {error}", cell_col + 1)
+                        })?
+                    {
                         put_cell(&mut row, cell_col, value)?;
                     }
                     in_cell = false;

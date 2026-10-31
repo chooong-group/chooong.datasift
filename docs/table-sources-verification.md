@@ -423,3 +423,85 @@ PR-HEAD. Keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
 konfigurierte Python-/Rust-/Artefakt-Gates einschließlich bestehender
 Negativ-/Replay-Tests erfolgreich. Abhängigkeit: Runner-Toolchain.
 Consumer-Auswirkung: Remote-Build bleibt bis zu diesem Nachweis UNVERIFIED.
+
+## Nachtrag M01 — mehrere Tabellen pro Arbeitsblatt
+
+Prüfstand 31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`,
+Basis `c4d8e2b2c7e6d34daa915446b4b5d3e135c66b46`, bestehender PR #1.
+Exakter Diff nach Commit: `git diff c4d8e2b...feat/datasift-package`.
+Dieser Nachtrag ersetzt ältere Aussagen über genau einen Header pro Blatt.
+
+M01 (P1, unabhängige Schließung offen): Die vorherige Headersuche übersah Tabellen
+neben/unter dem ersten Bereich; gleiche Namen über benachbarte Tabellen wurden
+fälschlich global indiziert. Die gemeinsame Headerauflösung erkennt nun mehrere
+vollständige Gruppen der wortgleichen Maskenspalten in einer Zeile. Ein einzelnes
+Zeilenschema behält die bisherige Index-/Kollisionssemantik. Ein Spaltenbereich
+hat einen eigenen vorbereiteten Filter und eigene Bindungen. Neue überlappende
+Header ersetzen den alten Bereich; unabhängige Nachbartabellen laufen weiter.
+Lösungsleiter: vorhandenen Streaming-Reader und Header-/Filtercompiler erweitern,
+kein zweiter Parser, keine zusätzliche Abhängigkeit oder künstliche API.
+
+Invarianten: keine Vermischung von Werten benachbarter Tabellen, kein doppeltes
+Auswerten ersetzter Bereiche, Reihenfolge Workbook/Zeile/linke Spalte. Nach außen
+nur Maskenspalten und keine Tabellenmetadaten. Vor einem Wechsel der Ausgabespalten-
+reihenfolge wird der bestehende Batch geleert; projizierte Werte entsprechen dem
+jeweiligen Ready-Schema. Beschädigte gewählte Werte und XML bleiben Fehler;
+bei spätem Fehler bleibt das CLI-Ziel unverändert. Explizite `source`-Grenzen,
+Batchgrößen und Replay bleiben stabil. Aktive Bereiche überlappen sich nicht.
+
+Die dokumentierte Grenze bleibt bewusst: horizontale Aufteilung nur bei mindestens
+zwei vollständigen wortgleichen Maskenschemas mit mindestens zwei unterschiedlichen
+Maskenspalten. Einzelne wiederholte Namen, teilweise Schemata und horizontale
+Tabellen mit intern indizierten Maskennamen werden nicht geraten; dafür explizite
+Quellen. Über physische Zeilen verteilte Header werden nicht rekonstruiert.
+Außerhalb aktiver Spalten werden nur gültige Text-Headerkandidaten betrachtet;
+ungültige unselektierte Werte werden weiterhin nicht extrahiert. Keine Änderung
+am Maskenformat, keine neue Version oder Veröffentlichung.
+
+GEPRÜFT, vollständig und geändert: native/src/filter.rs (Schemaauflösung und aus
+der Maske abgeleitete Headerkandidaten), native/src/xlsx.rs (aktive Tabellen,
+Zellselektion, Projektion, Batchgrenzen), tests/test_multiple_tables.py, README.md,
+CHANGELOG.md, docs/contract.md und dieses Protokoll. GEPRÜFT, direkte Consumer
+unverändert: native/src/lib.rs (Ready/Batch), Python-Reader, CLI und Benchmark;
+bestehende Contract-/Header-/Quellen-/Zeilenenden-Tests bleiben relevant.
+Modelle, Workflows und Lockfiles bleiben unverändert. Die gleichzeitig vom Nutzer
+geänderte Kommentarübersetzung in pyproject.toml bleibt ungestagt; keine Ruff-Regel
+wurde verändert. Benutzerdateien und `treffer.ndjson` bleiben unversioniert.
+
+Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format,
+mypy (5 Dateien), cargo fmt, Clippy `--locked --offline --all-targets -- -D warnings`,
+cargo test (8 bestanden), pytest --cov (147 bestanden, 99,54 % Python-Coverage),
+Maturin-Wheel/sdist, Twine, `git diff --check`. Isolierte Wheel-Prüfungen unter
+Python 3.13 und 3.14: jeweils 147 bestanden. Artefakte enthalten keine lokalen
+Excel-/NDJSON-Dateien oder `.data/`-Inhalte. Synthetische Regressionen prüfen fünf
+Tabellen auf zwei Blättern, identische/anders geordnete Spalten, horizontale,
+vertikale und versetzte Header, Header neben Daten, Shared-String-Header außerhalb
+bisheriger Bindungen, unabhängige Filterbedingungen, späte beschädigte Werte,
+Batchgrößen 1/2/3/1024 und Replay. Bestehende Indizes und Kollisionen bleiben geprüft.
+Der bestehende Benchmark liest 250000 Zeilen und liefert korrekt 12500 Treffer;
+keine plattformübergreifende Performance-/RAM-Zusage aus diesem lokalen Lauf.
+
+Realer beauftragter CLI-Pfad: Exit 0, zehn Einträge mit genau drei Maskenspalten,
+Excel-Hash und Maske unverändert. Die Ergebnisse entsprechen als Multimenge exakt
+fünf separaten Scans mit expliziten Spalten-/Zeilengrenzen: vier Tabellen mit je
+zwei Treffern auf einem Blatt und eine Tabelle mit zwei Treffern auf einem zweiten
+Blatt. Kein pauschaler Sollzähler und keine duplizierten Ergebniseinträge im Code.
+
+Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokal nachgewiesen;
+unabhängiges Review und Remote-CI UNVERIFIED.
+
+TODO M01-Review: Basis/Dateien wie oben. Vollständigen Diff unabhängig prüfen,
+insbesondere Aufteilung vollständiger Schemata, Überlappungsregel, kompakte
+Projektion und Ready-/Batch-Reihenfolge. README-Prüfbefehle und
+`tests/test_multiple_tables.py` einschließlich Negativ-/Replay-/Atomicity-Fällen
+wiederholen. Soll: alle zehn synthetischen Treffer ohne Vermischung oder zusätzliche
+Treffer, unveränderte explizite Quellen und Indexsemantik. Abnahme: keine offenen
+Datenkorrektheits-/Lifecycle-Befunde. Abhängigkeit: unabhängiger Reviewer.
+Consumer-Auswirkung: weitere passende Tabellen liefern zusätzliche Datensätze;
+Maskenformat und öffentliche Import-/CLI-Pfade bleiben unverändert.
+
+TODO M01-CI: gleicher Basis-/Dateiumfang; Nutzer prüft regulären CI-Lauf am finalen
+PR-HEAD. Keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
+konfigurierte Python-/Rust-/Artefakt-Gates einschließlich bestehender und neuer
+Negativ-/Replay-Tests erfolgreich. Abhängigkeit: Runner-Toolchain.
+Consumer-Auswirkung: andere Plattformen bleiben bis Remote-Nachweis UNVERIFIED.

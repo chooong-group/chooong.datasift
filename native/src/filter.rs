@@ -17,6 +17,8 @@ pub struct Config {
     pub source: Option<TableSource>,
     #[serde(skip)]
     pub required_columns: HashSet<String>,
+    #[serde(skip)]
+    pub header_labels: HashSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -111,6 +113,14 @@ impl Config {
             source.validate()?;
         }
         spec.required_columns = referenced_columns(&spec.predicate);
+        spec.header_labels = spec.required_columns.clone();
+        for name in &spec.required_columns {
+            if let Some((base, index)) = name.rsplit_once('_') {
+                if index.parse::<usize>().is_ok_and(|index| index > 0) {
+                    spec.header_labels.insert(base.to_owned());
+                }
+            }
+        }
         let lookup = if let Some(source) = &spec.source {
             source.headers()?.1
         } else {
@@ -383,6 +393,46 @@ pub fn headers_from_row(
     }
     list.retain(|(name, _)| required.contains(name));
     Ok((list, lookup))
+}
+
+/// Resolve a row as one schema, or repeated complete unindexed schemas side by side.
+pub fn tables_from_row(
+    row: &[CellValue],
+    required: &HashSet<String>,
+) -> Result<Vec<HeaderLookup>, String> {
+    let whole = headers_from_row(row, required)?;
+    if whole.1.len() == required.len() {
+        return Ok(vec![whole]);
+    }
+    // ponytail: a single repeated name cannot distinguish tables from duplicate
+    // columns. Split only two or more complete multi-column schemas; otherwise
+    // keep indexed header semantics and require explicit source for ambiguity.
+    if required.len() < 2 {
+        return Ok(Vec::new());
+    }
+    let mut groups = Vec::new();
+    let mut names = Vec::new();
+    let mut lookup = HashMap::new();
+    for (position, cell) in row.iter().enumerate() {
+        let CellValue::Text(name) = cell else {
+            continue;
+        };
+        if !required.contains(name) {
+            continue;
+        }
+        if lookup.insert(name.clone(), position).is_some() {
+            return Ok(Vec::new());
+        }
+        names.push((name.clone(), position));
+        if lookup.len() == required.len() {
+            groups.push((std::mem::take(&mut names), std::mem::take(&mut lookup)));
+        }
+    }
+    if groups.len() >= 2 && lookup.is_empty() {
+        Ok(groups)
+    } else {
+        Ok(Vec::new())
+    }
 }
 
 fn numeric_cell(value: &CellValue) -> Option<f64> {

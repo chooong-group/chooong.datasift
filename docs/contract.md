@@ -27,8 +27,8 @@ Ein fehlendes Feld, leere Strings und andere Typen sind kein Ersatz für `null`.
 Die Treffer werden ohne Deduplizierung und ohne zusätzliche Metadatenfelder
 zusammengeführt. Gleiche Datensätze auf zwei Blättern bleiben zwei Treffer.
 
-Ohne `source` sucht die Engine auf jedem Blatt von oben nach unten die erste
-Zeile, die alle in `where` referenzierten Spalten enthält. Nur Textzellen gelten
+Ohne `source` sucht die Engine auf jedem Blatt von oben nach unten vollständige
+Tabellenköpfe, die alle in `where` referenzierten Spalten enthalten. Nur Textzellen gelten
 als Header; Titel, Zahlen und unvollständige Zeilen davor werden übersprungen.
 Literale XML-Zeilenenden CRLF und CR werden beim Einlesen in LF normalisiert,
 für Shared Strings, Inline Strings und CDATA, in Headern und Datenwerten.
@@ -38,7 +38,8 @@ Zeilenumbrüche innerhalb einer Headerzelle gehören zum exakten Namen. Doppelte
 Header erhalten die unten beschriebenen Indizes. Kommentare und Nachbartabellen
 werden nicht zu Ausgabespalten. Nach der Erkennung werden ausschließlich die
 Maskenspalten konvertiert und ausgegeben, in physischer Spaltenreihenfolge.
-Wiederholte Header mit denselben Werten in den gewählten Spalten werden übersprungen.
+Wiederholte vollständige Header beginnen einen neuen Tabellenbereich und sind
+für diesen Bereich keine Datenzeile.
 Echte Datensätze mit exakt diesen Headertexten sind dabei nicht unterscheidbar;
 dafür explizite `source`-Bindungen und Datenzeilen verwenden.
 
@@ -49,9 +50,27 @@ benötigt: fehlende Spalten werden nicht als leere Werte interpretiert.
 Mit `source` gelten die expliziten Bindungen auf jedem Blatt; auch hier werden nur
 in `where` verwendete Namen ausgegeben, in Bindungsreihenfolge.
 
-Die automatische Zuordnung verwendet den ersten vollständigen Header pro Blatt,
-keine Formatierungs-/Inhaltsheuristik. Über mehrere physische Zeilen verteilte
-Header werden nicht zusammengefügt; dafür bleiben explizite Bindungen verfügbar.
+Mehrere Tabellen können auf einem Blatt nebeneinander, untereinander oder versetzt
+stehen. Eine Zeile mit mindestens zwei vollständigen Gruppen der wortgleichen
+Maskennamen wird in unabhängige Schemata von links nach rechts aufgeteilt; jede
+Gruppe enthält jeden Maskennamen genau einmal. Dafür sind mindestens zwei
+unterschiedliche Maskenspalten nötig. Unvollständige Wiederholungsmuster werden
+nicht geraten; ein einzelnes Zeilenschema behält seine indizierten Headernamen.
+Insbesondere unterscheidet ein einzelner mehrfach vorkommender Name allein keine
+benachbarten Tabellen von doppelten Spalten. Bei mehrdeutigen/teilweisen Gruppen
+oder horizontalen Tabellen mit intern indizierten Maskennamen explizite Quellen
+verwenden. Die Erkennung verwendet keine Formatierungsheuristik und rekonstruiert
+keine über mehrere physische Zeilen verteilten Header.
+
+Jeder Tabellenbereich bindet seine Spalten unabhängig. Ein späterer vollständiger
+Header ersetzt aktive Bereiche, deren Spaltenintervall (erste bis letzte gewählte
+Spalte) ihn überlappt. Nicht überlappende Nachbartabellen laufen weiter, auch mit
+Datensätzen in derselben Zeile wie ein neuer Header. Die Erkennung legt kein Ende
+anhand leerer Zeilen oder Kommentare fest; dafür bleiben explizite Quellen.
+Treffer folgen Workbook-Reihenfolge, je Blatt der Zeilennummer und innerhalb einer
+Zeile der linken gewählten Spalte. Sie werden weder dedupliziert noch mit
+Tabellenmetadaten erweitert. Gleiche Schemata können einen gemeinsamen Batch haben;
+vor einem Wechsel der Ausgabespaltenreihenfolge wird der bisherige Batch geleert.
 Zeilen unterhalb des Headers werden anhand von `where` ausgewertet: Kommentare
 mit denselben passenden Werten sind ohne zusätzliche fachliche Regel nicht von
 Datensätzen unterscheidbar. Für feste Bereiche/Kommentare bleibt `source` verfügbar.
@@ -59,7 +78,10 @@ Datensätzen unterscheidbar. Für feste Bereiche/Kommentare bleibt `source` verf
 Fehlerhafte Filter einschließlich Rust-Regex werden vor Iterator-Rückgabe abgewiesen.
 ZIP-/XML-Fehler, Mehrdeutigkeiten ausgewählter Header und ungültige ausgewählte
 Zellwerte bleiben Fehler. Bei der Suche werden vor Headererkennung alle Zellwerte
-benötigt; beschädigte Zellwerte in diesen Zeilen werden nicht kaschiert.
+benötigt; beschädigte Zellwerte in diesen Zeilen werden nicht kaschiert. Nach
+der ersten Erkennung werden außerhalb aktiver Spalten zusätzlich gültige
+Text-Headerkandidaten gelesen, um weitere Tabellen zu finden. Ungültige
+unselektierte Werte werden dabei nicht zu Kandidaten oder Ausgabedaten.
 Die Schemaauflösung weiterer Blätter erfolgt während der Iteration; entsprechende
 Fehler sind `RuntimeError`. Batches überschreiten keine Blattgrenzen, und `--output`
 bleibt über alle Blätter atomar. Shared Strings werden einmal geladen.
@@ -106,14 +128,16 @@ Zeile 7 liegt in C–E; eine zweite Tabelle kann daneben stehen:
   Kommentare oberhalb des Datenbeginns sind ohnehin ausgeschlossen. Kommentare
   innerhalb des Bereichs werden nicht heuristisch erkannt; sie müssen über
   `skip_rows`, Grenzen oder passende `where`-Bedingungen ausgeschlossen werden.
-- Eine Maske wählt eine Quelle. Für mehrere Tabellen getrennte Masken verwenden;
-  die Positionen werden weder geraten noch stillschweigend zusammengeführt.
+- Mit `source` wählt eine Maske genau eine explizite Quelle. Für mehrere explizite
+  Bereiche getrennte Masken verwenden; die automatische Mehrtabellensuche gilt
+  ausschließlich ohne `source`.
 - Zellwerte außerhalb der expliziten Quelle werden nicht typisiert oder ausgegeben.
   ZIP-/XML-Struktur, Zellkoordinaten und Ressourcenlimits werden weiterhin geprüft,
   auch hinter `data_end_row`. Ein beschädigtes Gesamt-XML bleibt ein Fehler.
 
 Ohne `source` gilt die automatische Headersuche. Nur referenzierte Spalten
-werden ausgegeben; leere oder unbenutzte Überschriften nicht. Wiederholt sich ein exakter Headername,
+werden ausgegeben; leere oder unbenutzte Überschriften nicht. Innerhalb eines
+einzelnen Zeilenschemas gilt: Wiederholt sich ein exakter Headername,
 erhalten **alle** seine Vorkommen ab 1 einen Index von links nach rechts:
 `Umsatz`, `Umsatz` werden `Umsatz_1`, `Umsatz_2`. Bei drei Vorkommen kommt
 `Umsatz_3` hinzu. Eindeutige Header bleiben unverändert. Die indizierten Namen
@@ -145,9 +169,8 @@ bleiben gültig; es werden keine zuvor unbenannten Zusatzfelder mehr angehängt.
 Ein Vergleich enthält exakt `column`, `op`, `value`; Leerheitsprüfungen nur
 `column`, `op`. Gruppen enthalten nur ihren jeweiligen Gruppenschlüssel.
 Maximal 64 Ausdrucksebenen und 10000 Regeln je AND-/OR-Gruppe. Regexes unterstützen
-keine Backreferences oder Lookarounds. Sie werden pro Blattschema vorbereitet,
-bei der blattübergreifenden Suche zusätzlich vorab validiert; keine Kompilierung
-pro Datenzeile.
+keine Backreferences oder Lookarounds. Sie werden vorab validiert und pro
+erkanntem Tabellenschema vorbereitet; keine Kompilierung pro Datenzeile.
 
 Python-Modelle: `ScalarCondition`, `MembershipCondition`, `NumericCondition`,
 `TextCondition`, `EmptyCondition`, `AllOf(conditions=...)`, `AnyOf(conditions=...)`,
@@ -196,7 +219,9 @@ Datumserkennung. Formelcache wird gelesen, ohne Cache `None`; numerische Datumsw
 bleiben Seriennummern, ISO-Datumszellen Strings. Makros und Links werden nie ausgeführt.
 Fehlende Zeilen werden nicht erzeugt, Merge-Bereiche nicht expandiert.
 
-Speicher: Shared-Strings-Tabelle, größte XML-Token/Zeile und begrenzte Batches.
+Speicher: Shared-Strings-Tabelle, aktive Tabellenschemata mit kompilierten Filtern,
+größte XML-Token/Zeile und begrenzte Batches. Aktive Tabellen haben nicht überlappende
+Spaltenintervalle innerhalb der höchstens 16384 Excel-Spalten.
 Shared-Strings-XML maximal 512 MiB, Metadaten 16 MiB je Part, Zelltext 2 MiB;
 XML-Tiefe maximal 128. XML-Parser puffert einzelne Tokens vor der Textlimit-Prüfung:
 die Zellgrenze ist keine absolute RAM-Obergrenze für bösartige Archive.

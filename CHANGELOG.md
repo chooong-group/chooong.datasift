@@ -4,6 +4,10 @@
 
 ### Added
 
+- Automatische Suche mehrerer vollständiger Tabellenschemata pro Arbeitsblatt,
+  auch nebeneinander und versetzt untereinander; Treffer bleiben je Tabelle getrennt
+  und werden in Zeilenreihenfolge zusammengeführt.
+
 - Beispielmaske `examples/filter_schmutzig.json` für mehrzeilige Zellnamen und
   verschachtelte Bedingungen ohne feste Headerposition.
 
