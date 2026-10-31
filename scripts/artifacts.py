@@ -578,6 +578,7 @@ def test_artifact(ctx: Context, args: Arguments) -> None:
                     str(executable),
                     "--no-deps",
                     "--no-cache",
+                    "--config-settings=maturin.build-args=--locked",
                     str(artifact),
                 ],
                 check=True,
