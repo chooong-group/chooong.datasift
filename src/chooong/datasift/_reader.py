@@ -59,7 +59,7 @@ def iter_matching_batches(
     *,
     batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> BatchIterator:
-    """Validate the mask/header eagerly, then stream matching batches."""
+    """Validate the mask eagerly; all-sheet schemas resolve during iteration."""
     if isinstance(batch_size, bool) or not isinstance(batch_size, int):
         raise ValueError("batch_size muss eine Ganzzahl sein")
     if not 1 <= batch_size <= MAX_BATCH_SIZE:

@@ -51,6 +51,10 @@ Abbruch den Generator schließen oder den Batch-Kontextmanager verwenden.
 `BatchIterator`, `iter_matching_batches` und `iter_matching_rows`. Masken können
 als `FilterMask`, Mapping, JSON-Text oder Dateipfad übergeben werden. Ergebniszeilen
 sind unveränderliche `Row`-Mappings mit dynamischen Excel-Spaltennamen.
+`sheet: null` durchsucht alle Arbeitsblätter in Workbook-Reihenfolge und führt
+Treffer zusammen; ein Blattname wählt weiterhin genau ein Blatt. Ohne `source`
+werden Blätter ohne passende Filterspalten übersprungen. Mit `source` gilt dieselbe
+Zuordnung auf jedem Blatt. [examples/filter.json](examples/filter.json) zeigt dies.
 `source` ordnet Ausgabenamen tatsächlichen Excel-Spalten zu und begrenzt die
 Datenzeilen. Damit lassen sich Tabellen nebeneinander, beliebige Startpositionen,
 mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur die

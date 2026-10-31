@@ -41,55 +41,61 @@ impl BatchIterator {
         if self.finished {
             return Ok(None);
         }
-        let receiver = self
-            .receiver
-            .get_mut()
-            .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
-            .take()
-            .ok_or_else(|| PyRuntimeError::new_err("Iterator geschlossen"))?;
-        // Receiver is Send (but not Sync); move ownership into/out of the GIL-free closure.
-        let (receiver, message) = py.detach(move || {
-            let message = receiver.recv();
-            (receiver, message)
-        });
-        *self
-            .receiver
-            .get_mut()
-            .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))? = Some(receiver);
+        loop {
+            let receiver = self
+                .receiver
+                .get_mut()
+                .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
+                .take()
+                .ok_or_else(|| PyRuntimeError::new_err("Iterator geschlossen"))?;
+            // Receiver is Send (but not Sync); move ownership into/out of the GIL-free closure.
+            let (receiver, message) = py.detach(move || {
+                let message = receiver.recv();
+                (receiver, message)
+            });
+            *self
+                .receiver
+                .get_mut()
+                .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))? = Some(receiver);
 
-        let message = message.map_err(|_| {
-            self.finished = true;
-            PyRuntimeError::new_err("Rust-Worker wurde unerwartet beendet")
-        })?;
-        match message {
-            Message::Batch(rows) => {
-                let mut output = Vec::with_capacity(rows.len());
-                for row in rows {
-                    let object = PyDict::new(py);
-                    for (name, index) in &self.headers {
-                        write_cell(&object, name, row.get(*index).unwrap_or(&CellValue::Empty))?;
+            let message = message.map_err(|_| {
+                self.finished = true;
+                PyRuntimeError::new_err("Rust-Worker wurde unerwartet beendet")
+            })?;
+            match message {
+                Message::Batch(rows) => {
+                    let mut output = Vec::with_capacity(rows.len());
+                    for row in rows {
+                        let object = PyDict::new(py);
+                        for (name, index) in &self.headers {
+                            write_cell(
+                                &object,
+                                name,
+                                row.get(*index).unwrap_or(&CellValue::Empty),
+                            )?;
+                        }
+                        output.push(object.unbind());
                     }
-                    output.push(object.unbind());
+                    return Ok(Some(output));
                 }
-                Ok(Some(output))
+                Message::Done => {
+                    self.finished = true;
+                    self.receiver
+                        .get_mut()
+                        .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
+                        .take();
+                    return Ok(None);
+                }
+                Message::Failure(message) => {
+                    self.finished = true;
+                    self.receiver
+                        .get_mut()
+                        .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
+                        .take();
+                    return Err(PyRuntimeError::new_err(message));
+                }
+                Message::Ready(headers) => self.headers = headers,
             }
-            Message::Done => {
-                self.finished = true;
-                self.receiver
-                    .get_mut()
-                    .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
-                    .take();
-                Ok(None)
-            }
-            Message::Failure(message) => {
-                self.finished = true;
-                self.receiver
-                    .get_mut()
-                    .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
-                    .take();
-                Err(PyRuntimeError::new_err(message))
-            }
-            Message::Ready(_) => Err(PyRuntimeError::new_err("Ungültiger Worker-Status")),
         }
     }
 
@@ -159,8 +165,9 @@ fn iter_batches_native(
             PyRuntimeError::new_err(format!("Rust-Worker konnte nicht gestartet werden: {e}"))
         })?;
 
-    // Eager readiness barrier: validate sheet, header, unknown columns and regex
-    // before the Python API returns an iterator. Release GIL while waiting.
+    // Eager readiness barrier: workbook metadata and filter validation. A named
+    // sheet also resolves its headers here; all-sheet scans resolve each schema
+    // during iteration. Release GIL while waiting.
     let (receiver, message) = py.detach(move || {
         let message = receiver.recv();
         (receiver, message)

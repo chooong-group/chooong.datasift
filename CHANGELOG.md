@@ -4,6 +4,9 @@
 
 ### Added
 
+- `sheet: null` durchsucht alle Arbeitsblätter und führt Treffer in Workbook-
+  Reihenfolge zusammen; die atomare Ausgabe gilt über alle Blätter hinweg.
+
 - Automatische Indizes für wiederholte Header: `Umsatz_1`, `Umsatz_2`, …;
   eindeutige Namen bleiben unverändert, Namenskollisionen werden abgewiesen.
 - Explizite `TableSource`-/`ColumnBinding`-Maske für beliebige Tabellenpositionen,

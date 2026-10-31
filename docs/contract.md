@@ -14,7 +14,27 @@ Unbekannte Felder, Operatoren und falsche Werttypen werden abgewiesen.
 {"sheet":"Daten","header_row":1,"where":{"column":"Land","op":"eq","value":"DE"}}
 ```
 
-`sheet` ist ein nichtleerer Blattname. `source` trennt die Quellauswahl von der
+`sheet` ist ein erforderliches Feld: ein nichtleerer Blattname wählt genau dieses
+Blatt; JSON-`null` durchsucht alle Arbeitsblätter (auch ausgeblendete) in ihrer
+Workbook-Reihenfolge. Diagrammseiten ohne Tabellenzeilen werden nicht durchsucht.
+Ein fehlendes Feld, leere Strings und andere Typen sind kein Ersatz für `null`.
+Die Treffer werden ohne Deduplizierung und ohne zusätzliche Metadatenfelder
+zusammengeführt. Gleiche Datensätze auf zwei Blättern bleiben zwei Treffer.
+
+Im Modus `sheet: null` wird jedes Blatt unabhängig ausgewertet. Ohne `source`
+gilt `header_row` auf jedem Blatt: Leere Blätter, fehlende Kopfzeilen oder fehlende
+Filterspalten liefern keine Treffer; numerische Kopfzellen sind keine Spaltennamen.
+Die übrigen Text-Header werden einschließlich ihrer Indizes pro Blatt aufgelöst.
+Ist kein Blattschema passend, ist das Ergebnis leer. Mit `source` gelten dieselben
+expliziten Spalten-/Zeilengrenzen auf jedem Blatt; es wird kein Header interpretiert.
+Fehlerhafte Filter (einschließlich Rust-Regex) werden auch bei leeren Workbooks vor
+Iterator-Rückgabe abgewiesen. ZIP-/XML-Fehler, mehrdeutige Header und ungültige Werte
+in ausgewerteten Bereichen bleiben Fehler. Die Schemaauflösung weiterer Blätter
+kann erst während der Iteration erfolgen; entsprechende Fehler sind `RuntimeError`.
+Batches überschreiten keine Blattgrenzen, und `--output` bleibt über alle Blätter
+atomar. Shared Strings werden einmal für das Workbook geladen.
+
+`source` trennt die Quellauswahl von der
 Filterbedingung. Beispiel: Eine Tabelle mit ein-/mehrzeiligen Headern oberhalb von
 Zeile 7 liegt in C–E; eine zweite Tabelle kann daneben stehen:
 
@@ -65,13 +85,15 @@ erhalten **alle** seine Vorkommen ab 1 einen Index von links nach rechts:
 gelten gleichermaßen für Filter und Ausgabe; der mehrdeutige Name `Umsatz`
 ist dann kein gültiger Filtername. Leere Spalten verändern die Nummerierung nicht.
 Eine Kollision mit einer schon vorhandenen Überschrift (etwa `Umsatz_1` neben
-zweimal `Umsatz`) wird vor Iterator-Rückgabe abgewiesen; für diesen Fall lassen
-sich mit `source.columns` explizit eindeutige Namen vergeben. Nichttextuelle
-Überschriften bleiben ein Fehler. Namen werden weder getrimmt noch in ihrer
+zweimal `Umsatz`) wird vor Treffern des jeweiligen Blatts abgewiesen; für diesen Fall lassen
+sich mit `source.columns` explizit eindeutige Namen vergeben. Bei expliziter Blattauswahl bleiben nichttextuelle
+Überschriften ein Fehler. Namen werden weder getrimmt noch in ihrer
 Groß-/Kleinschreibung geändert. Explizite `source.columns.name` sind bereits
 gewählte Aliase und müssen weiterhin eindeutig sein.
 `header_row` darf mit `source` nicht auf einen anderen Wert als seinen ungenutzten
-Standard 1 gesetzt werden. Unbekannte Filter-Aliase werden immer abgewiesen.
+Standard 1 gesetzt werden. Unbekannte Aliase bei einem gewählten Blatt bzw. bei
+expliziten `source`-Bindungen werden abgewiesen. Die oben beschriebene Suche über
+alle Blätter ohne `source` überspringt dagegen unpassende Blattschemas.
 
 **Contract-Korrektur:** Die zuvor lokal eingeführten `__column_*`-Zusatzfelder
 entfallen. Die Maske bestimmt den Extraktionsumfang. Bestehende einfache Masken
@@ -91,7 +113,9 @@ bleiben gültig; es werden keine zuvor unbenannten Zusatzfelder mehr angehängt.
 Ein Vergleich enthält exakt `column`, `op`, `value`; Leerheitsprüfungen nur
 `column`, `op`. Gruppen enthalten nur ihren jeweiligen Gruppenschlüssel.
 Maximal 64 Ausdrucksebenen und 10000 Regeln je AND-/OR-Gruppe. Regexes unterstützen
-keine Backreferences oder Lookarounds und werden einmal pro Scan kompiliert.
+keine Backreferences oder Lookarounds. Sie werden pro Blattschema vorbereitet,
+bei der blattübergreifenden Suche zusätzlich vorab validiert; keine Kompilierung
+pro Datenzeile.
 
 Python-Modelle: `ScalarCondition`, `MembershipCondition`, `NumericCondition`,
 `TextCondition`, `EmptyCondition`, `AllOf(conditions=...)`, `AnyOf(conditions=...)`,
@@ -102,7 +126,7 @@ Python-Modelle: `ScalarCondition`, `MembershipCondition`, `NumericCondition`,
 `iter_matching_batches(path, mask, *, batch_size=1024)` liefert einen
 `BatchIterator` mit `list[Row]`, `close()` und Kontextmanager-Unterstützung.
 Sheet, Filter-Aliase und Regex werden vor Rückgabe geprüft. Im einfachen Modus
-wird außerdem die Kopfzeile gelesen; bei `source` werden die expliziten Bindungen
+mit gewähltem Blatt wird außerdem die Kopfzeile gelesen; bei `source` werden die expliziten Bindungen
 geprüft, keine tatsächlichen Headertexte.
 `iter_matching_rows` liefert einen Generator und validiert beim ersten `next()`.
 Ein geschlossenes oder erschöpftes Scanobjekt bleibt erschöpft. Parallele Scans

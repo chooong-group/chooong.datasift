@@ -10,12 +10,15 @@ use crate::value::CellValue;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    pub sheet: String,
+    #[serde(deserialize_with = "Option::<String>::deserialize")]
+    pub sheet: Option<String>,
     #[serde(default = "default_header_row")]
     pub header_row: u32,
     #[serde(rename = "where")]
     pub predicate: Json,
     pub source: Option<TableSource>,
+    #[serde(skip)]
+    pub required_columns: HashSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -102,8 +105,12 @@ fn default_header_row() -> u32 {
 
 impl Config {
     pub fn parse(input: &str) -> Result<Self, String> {
-        let spec: Config = serde_json::from_str(input).map_err(|e| format!("JSON: {e}"))?;
-        if spec.sheet.trim().is_empty() {
+        let mut spec: Config = serde_json::from_str(input).map_err(|e| format!("JSON: {e}"))?;
+        if spec
+            .sheet
+            .as_ref()
+            .is_some_and(|sheet| sheet.trim().is_empty())
+        {
             return Err("'sheet' darf nicht leer sein".into());
         }
         if !(1..=1_048_576).contains(&spec.header_row) {
@@ -115,8 +122,46 @@ impl Config {
             }
             source.validate()?;
         }
+        if spec.sheet.is_none() {
+            spec.required_columns = referenced_columns(&spec.predicate);
+            let lookup = if let Some(source) = &spec.source {
+                source.headers()?.1
+            } else {
+                spec.required_columns
+                    .iter()
+                    .enumerate()
+                    .map(|(index, name)| (name.clone(), index))
+                    .collect()
+            };
+            // Reject invalid filters even when every worksheet is empty/incompatible.
+            Expr::compile(&spec.predicate, &lookup)?;
+        }
         Ok(spec)
     }
+}
+
+fn referenced_columns(predicate: &Json) -> HashSet<String> {
+    fn collect(value: &Json, columns: &mut HashSet<String>) {
+        match value {
+            Json::Object(fields) => {
+                if let Some(name) = fields.get("column").and_then(Json::as_str) {
+                    columns.insert(name.to_owned());
+                }
+                for child in fields.values() {
+                    collect(child, columns);
+                }
+            }
+            Json::Array(items) => {
+                for child in items {
+                    collect(child, columns);
+                }
+            }
+            _ => (),
+        }
+    }
+    let mut columns = HashSet::new();
+    collect(predicate, &mut columns);
+    columns
 }
 
 #[derive(Debug)]
@@ -423,6 +468,15 @@ mod tests {
         assert_eq!(names[11], ("Umsatz_12".into(), 12));
         assert_eq!(lookup["Umsatz_10"], 10);
         assert!(!lookup.contains_key("Umsatz"));
+    }
+
+    #[test]
+    fn sheet_null_is_explicit_and_missing_sheet_is_rejected() {
+        assert!(Config::parse(r#"{"where":{"column":"x","op":"eq","value":1}}"#).is_err());
+        let config =
+            Config::parse(r#"{"sheet":null,"where":{"column":"x","op":"eq","value":1}}"#).unwrap();
+        assert!(config.sheet.is_none());
+        assert!(config.required_columns.contains("x"));
     }
 
     #[test]

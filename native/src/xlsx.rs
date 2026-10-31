@@ -1,6 +1,6 @@
 //! Bounded-memory XLSX reader. Worksheet XML is parsed while it is decompressed.
 //! Only the shared-string table and workbook metadata are materialized.
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -159,16 +159,21 @@ fn safe_target(base: &str, target: &str) -> Result<String, String> {
     Ok(segments.join("/"))
 }
 
-/// Find a worksheet by its *name*, through OOXML relationship IDs (never guess sheet1.xml).
+struct WorkbookPaths {
+    worksheets: Vec<String>,
+    shared_strings: Option<String>,
+}
+
+/// Resolve selected worksheets through OOXML relationships, preserving workbook order.
 fn workbook_paths(
     archive: &mut ZipArchive<File>,
-    sheet: &str,
-) -> Result<(String, Option<String>), String> {
+    sheet: Option<&str>,
+) -> Result<WorkbookPaths, String> {
     let document = xml_part(archive, "xl/workbook.xml", MAX_XML_METADATA_BYTES)?;
     let mut reader = Reader::from_reader(document.as_slice());
     let mut buf = Vec::new();
     let mut depth = 0_usize;
-    let mut relationship_id = None;
+    let mut relationship_ids = Vec::new();
     let mut available = Vec::new();
 
     loop {
@@ -179,11 +184,9 @@ fn workbook_paths(
         match event {
             Event::Start(ref e) | Event::Empty(ref e) if xml_tag(e.name().as_ref()) == b"sheet" => {
                 if let Some(name) = attribute(e, b"name")? {
-                    if name == sheet {
-                        relationship_id = attribute(e, b"r:id")?;
-                        if relationship_id.is_none() {
-                            return Err(format!("Arbeitsblatt {sheet:?} ohne r:id"));
-                        }
+                    if sheet.is_none_or(|selected| name == selected) {
+                        relationship_ids
+                            .push(attribute(e, b"r:id")?.ok_or("Arbeitsblatt ohne r:id")?);
                     }
                     available.push(name);
                 }
@@ -195,9 +198,12 @@ fn workbook_paths(
         }
         buf.clear();
     }
-    let relationship_id = relationship_id.ok_or_else(|| {
-        format!("Arbeitsblatt {sheet:?} nicht vorhanden. Verfügbar: {available:?}")
-    })?;
+    if sheet.is_some() && relationship_ids.is_empty() {
+        return Err(format!(
+            "Arbeitsblatt {sheet:?} nicht vorhanden. Verfügbar: {available:?}"
+        ));
+    }
+    let selected_ids: HashSet<&str> = relationship_ids.iter().map(String::as_str).collect();
 
     let document = xml_part(
         archive,
@@ -207,7 +213,7 @@ fn workbook_paths(
     let mut reader = Reader::from_reader(document.as_slice());
     let mut buf = Vec::new();
     let mut depth = 0_usize;
-    let mut worksheet = None;
+    let mut by_id = HashMap::new();
     let mut shared_strings = None;
 
     loop {
@@ -224,16 +230,22 @@ fn workbook_paths(
                 let target = attribute(e, b"Target")?.unwrap_or_default();
                 let target_mode = attribute(e, b"TargetMode")?;
                 if target_mode.as_deref() == Some("External") {
-                    if id == Some(relationship_id.clone()) {
+                    if id.as_deref().is_some_and(|id| selected_ids.contains(id)) {
                         return Err("Externes Arbeitsblatt wird nicht unterstützt".into());
                     }
                     continue;
                 }
-                if id.as_deref() == Some(relationship_id.as_str()) {
-                    if !kind.ends_with("/worksheet") {
+                if let Some(id) = id.filter(|id| selected_ids.contains(id.as_str())) {
+                    let worksheet = if kind.ends_with("/worksheet") {
+                        Some(safe_target("xl/", &target)?)
+                    } else if sheet.is_some() {
                         return Err("Die Tabellen-Relation ist kein worksheet".into());
+                    } else {
+                        None // Chartsheets have no worksheet rows to search.
+                    };
+                    if by_id.insert(id, worksheet).is_some() {
+                        return Err("Doppelte Workbook-Relation".into());
                     }
-                    worksheet = Some(safe_target("xl/", &target)?);
                 }
                 if kind.ends_with("/sharedStrings") {
                     shared_strings = Some(safe_target("xl/", &target)?);
@@ -246,8 +258,19 @@ fn workbook_paths(
         }
         buf.clear();
     }
-    let worksheet = worksheet.ok_or("Worksheet-Relation nicht gefunden")?;
-    Ok((worksheet, shared_strings))
+    let mut worksheets = Vec::new();
+    for id in &relationship_ids {
+        if let Some(path) = by_id
+            .remove(id)
+            .ok_or("Worksheet-Relation nicht gefunden")?
+        {
+            worksheets.push(path);
+        }
+    }
+    Ok(WorkbookPaths {
+        worksheets,
+        shared_strings,
+    })
 }
 
 fn load_shared_strings(
@@ -391,12 +414,24 @@ struct Sink<'a> {
     batch_size: usize,
     headers: Option<Vec<(String, usize)>>,
     selected_positions: Option<HashSet<usize>>,
+    skipped: bool,
     predicate: Option<Expr>,
     buffer: Vec<Vec<CellValue>>,
 }
 
 impl Sink<'_> {
     fn prepare_headers(&mut self, (names, lookup): HeaderLookup) -> Result<(), String> {
+        if self.config.sheet.is_none()
+            && self.config.source.is_none()
+            && self
+                .config
+                .required_columns
+                .iter()
+                .any(|name| !lookup.contains_key(name))
+        {
+            self.skipped = true;
+            return Ok(());
+        }
         let predicate = Expr::compile(&self.config.predicate, &lookup)?;
         if self.config.source.is_some() {
             self.selected_positions = Some(names.iter().map(|(_, index)| *index).collect());
@@ -410,10 +445,12 @@ impl Sink<'_> {
     }
 
     fn selects_cell(&self, row: u32, column: usize) -> bool {
-        self.config
-            .source
-            .as_ref()
-            .is_none_or(|source| source.contains_row(row))
+        !self.skipped
+            && self
+                .config
+                .source
+                .as_ref()
+                .is_none_or(|source| source.contains_row(row))
             && self
                 .selected_positions
                 .as_ref()
@@ -421,7 +458,7 @@ impl Sink<'_> {
     }
 
     fn on_row(&mut self, number: u32, row: Vec<CellValue>) -> Result<(), String> {
-        if self.cancelled.load(Ordering::Relaxed) {
+        if self.skipped || self.cancelled.load(Ordering::Relaxed) {
             return Ok(());
         }
         if let Some(source) = &self.config.source {
@@ -436,7 +473,30 @@ impl Sink<'_> {
                 if self.headers.is_some() {
                     return Err("Doppelte Kopfzeile".into());
                 }
+                if self.config.sheet.is_none() {
+                    // Search mode only considers textual header cells; summary numbers
+                    // are not column labels. Corrupt ZIP/XML is still rejected.
+                    let text_headers: Vec<CellValue> = row
+                        .iter()
+                        .map(|cell| match cell {
+                            CellValue::Text(_) => cell.clone(),
+                            _ => CellValue::Empty,
+                        })
+                        .collect();
+                    if text_headers.iter().all(|cell| match cell {
+                        CellValue::Text(name) => name.trim().is_empty(),
+                        _ => true,
+                    }) {
+                        self.skipped = true;
+                        return Ok(());
+                    }
+                    return self.prepare_headers(headers_from_row(&text_headers)?);
+                }
                 return self.prepare_headers(headers_from_row(&row)?);
+            }
+            if self.config.sheet.is_none() && self.headers.is_none() {
+                self.skipped = true;
+                return Ok(());
             }
         }
         let predicate = self
@@ -474,28 +534,48 @@ pub fn scan(
 ) -> Result<(), String> {
     let input = File::open(path).map_err(|e| format!("Kann XLSX nicht öffnen: {e}"))?;
     let mut archive = ZipArchive::new(input).map_err(|e| format!("Ungültiges XLSX/ZIP: {e}"))?;
-    let (worksheet, shared_path) = workbook_paths(&mut archive, &config.sheet)?;
-    let shared = load_shared_strings(&mut archive, shared_path.as_deref())?;
+    let paths = workbook_paths(&mut archive, config.sheet.as_deref())?;
+    let shared = load_shared_strings(&mut archive, paths.shared_strings.as_deref())?;
+    if config.sheet.is_none() {
+        sender
+            .send(Message::Ready(Vec::new()))
+            .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
+    }
+    for worksheet in paths.worksheets {
+        if cancelled.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        let mut sink = Sink {
+            config,
+            sender,
+            cancelled,
+            batch_size,
+            headers: None,
+            selected_positions: None,
+            skipped: false,
+            predicate: None,
+            buffer: Vec::with_capacity(batch_size),
+        };
+        if let Some(source) = &config.source {
+            sink.prepare_headers(source.headers()?)?;
+        }
+        scan_worksheet(&mut archive, &worksheet, &shared, &mut sink)?;
+    }
+    Ok(())
+}
 
+fn scan_worksheet(
+    archive: &mut ZipArchive<File>,
+    worksheet: &str,
+    shared: &[String],
+    sink: &mut Sink<'_>,
+) -> Result<(), String> {
     let member = archive
-        .by_name(&worksheet)
+        .by_name(worksheet)
         .map_err(|e| format!("Arbeitsblatt-XML {worksheet:?} fehlt: {e}"))?;
     let mut reader = Reader::from_reader(BufReader::with_capacity(128 * 1024, member));
     let mut buf = Vec::new();
     let mut depth = 0_usize;
-    let mut sink = Sink {
-        config,
-        sender,
-        cancelled,
-        batch_size,
-        headers: None,
-        selected_positions: None,
-        predicate: None,
-        buffer: Vec::with_capacity(batch_size),
-    };
-    if let Some(source) = &config.source {
-        sink.prepare_headers(source.headers()?)?;
-    }
 
     let mut row = Vec::new();
     let mut in_sheet_data = false;
@@ -513,7 +593,7 @@ pub fn scan(
     let mut last_row = 0_u32;
 
     loop {
-        if cancelled.load(Ordering::Relaxed) {
+        if sink.cancelled.load(Ordering::Relaxed) {
             return Ok(());
         }
         let event = reader.read_event_into(&mut buf).map_err(|e| {
@@ -609,7 +689,7 @@ pub fn scan(
                 b"is" => in_inline = false,
                 b"c" if in_cell => {
                     if sink.selects_cell(row_num, cell_col) {
-                        let value = finish_cell(&cell_kind, &raw_value, &inline_value, &shared)
+                        let value = finish_cell(&cell_kind, &raw_value, &inline_value, shared)
                             .map_err(|e| {
                                 format!("Excel-Zeile {row_num}, Spalte {}: {e}", cell_col + 1)
                             })?;
@@ -635,10 +715,10 @@ pub fn scan(
                 if in_row || in_cell {
                     return Err("Tabellen-XML ist unvollständig".into());
                 }
-                if sink.headers.is_none() {
+                if sink.headers.is_none() && sink.config.sheet.is_some() {
                     return Err(format!(
                         "Excel-Kopfzeile {} ist nicht vorhanden",
-                        config.header_row
+                        sink.config.header_row
                     ));
                 }
                 sink.flush()?;

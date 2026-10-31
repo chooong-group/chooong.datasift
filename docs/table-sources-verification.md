@@ -133,3 +133,62 @@ unveränderte eindeutige Header, alle Prüfungen erfolgreich. Abhängigkeiten:
 unabhängiger Reviewer und bereitgestellte Runner-Toolchain. Consumer-Auswirkung:
 vormals abgewiesene doppelte Header werden über ihre indizierten Namen auswählbar.
 Gesamtfreigabe bleibt NICHT ENTSCHEIDBAR bis Review und Remote-Nachweis.
+
+## Nachtrag S01 — alle Arbeitsblätter bei `sheet: null`
+
+Prüfstand 31.10.2026, Repository `chooong.datasift`, Branch
+`feat/datasift-package`, Basis `bc4d9f4304d1af86571e6c7b8ed3cec1abc4bcbb`,
+bestehender PR #1. Exakter Diff nach Commit:
+`git diff bc4d9f4...feat/datasift-package`. Elf geänderte bzw. neue Dateien.
+Dieser Nachtrag ersetzt für dieses Delta die älteren Prüfstände oben.
+
+S01, P1, unabhängige Schließung offen: `sheet` bleibt erforderlich und akzeptiert
+nun JSON-null. Die bestehende Streaming-Engine verarbeitet alle Arbeitsblätter
+in Workbook-Reihenfolge, mit separater Header-/Filterauflösung und ohne zusätzliche
+Ausgabefelder. Kein zweiter Reader, keine neue Abhängigkeit. Namen wählen weiterhin
+ein einzelnes Blatt. Ohne `source` werden fehlende Kopfzeilen und unpassende
+Schemas übersprungen; mit `source` gelten die Bindungen auf jedem Blatt.
+Strukturelle Fehler bleiben Fehler, auch nach ersten Treffern und in übersprungenen
+Blättern. Die CLI ersetzt das Ziel erst nach erfolgreichem Gesamtscan.
+
+GEPRÜFT, vollständig: `_models.py`, `_reader.py`, `native/src/filter.rs`,
+`native/src/xlsx.rs`, `native/src/lib.rs`, `tests/test_all_sheets.py`,
+`examples/filter.json`, README.md, CHANGELOG.md und docs/contract.md.
+Direkte Consumer: Python-Reader und CLI sowie bestehende Contract-, Engine-,
+Quellen- und Header-Tests; unveränderte Pfade durch die gesamte Testsuite geprüft.
+Build-Konfiguration, Workflows und Lockfiles bleiben unverändert. Keine externen
+Consumer geändert. Lokale Benutzerdateien bleiben unversioniert; der sdist wird aus
+einer gezielten Quellkopie gebaut, damit unversionierte Beispiele nicht einfließen.
+
+Lokale Nachweise (Exit 0): Ruff check/format, mypy (5 Dateien), cargo fmt,
+Clippy `--locked --offline --all-targets -- -D warnings`, cargo test (8 bestanden),
+pytest --cov (112 bestanden, 99,55 % Python-Coverage), Maturin-Wheel/sdist,
+Twine und `git diff --check`. Isolierte Wheel-Prüfungen: jeweils 112 Tests unter
+Python 3.13 und 3.14. Die Tests prüfen Blattreihenfolge trotz anders geordneter
+Relationships, ausgeblendete Blätter, Diagrammseiten, unterschiedliche Spalten,
+fehlende Kopfzeilen, explizite Quellen, leere Ergebnisse, ungültige Regexes,
+Batchgrößen 1/2/1024, Replay und unveränderte Eingabe. Fehler in späteren Blättern,
+extern verknüpfte Arbeitsblätter und abgeschnittenes XML werden abgewiesen;
+ein bestehendes CLI-Ausgabeziel bleibt bei Fehler unverändert.
+
+Urteil: NICHT ENTSCHEIDBAR für die Gesamtfreigabe; Implementation und lokale
+Nachweise liegen vor, unabhängiges Review und Remote-CI bleiben UNVERIFIED.
+
+TODO S01-Review: Basis wie oben. Reviewer liest den vollständigen Diff der
+aufgelisteten Dateien und prüft insbesondere Metadatenreihenfolge, Ready-/Batch-
+Zuordnung, fehlende Kopfzeilen und atomare Ausgabe bei spätem Fehler.
+Verifikation: README-Qualitätsbefehle und `tests/test_all_sheets.py` wiederholen.
+Abnahme: keine offenen Datenintegritätsbefunde, gleiche Treffer bei Replay und
+allen Batchgrößen, Fehler überschreiben kein Ausgabeziel. Abhängigkeit: unabhängiger
+Reviewer. Consumer-Auswirkung: optionale Suche über alle Blätter ohne Schemaänderung
+der Ergebniszeilen.
+
+TODO S01-CI: gleicher Basis-/Dateiumfang. Nach dem Push regulären CI-Lauf am
+endgültigen PR-HEAD prüfen; keine manuelle Auslösung oder Polling durch den Agenten.
+Abnahme: alle konfigurierten Gates erfolgreich, einschließlich bestehender
+Negativ-/Replay-Tests. Abhängigkeit: Runner-Toolchain. Consumer-Auswirkung:
+plattformübergreifender Build-/Contract-Nachweis bleibt bis dahin UNVERIFIED.
+
+Der erste Commitversuch scheiterte mit Exit 128 (`agent refused operation`).
+Nach Rückmeldung des Nutzers wird Commit/Push mit unveränderter SSH-Signierung
+erneut ausgeführt; der endgültige Commit wird am PR-HEAD ausgewiesen.

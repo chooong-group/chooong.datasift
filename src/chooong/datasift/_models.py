@@ -126,7 +126,7 @@ class TableSource(_Model):
 
 
 class FilterMask(_Model):
-    sheet: Annotated[StrictStr, Field(min_length=1, pattern=r"\S")]
+    sheet: Annotated[StrictStr, Field(min_length=1, pattern=r"\S")] | None
     header_row: Annotated[StrictInt, Field(ge=1, le=1048576)] = 1
     where: Expression
     source: TableSource | None = None
