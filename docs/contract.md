@@ -1,237 +1,228 @@
-# Öffentlicher Vertrag v1
+# Public Contract v1
 
-Distribution: `chooong.datasift`, Import: `chooong.datasift`, CLI:
-`chooong-datasift` bzw. `python -m chooong.datasift`. Die Initialversion bleibt
-0.1.0; keine Veröffentlichung oder Consumer-Migration ist Teil dieses Auftrags.
+Distribution: `chooong.datasift`. Import: `chooong.datasift`. CLI:
+`chooong-datasift` or `python -m chooong.datasift`. The unreleased version remains
+0.1.0. Publication and external consumer migration are not part of this preparation.
 
-Die Implementierung liegt in `models`, `reader` und der nativen Erweiterung
-`rust` ohne führenden Unterstrich. Zugesicherte Importpfade bleiben die oben
-genannten Exporte aus `chooong.datasift`; direkte Implementierungsimporte sind
-kein zusätzlicher öffentlicher Contract. Die Python-Standardmodule `__init__`
-und `__main__` behalten ihre Namen.
+Implementation modules are `models`, `reader` and the native `rust` extension.
+The explicitly supported import paths are the exports of `chooong.datasift`;
+implementation-module imports are not additional stable contracts. The Python
+standard modules `__init__` and `__main__` keep their names.
 
-## JSON-Maske
+## JSON mask
 
-Format v1 ist implizit, ohne Versionsfeld. `FilterMask` ist das kanonische
-Eingabemodell; `FilterMask.model_json_schema(by_alias=True)` erzeugt das Schema.
-Unbekannte Felder, Operatoren und falsche Werttypen werden abgewiesen.
+The format is implicitly v1, without a version field. `FilterMask` is the canonical
+input model. `FilterMask.model_json_schema(by_alias=True)` generates its schema.
+Unknown fields, operators and incorrect value types are rejected.
 
 ```json
-{"sheet":"Daten","where":{"column":"Land","op":"eq","value":"DE"}}
+{"sheet":"Data","where":{"column":"Country","op":"eq","value":"DE"}}
 ```
 
-`sheet` ist ein erforderliches Feld: ein nichtleerer Blattname wählt genau dieses
-Blatt; JSON-`null` durchsucht alle Arbeitsblätter (auch ausgeblendete) in ihrer
-Workbook-Reihenfolge. Diagrammseiten ohne Tabellenzeilen werden nicht durchsucht.
-Ein fehlendes Feld, leere Strings und andere Typen sind kein Ersatz für `null`.
-Die Treffer werden ohne Deduplizierung und ohne zusätzliche Metadatenfelder
-zusammengeführt. Gleiche Datensätze auf zwei Blättern bleiben zwei Treffer.
+`sheet` is required. A nonempty sheet name selects exactly that worksheet; JSON
+`null` scans all worksheets, including hidden ones, in workbook order. Chart sheets
+without worksheet rows are skipped. Missing fields, blank strings and other types
+are not substitutes for `null`. The string `"null"` is a literal sheet name.
+Results have no extra metadata fields and are not deduplicated: identical records
+on two sheets remain two records.
 
-Ohne `source` sucht die Engine auf jedem Blatt von oben nach unten vollständige
-Tabellenköpfe, die alle in `where` referenzierten Spalten enthalten. Nur Textzellen gelten
-als Header; Titel, Zahlen und unvollständige Zeilen davor werden übersprungen.
-Literale XML-Zeilenenden CRLF und CR werden beim Einlesen in LF normalisiert,
-für Shared Strings, Inline Strings und CDATA, in Headern und Datenwerten.
-Explizite Zeichenreferenzen wie `&#13;` bleiben das referenzierte Zeichen;
-Leerzeichen und Groß-/Kleinschreibung werden nicht normalisiert.
-Zeilenumbrüche innerhalb einer Headerzelle gehören zum exakten Namen. Doppelte
-Header erhalten die unten beschriebenen Indizes. Kommentare und Nachbartabellen
-werden nicht zu Ausgabespalten. Nach der Erkennung werden ausschließlich die
-Maskenspalten konvertiert und ausgegeben, in physischer Spaltenreihenfolge.
-Wiederholte vollständige Header beginnen einen neuen Tabellenbereich und sind
-für diesen Bereich keine Datenzeile.
-Echte Datensätze mit exakt diesen Headertexten sind dabei nicht unterscheidbar;
-dafür explizite `source`-Bindungen und Datenzeilen verwenden.
+Without `source`, the engine searches each sheet for complete table headers
+containing every name referenced by `where`. Text cells alone are header labels;
+titles, numbers and incomplete rows before a schema are skipped. Literal XML CRLF
+and CR line endings become LF for shared strings, inline strings and CDATA in
+headers and data. Explicit character references such as `&#13;` retain the
+referenced character. Names are not stripped or case-folded. Line breaks within
+one header cell are part of its exact name.
 
-Ein gewähltes Blatt ohne vollständigen Header ist ein `ValueError`; bei `sheet: null`
-werden solche Blätter übersprungen. Ein Workbook ohne passendes Schema liefert
-in diesem Modus keine Treffer. Alle Filterspalten werden auch bei `any` und `not`
-benötigt: fehlende Spalten werden nicht als leere Werte interpretiert.
-Mit `source` gelten die expliziten Bindungen auf jedem Blatt; auch hier werden nur
-in `where` verwendete Namen ausgegeben, in Bindungsreihenfolge.
+After recognition, only mask columns are converted and returned, in physical
+column order. Comments and neighboring fields do not become output columns.
+A repeated complete header starts a new area and is not a record for that new
+area. Real records identical to all selected header texts cannot be distinguished
+in automatic mode; use explicit bindings/ranges for that case.
 
-Mehrere Tabellen können auf einem Blatt nebeneinander, untereinander oder versetzt
-stehen. Eine Zeile mit mindestens zwei vollständigen Gruppen der wortgleichen
-Maskennamen wird in unabhängige Schemata von links nach rechts aufgeteilt; jede
-Gruppe enthält jeden Maskennamen genau einmal. Dafür sind mindestens zwei
-unterschiedliche Maskenspalten nötig. Unvollständige Wiederholungsmuster werden
-nicht geraten; ein einzelnes Zeilenschema behält seine indizierten Headernamen.
-Insbesondere unterscheidet ein einzelner mehrfach vorkommender Name allein keine
-benachbarten Tabellen von doppelten Spalten. Bei mehrdeutigen/teilweisen Gruppen
-oder horizontalen Tabellen mit intern indizierten Maskennamen explizite Quellen
-verwenden. Die Erkennung verwendet keine Formatierungsheuristik und rekonstruiert
-keine über mehrere physische Zeilen verteilten Header.
+A named worksheet without a complete header raises `ValueError`. In an all-sheet
+scan, unmatched sheets contribute no records and a workbook with no matching
+schema gives an empty result. All referenced columns are required, including
+inside `any` and `not`; missing columns are never assumed to be empty values.
+With `source`, the same explicit bindings apply on each selected sheet. Only
+aliases referenced by `where` are returned, in binding order.
 
-Jeder Tabellenbereich bindet seine Spalten unabhängig. Ein späterer vollständiger
-Header ersetzt aktive Bereiche, deren Spaltenintervall (erste bis letzte gewählte
-Spalte) ihn überlappt. Nicht überlappende Nachbartabellen laufen weiter, auch mit
-Datensätzen in derselben Zeile wie ein neuer Header. Die Erkennung legt kein Ende
-anhand leerer Zeilen oder Kommentare fest; dafür bleiben explizite Quellen.
-Treffer folgen Workbook-Reihenfolge, je Blatt der Zeilennummer und innerhalb einer
-Zeile der linken gewählten Spalte. Sie werden weder dedupliziert noch mit
-Tabellenmetadaten erweitert. Gleiche Schemata können einen gemeinsamen Batch haben;
-vor einem Wechsel der Ausgabespaltenreihenfolge wird der bisherige Batch geleert.
-Zeilen unterhalb des Headers werden anhand von `where` ausgewertet: Kommentare
-mit denselben passenden Werten sind ohne zusätzliche fachliche Regel nicht von
-Datensätzen unterscheidbar. Für feste Bereiche/Kommentare bleibt `source` verfügbar.
+## Multiple automatic tables
 
-Fehlerhafte Filter einschließlich Rust-Regex werden vor Iterator-Rückgabe abgewiesen.
-ZIP-/XML-Fehler, Mehrdeutigkeiten ausgewählter Header und ungültige ausgewählte
-Zellwerte bleiben Fehler. Bei der Suche werden vor Headererkennung alle Zellwerte
-benötigt; beschädigte Zellwerte in diesen Zeilen werden nicht kaschiert. Nach
-der ersten Erkennung werden außerhalb aktiver Spalten zusätzlich gültige
-Text-Headerkandidaten gelesen, um weitere Tabellen zu finden. Ungültige
-unselektierte Werte werden dabei nicht zu Kandidaten oder Ausgabedaten.
-Die Schemaauflösung weiterer Blätter erfolgt während der Iteration; entsprechende
-Fehler sind `RuntimeError`. Batches überschreiten keine Blattgrenzen, und `--output`
-bleibt über alle Blätter atomar. Shared Strings werden einmal geladen.
+Tables may be beside one another, below one another or offset. A row with at least
+two complete groups of the mask's literal names is split left to right into
+independent schemas; each group contains each mask name exactly once. This needs
+at least two distinct mask columns. Incomplete repetition patterns are not guessed;
+a single row schema keeps its indexed-header semantics. A repeated single name
+alone cannot distinguish neighboring tables from duplicate columns. Use explicit
+sources for ambiguous/partial groups or horizontal schemas using internally
+indexed mask names. Formatting is not a table oracle; headers distributed across
+multiple physical rows are not reconstructed.
 
-**Breaking Change im Greenfield-Contract v1:** `header_row` ist entfernt und wird
-als unbekanntes Feld abgewiesen. Vorhandene Masken entfernen diesen Schlüssel.
-Die Ausgabe enthält nur noch die in `where` referenzierten Spalten; wer weitere
-Werte benötigt, muss diese in die fachliche Maske aufnehmen. Keine Versionsanhebung
-oder Veröffentlichung in diesem Auftrag.
+Each area binds and evaluates its own columns. A later complete header replaces
+active areas whose intervals from first to last selected column overlap it.
+Non-overlapping neighbors keep running, even with records in the same row as a
+new header. Blank/comment rows do not infer a table end. Output follows workbook
+order, then row number, then the table's leftmost selected column. Identical
+schemas may share a batch; the batch is flushed before changing output column
+order. Tables never add metadata fields or deduplicate records.
 
-`source` trennt die Quellauswahl von der
-Filterbedingung. Beispiel: Eine Tabelle mit ein-/mehrzeiligen Headern oberhalb von
-Zeile 7 liegt in C–E; eine zweite Tabelle kann daneben stehen:
+Rows below a header are evaluated by `where`. A comment with the same matching
+values as a business record cannot be excluded by guessed formatting. Use a
+stricter rule, an explicit range or `skip_rows` as appropriate.
+
+Invalid filters, including Rust regexes, fail before iterator return. ZIP/XML
+errors, ambiguous selected headers and malformed selected values remain errors.
+Before the first schema is recognized, cell values are decoded during discovery.
+Afterwards, valid text header candidates outside active columns may introduce
+another schema; invalid unselected values do not become candidates or records.
+Schemas on later sheets/tables can fail during iteration with `RuntimeError`.
+Batches never cross sheet boundaries. The CLI's file replacement is atomic across
+the entire scan. Shared strings are loaded once per workbook.
+
+**Historical Greenfield breaking change:** `header_row` was removed and is rejected
+as an unknown field. Remove it from older masks. Results contain only columns
+referenced by `where`, rather than every header/source alias. The open-source
+preparation does not change this existing behavior or bump the version.
+
+## Explicit sources
+
+`source` separates the extraction scope from the predicate. A table below
+single/multiple header rows can be selected without interpreting those headings:
 
 ```json
 {
-  "sheet": "Daten",
+  "sheet": "Data",
   "source": {
     "columns": [
-      {"name": "Kunde", "column": "C"},
-      {"name": "Umsatz", "column": "D"},
-      {"name": "UmsatzVorjahr", "column": "E"}
+      {"name": "Country", "column": "C"},
+      {"name": "Amount", "column": "D"},
+      {"name": "PreviousAmount", "column": "E"}
     ],
     "data_start_row": 7,
     "data_end_row": 10,
     "skip_rows": [8]
   },
-  "where": {"column": "Umsatz", "op": "gte", "value": 100}
+  "where": {"column": "Amount", "op": "gte", "value": 100}
 }
 ```
 
-- `ColumnBinding(name, column)` bindet einen eindeutigen Ausgabe-/Filternamen an
-  eine absolute Excel-Spalte A..XFD (Großbuchstaben). Mehrere Namen dürfen bewusst
-  dieselbe physische Spalte referenzieren. Nur in `where` verwendete Bindungen werden extrahiert.
-- `TableSource.columns` ist eine nichtleere Liste mit höchstens 16384 Bindungen.
-  Die Listenreihenfolge bestimmt die Ausgabereihenfolge. Tatsächliche Headertexte
-  werden in diesem Modus nicht als Schema interpretiert: gleiche Überschriften,
-  mehrere Headerzeilen und verbundene Headerzellen sind deshalb kein Hindernis.
-  Automatisches Header-Zusammenfügen oder Tabellen-Erkennen findet nicht statt.
-- `data_start_row` ist erforderlich, `data_end_row` optional und inklusive.
-  Beide liegen in 1..1048576; das Ende darf nicht vor dem Beginn liegen. Ohne Ende
-  gilt der Rest des Arbeitsblatts als gewählter Zeilenbereich.
-- `skip_rows` nennt explizite Kommentar-/Zwischenzeilen innerhalb des Datenbereichs.
-  Kommentare oberhalb des Datenbeginns sind ohnehin ausgeschlossen. Kommentare
-  innerhalb des Bereichs werden nicht heuristisch erkannt; sie müssen über
-  `skip_rows`, Grenzen oder passende `where`-Bedingungen ausgeschlossen werden.
-- Mit `source` wählt eine Maske genau eine explizite Quelle. Für mehrere explizite
-  Bereiche getrennte Masken verwenden; die automatische Mehrtabellensuche gilt
-  ausschließlich ohne `source`.
-- Zellwerte außerhalb der expliziten Quelle werden nicht typisiert oder ausgegeben.
-  ZIP-/XML-Struktur, Zellkoordinaten und Ressourcenlimits werden weiterhin geprüft,
-  auch hinter `data_end_row`. Ein beschädigtes Gesamt-XML bleibt ein Fehler.
+- `ColumnBinding(name, column)` binds a unique nonblank filter/output name to an
+  absolute uppercase Excel column A..XFD. Different aliases may intentionally
+  reference one physical column. Only aliases used by `where` are extracted.
+- `TableSource.columns` is nonempty, with at most 16384 bindings. Its order controls
+  output order. Header text is not treated as a schema in this mode, so duplicate,
+  merged or physically multi-row headings can be bypassed explicitly. They are
+  not automatically assembled or expanded.
+- `data_start_row` is required; `data_end_row` is optional and inclusive. Both are
+  in 1..1048576, with the end not preceding the start. Without an end, the rest of
+  the worksheet is selected.
+- `skip_rows` explicitly names comment/intermediate rows inside the data interval.
+  Comments above the start are excluded already. Comments inside the interval
+  need explicit skips, bounds or suitable predicates.
+- An explicit source selects one region; use separate masks for multiple explicit
+  regions. Automatic multi-table discovery applies only without `source`.
+- Values outside the source are not converted/returned. XML structure, coordinates
+  and resource limits are still checked, including beyond `data_end_row`. A corrupt
+  XML tail remains an error.
 
-Ohne `source` gilt die automatische Headersuche. Nur referenzierte Spalten
-werden ausgegeben; leere oder unbenutzte Überschriften nicht. Innerhalb eines
-einzelnen Zeilenschemas gilt: Wiederholt sich ein exakter Headername,
-erhalten **alle** seine Vorkommen ab 1 einen Index von links nach rechts:
-`Umsatz`, `Umsatz` werden `Umsatz_1`, `Umsatz_2`. Bei drei Vorkommen kommt
-`Umsatz_3` hinzu. Eindeutige Header bleiben unverändert. Die indizierten Namen
-gelten gleichermaßen für Filter und Ausgabe; der mehrdeutige Name `Umsatz`
-ist dann kein gültiger Filtername. Leere Spalten verändern die Nummerierung nicht.
-Eine Kollision eines ausgewählten Namens mit einer schon vorhandenen Überschrift (etwa `Umsatz_1` neben
-zweimal `Umsatz`) wird vor Treffern des jeweiligen Blatts abgewiesen; für diesen Fall lassen
-sich mit `source.columns` explizit eindeutige Namen vergeben. Nichttextuelle Zellen sind keine Header. Namen werden weder getrimmt noch in ihrer
-Groß-/Kleinschreibung geändert. Explizite `source.columns.name` sind bereits
-gewählte Aliase und müssen weiterhin eindeutig sein.
-Unbekannte Aliase in `source` werden abgewiesen. Bei automatischer Suche muss
-eine Kopfzeile mit sämtlichen ausgewählten Namen gefunden werden.
+## Duplicate headers
 
-**Contract-Korrektur:** Die zuvor lokal eingeführten `__column_*`-Zusatzfelder
-entfallen. Die Maske bestimmt den Extraktionsumfang. Bestehende einfache Masken
-bleiben gültig; es werden keine zuvor unbenannten Zusatzfelder mehr angehängt.
+Within one automatic row schema, repeated exact labels receive suffixes starting
+at 1 from left to right: `Amount`, `Amount` become `Amount_1`, `Amount_2`.
+All occurrences are numbered; a third becomes `Amount_3`. Unique labels are
+unchanged. Indexed names are used for both filters and output; the ambiguous
+base `Amount` is not a valid filter name. Blank columns do not affect numbering.
 
-| Ausdruck / Operator | Wert und Bedeutung |
+A selected-name collision with an existing suffix label, such as `Amount_1` beside
+two `Amount` columns, is rejected before that area's records. Explicit source
+aliases can resolve the ambiguity. Nontext cells are not header labels. No
+trimming or case normalization is performed. Explicit `source.columns.name`
+aliases must already be unique and do not receive automatic suffixes. Unknown
+source aliases are rejected; automatic schemas must supply all selected names.
+
+The earlier local `__column_*` extra-output behavior was removed. Unnamed extra
+data is not silently added to results.
+
+## Predicates
+
+| Expression/operator | Value and meaning |
 | --- | --- |
-| `all`, `any` | Nichtleere Listen von Ausdrücken, AND bzw. OR |
-| `not` | Genau ein Ausdruck, Negation |
-| `eq`, `ne` | JSON-Skalar: null, bool, Zahl oder String; typbewusst |
-| `in` | Nichtleere Liste von Skalaren |
-| `gt`, `gte`, `lt`, `lte` | Endliche Zahl; keine String-/Bool-Konvertierung |
-| `contains`, `starts_with`, `ends_with` | String, case-sensitive |
-| `regex` | Rust-Regex, maximal 4096 UTF-8-Bytes; `(?i)` möglich |
-| `is_empty`, `not_empty` | Kein `value`-Feld; null und leerer String sind leer |
+| `all`, `any` | Nonempty expression lists; AND / OR |
+| `not` | Exactly one expression; negation |
+| `eq`, `ne` | JSON scalar: null, bool, number or string; type-aware |
+| `in` | Nonempty list of scalars |
+| `gt`, `gte`, `lt`, `lte` | Finite number; no string/boolean conversion |
+| `contains`, `starts_with`, `ends_with` | Case-sensitive string |
+| `regex` | Rust regex, at most 4096 UTF-8 bytes; `(?i)` is supported |
+| `is_empty`, `not_empty` | No `value` field; null and empty string are empty |
 
-Ein Vergleich enthält exakt `column`, `op`, `value`; Leerheitsprüfungen nur
-`column`, `op`. Gruppen enthalten nur ihren jeweiligen Gruppenschlüssel.
-Maximal 64 Ausdrucksebenen und 10000 Regeln je AND-/OR-Gruppe. Regexes unterstützen
-keine Backreferences oder Lookarounds. Sie werden vorab validiert und pro
-erkanntem Tabellenschema vorbereitet; keine Kompilierung pro Datenzeile.
+Comparisons contain exactly `column`, `op`, `value`; emptiness checks only
+`column`, `op`. Groups contain only their own group key. Expression nesting is
+limited to 64 levels and one AND/OR group to 10000 rules. Regexes have no
+backreferences or lookarounds. They are validated up front and prepared per
+recognized table schema, not compiled per data row.
 
-Python-Modelle: `ScalarCondition`, `MembershipCondition`, `NumericCondition`,
+Python models: `ScalarCondition`, `MembershipCondition`, `NumericCondition`,
 `TextCondition`, `EmptyCondition`, `AllOf(conditions=...)`, `AnyOf(conditions=...)`,
-`Not(condition=...)`, `ColumnBinding`, `TableSource`, `FilterMask`. `Operator` ist ein `StrEnum`.
+`Not(condition=...)`, `ColumnBinding`, `TableSource`, `FilterMask`. `Operator` is
+a `StrEnum`. JSON/mapping callers must use the wire aliases, not Python-only names
+such as `conditions` or `condition`.
 
-## Ergebnisse und Lebenszyklus
+## Results and lifecycle
 
-`iter_matching_batches(path, mask, *, batch_size=1024)` liefert einen
-`BatchIterator` mit `list[Row]`, `close()` und Kontextmanager-Unterstützung.
-Sheet, Filter-Aliase und Regex werden vor Rückgabe geprüft. Im einfachen Modus
-mit gewähltem Blatt wird außerdem die Kopfzeile gelesen; bei `source` werden die expliziten Bindungen
-geprüft, keine tatsächlichen Headertexte.
-`iter_matching_rows` liefert einen Generator und validiert beim ersten `next()`.
-Ein geschlossenes oder erschöpftes Scanobjekt bleibt erschöpft. Parallele Scans
-besitzen getrennte Worker; ein einzelner Iterator darf nicht gleichzeitig
-von mehreren Threads konsumiert oder geschlossen werden.
+`iter_matching_batches(path, mask, *, batch_size=1024)` returns a `BatchIterator`
+yielding `list[Row]`, with `close()` and context-manager support. Sheet/filter
+validation and regex checks occur before return. A named-sheet automatic scan
+reads its first header eagerly; explicit sources validate their bindings without
+reading actual header text. `iter_matching_rows` is a generator that initializes
+on the first `next()`. Closed/exhausted iterators remain exhausted. Independent
+scans have independent workers. Do not consume/close one iterator concurrently
+from several threads.
 
-`Row` ist ein unveränderliches Mapping; `row["Spalte"]` und `dict(row)` sind
-unterstützt. Spaltennamen sind datenabhängig, deshalb kein statisches Spaltenschema.
-Zellen enthalten `str | bool | int | float | None`; keine Pandas-Abhängigkeit.
-Leere Zellen sind `None`, leere Texte bleiben `""`; `eq null` trifft nur `None`.
-Excel-Fehlerzellen bleiben Fehlertext. Zahlen verwenden i64 bzw. IEEE-754 f64;
-keine Decimal-/Geldarithmetik oder garantierte Genauigkeit jenseits dieser Grenzen.
-Numerische Ordnungsvergleiche verwenden f64, auch für Integer. Für exakte große
-IDs String-Zellen und String-Gleichheit verwenden.
+`Row` is an immutable mapping supporting `row["Column"]` and `dict(row)`. Column
+names depend on the input, so there is no static per-workbook record schema.
+Cells contain `str | bool | int | float | None`, without a Pandas dependency.
+Empty cells are `None`; empty text stays `""`. `eq null` matches only `None`.
+Excel error cells remain error strings. Numbers use i64 or IEEE-754 f64, without
+decimal money arithmetic or exactness guarantees beyond those representations.
+Numeric order comparisons use f64, including for integers. Use string cells and
+string equality for exact large IDs beyond floating-point precision.
 
-Initialisierungsfehler: `ValueError` (einschließlich Pydantic `ValidationError`),
-Dateifehler beim Lesen der Maske: `OSError`, ungültige UTF-8-Masken ggf.
-`UnicodeError`. Laufzeitfehler nach Scanbeginn: `RuntimeError`. Bereits gelieferte
-Batches werden nicht zurückgenommen. CLI: Erfolg 0, Scan-/Dateifehler 1,
-Argumentfehler 2. stderr enthält keine Zellwerte. stdout liefert NDJSON.
+Initialization errors: `ValueError` (including Pydantic `ValidationError`). Mask
+file reads: `OSError`, or `UnicodeError` for invalid text encoding. Errors after
+scan initialization: `RuntimeError`. Already returned batches are not rolled back.
+CLI exit codes: success 0, scan/file errors 1, argument errors 2. CLI stderr omits
+cell values; stdout contains NDJSON.
 
-`--output` schreibt eine separate temporäre Datei im Zielverzeichnis, flusht sie
-und ersetzt das Ziel atomar. Fehler lassen das bisherige Ziel unverändert und
-entfernen die temporäre Datei. Gleiches Ziel wird bei konkurrierenden erfolgreichen
-Aufrufen vom zuletzt umbenennenden Prozess bestimmt. Keine dauerhafte Replay-ID:
-Wiederholung liest die Datei neu. Keine Garantie gegen Stromausfall nach Rename;
-bei Prozessabbruch kann eine temporäre Datei zurückbleiben. Eingabe und Maske dürfen
-nicht das Ausgabeziel sein; Symlinks werden für diese Prüfung aufgelöst.
+`--output` writes a separate temporary file in the target directory, flushes/fsyncs
+it and atomically replaces the target. Ordinary failures preserve the previous
+target and remove the temporary file. Concurrent successful writers use
+last-rename-wins. There is no persistent replay ID; repeated scans reread the
+file. Rename does not promise power-loss durability; a killed process can leave
+a temporary file. Input/mask cannot be the output target; aliases/symlinks are
+resolved for this check.
 
-## Ressourcen und Formatgrenzen
+## Resources and format boundaries
 
-XLSX/XLSM mit UTF-8-XML und `xl/workbook.xml`; Blattpfade werden über Relationships
-aufgelöst. Keine XLS-/XLSB-Dateien, Verschlüsselung, Formelberechnung, Style- oder
-Datumserkennung. Formelcache wird gelesen, ohne Cache `None`; numerische Datumswerte
-bleiben Seriennummern, ISO-Datumszellen Strings. Makros und Links werden nie ausgeführt.
-Fehlende Zeilen werden nicht erzeugt, Merge-Bereiche nicht expandiert.
+XLSX/XLSM input with UTF-8 XML and `xl/workbook.xml`; worksheet paths are resolved
+through relationships. No XLS/XLSB, encryption, formula evaluation, style/date
+interpretation. Cached formulas are read; no cache means `None`. Numeric dates
+remain serial numbers and ISO date cells strings. Macros/links are not executed.
+Missing rows are not synthesized and merged regions are not expanded.
 
-Speicher: Shared-Strings-Tabelle, aktive Tabellenschemata mit kompilierten Filtern,
-größte XML-Token/Zeile und begrenzte Batches. Aktive Tabellen haben nicht überlappende
-Spaltenintervalle innerhalb der höchstens 16384 Excel-Spalten.
-Shared-Strings-XML maximal 512 MiB, Metadaten 16 MiB je Part, Zelltext 2 MiB;
-XML-Tiefe maximal 128. XML-Parser puffert einzelne Tokens vor der Textlimit-Prüfung:
-die Zellgrenze ist keine absolute RAM-Obergrenze für bösartige Archive.
-Nicht vertrauenswürdige Dateien unter einem externen Prozess-/RAM-/Zeitlimit lesen.
-`batch_size`: 1..65536, zwei Nachrichten im Kanal plus Worker-/Consumer-Batch.
+Memory includes shared strings, active schemas/compiled filters, the largest
+XML token/row and bounded batches. Active areas have non-overlapping intervals
+within at most 16384 Excel columns. Shared-strings XML is capped at 512 MiB,
+metadata parts at 16 MiB, cell text at 2 MiB and XML depth at 128. Parsing buffers
+a token before enforcing text limits, so this is not an absolute RAM limit for
+malicious archives. Use external process/RAM/time limits for untrusted workbooks.
+Batch size is 1..65536, with two queued worker messages plus worker/consumer state.
 
-## Kompatibilität und Consumer
+## Compatibility and consumers
 
-Greenfield-Übernahme des PoC, keine zugesicherte Kompatibilität für
-`rust_xlsx_filter` oder `extract_rows`. JSON-Ausdrücke und Filtersemantik bleiben
-erhalten; Ergebniszeilen sind jetzt `Row` statt veränderlicher Dicts. Direkte
-Consumer im Repository sind CLI, Tests und Benchmark; keine anderen Consumer
-sind hier vorhanden. Der ursprüngliche PoC ist entfernt und nur noch in der Git-Historie verfügbar.
+This is a Greenfield adoption of the former PoC. `rust_xlsx_filter` and
+`extract_rows` have no compatibility promise. Expression meaning is retained;
+results are immutable `Row` objects. Direct repository consumers are the CLI,
+examples, tests and benchmark. The old PoC is removed and remains only in Git
+history. The open-source preparation does not alter the engine or public contract.

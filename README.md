@@ -1,101 +1,112 @@
 # chooong.datasift
 
-Filtert große XLSX-/XLSM-Dateien zeilenweise mit einer JSON-Maske. Rust liest und
-prüft jede Zeile; Python erhält ausschließlich Treffer. Das Package berechnet
-keine Formeln und schreibt keine Excel-Dateien.
+[![CI](https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml/badge.svg)](https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml)
+![PyPI: not published](https://img.shields.io/badge/PyPI-not%20published-lightgrey)
+![Python 3.13 / 3.14](https://img.shields.io/badge/Python-3.13%20%7C%203.14-blue)
+![Wheel matrix: unverified](https://img.shields.io/badge/wheel%20matrix-unverified-lightgrey)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Greenfield, Version 0.1.0. Unterstützt CPython 3.13/3.14. Für einen Build aus
-Quellcode werden Rust/Cargo und ein C-Linker benötigt; installierte kompatible
-Wheels benötigen kein Rust. Keine externen Dienste.
+Stream XLSX/XLSM worksheets through Rust predicates. Python receives only matching
+values as immutable, typed rows. No Pandas dependency or full worksheet
+materialization; no formula calculation or Excel output.
 
-## Installation und Benutzung
+**Unreleased, version 0.1.0.** CPython 3.13/3.14. The release matrix targets Linux
+x86_64/aarch64, Windows x86_64, and macOS x86_64/arm64. These are release targets,
+not a claim that all platforms have passed: see the [validation matrix](docs/readiness.md).
+The PyPI and wheel badges deliberately do not claim a published release.
 
-Aus diesem Repository (noch keine Registry-Veröffentlichung):
+## Install
+
+From a checkout, with Python and Rust 1.95.0 installed:
 
 ```bash
+python -m pip install .
+# or, in an existing environment:
 uv pip install .
 ```
 
+Compatible wheels need no compiler. Registry installation with
+`pip install chooong.datasift` / `uv pip install chooong.datasift` becomes available
+only after the first approved PyPI release. No release has been published by this preparation.
+
+## Quickstart
+
+Create a small synthetic workbook; the command refuses to overwrite a file:
+
+```bash
+python examples/create_sample.py sample.xlsx
+```
+
 ```python
-from chooong.datasift import (
-    FilterMask, Operator, ScalarCondition, iter_matching_batches,
-)
+from chooong.datasift import FilterMask, Operator, ScalarCondition, iter_matching_rows
 
 mask = FilterMask(
     sheet=None,
-    where=ScalarCondition(column="Land", op=Operator.EQ, value="DE"),
+    where=ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
 )
-with iter_matching_batches("daten.xlsx", mask, batch_size=1024) as batches:
-    for batch in batches:
-        for row in batch:
-            print(row["Land"])
+for row in iter_matching_rows("sample.xlsx", mask):
+    print(dict(row))  # {'Country': 'DE'}, twice
+```
+
+The CLI accepts a JSON mask:
+
+```json
+{"sheet": null, "where": {"column": "Country", "op": "eq", "value": "DE"}}
 ```
 
 ```bash
-chooong-datasift daten.xlsx examples/filter.json --output treffer.ndjson
-python -m chooong.datasift daten.xlsx examples/filter.json
+chooong-datasift sample.xlsx examples/quickstart-filter.json --output matches.ndjson
+# equivalent entry point:
+python -m chooong.datasift sample.xlsx examples/quickstart-filter.json
 ```
 
-`--output` ersetzt die Zieldatei erst nach vollständigem Erfolg atomar. Ohne
-`--output` kann stdout bei Fehlern Teilergebnisse enthalten. Die Eingabedateien
-bleiben erhalten. `iter_matching_rows` liefert einzelne Treffer; bei vorzeitigem
-Abbruch den Generator schließen oder den Batch-Kontextmanager verwenden.
+`sheet: null` scans all worksheets. Headers are found from the mask; repeated
+complete schemas can describe separate tables beside or below each other.
+Only columns referenced by the mask are returned. `--output` replaces its target
+atomically after the whole scan succeeds. Use the batch iterator as a context
+manager when stopping early.
 
-## Contract und Architektur
+## API, architecture and limits
 
-Öffentliche API: `chooong.datasift` exportiert Filtermodelle, `Operator`, `Row`,
-`BatchIterator`, `iter_matching_batches` und `iter_matching_rows`. Masken können
-als `FilterMask`, Mapping, JSON-Text oder Dateipfad übergeben werden. Ergebniszeilen
-sind unveränderliche `Row`-Mappings mit dynamischen Excel-Spaltennamen.
-`sheet: null` durchsucht alle Arbeitsblätter in Workbook-Reihenfolge und führt
-Treffer zusammen; ein Blattname wählt weiterhin genau ein Blatt. Ohne `source`
-werden Blätter ohne passende Filterspalten übersprungen. Vollständige Maskenschemas
-werden auch nebeneinander und weiter unten als Tabellenköpfe erkannt; Titel davor
-benötigen keine Zeilennummer. Ausgegeben werden ausschließlich Spalten aus `where`. Mit `source` gilt dieselbe
-Zuordnung auf jedem Blatt. [examples/filter.json](examples/filter.json) zeigt dies.
-[examples/filter_schmutzig.json](examples/filter_schmutzig.json) filtert automatisch
-erkannte mehrzeilige Zellnamen mit verschachtelten Bedingungen.
-`source` ordnet Ausgabenamen tatsächlichen Excel-Spalten zu und begrenzt die
-Datenzeilen. Damit lassen sich Tabellen nebeneinander, beliebige Startpositionen,
-mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur in `where` verwendete Felder passender Zeilen werden ausgegeben. Beispiel für eine Tabelle
-ab C7: [examples/layout-filter.json](examples/layout-filter.json). Ohne `source`
-erfolgt die Zuordnung automatisch anhand der Spaltennamen. `header_row` entfällt.
-XML-Zeilenumbrüche werden beim Einlesen vereinheitlicht; ein erneutes Speichern
-in Excel verändert dadurch die Zuordnung mehrzeiliger Zellnamen nicht.
-Innerhalb eines einzelnen Schemas heißen doppelte Header von links nach rechts etwa `Umsatz_1` und
-`Umsatz_2`; diese Namen werden zum Filtern und in der Ausgabe verwendet.
-Wiederholen sich dagegen alle wortgleichen Maskenspalten in getrennten Gruppen,
-werden diese als unabhängige Tabellen verarbeitet. Die Ausgabe folgt je Blatt
-der Zeilenreihenfolge und bei mehreren Treffern pro Zeile von links nach rechts.
+The supported imports are the exports of `chooong.datasift`, including `FilterMask`,
+filter models, `TableSource`, `ColumnBinding`, `Row`, `iter_matching_rows` and
+`iter_matching_batches`. The Python adapter validates masks with Pydantic; the
+native engine separates predicate logic, XLSX I/O and PyO3. No service or database
+is required. Runtime configuration is the mask and explicit function/CLI arguments.
 
-[Filtervertrag und Grenzen](docs/contract.md) beschreiben Operatoren, Typen,
-Fehler und Ressourcenlimits. Es gibt keine Umgebungsvariablen oder Diensteinstellungen.
-`models.py` enthält die Pydantic-Modelle, `reader.py` den Dateiadapter und
-`rust.pyi` die Typen der nativen Erweiterung `rust`. `__init__.py` und
-`__main__.py` sind die Python-Einstiegspunkte. Alle Imports sind absolut.
-Pydantic validiert die Eingabe; der Python-Dateiadapter reicht die Maske an die
-Rust-Engine weiter. Rust trennt Filterlogik und Zellwerte von XLSX-I/O und PyO3.
-Eine zusätzliche Service-/Port-Schicht wäre hier ohne eigenen Use Case redundant.
+Headers containing line breaks within one cell are supported. Headers spread over
+multiple physical rows are **not** reconstructed. Arbitrary layouts and comments
+are not guessed; use explicit source bindings for ambiguity. No XLS/XLSB,
+encryption, date/style interpretation, or formula evaluation. Shared strings are
+held in memory. Details: [public contract](docs/contract.md),
+[limits](docs/limits.md), [errors and resources](docs/errors.md).
 
-## Entwicklung
+## Develop
 
 ```bash
 uv sync --frozen
-uv run --frozen ruff check src tests scripts
-uv run --frozen ruff format --check src tests scripts
+uv run --frozen ruff check src tests scripts examples
+uv run --frozen ruff format --check src tests scripts examples
 uv run --frozen mypy src
+uv run --frozen mypy --strict scripts/artifacts.py scripts/verify_publish.py scripts/bench.py examples/create_sample.py
 uv run --frozen pytest --cov --cov-report=term-missing
 cargo fmt --manifest-path native/Cargo.toml -- --check
 cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings
 cargo test --manifest-path native/Cargo.toml --locked
+uv run --frozen mkdocs build --strict
 uv build
 uv run --frozen twine check dist/*
-uv run --frozen python scripts/bench.py --rows 250000
 ```
 
-`uv.lock` und `native/Cargo.lock` fixieren die Entwicklungsabhängigkeiten.
-Der ursprüngliche PoC wurde entfernt; seine Historie bleibt in Git erhalten.
-Lokale Beispieldaten unter `.data/` werden nicht versioniert.
+The benchmark defaults to 2,000,000 synthetic rows across multiple worksheets:
 
-[Changelog](CHANGELOG.md) · [Prüfprotokoll](docs/verification.md) ·
-[Apache-2.0-Lizenz](LICENSE)
+```bash
+uv run --frozen python scripts/bench.py
+```
+
+Local workbooks are stored in `examples/` and excluded from Git and distribution archives.
+`examples/filter_2000000.json` is retained for the corresponding local workbook.
+
+[Documentation](docs/index.md) · [Contributing](CONTRIBUTING.md) ·
+[Releases](docs/releases.md) · [Changelog](CHANGELOG.md) ·
+[Security](SECURITY.md) · [License](LICENSE)

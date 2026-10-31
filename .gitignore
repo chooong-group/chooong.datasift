@@ -221,3 +221,9 @@ __marimo__/
 
 # example data
 .data/
+
+# Local workbooks and extraction output
+examples/*.xlsx
+examples/*.xlsm
+examples/*.xls
+*.ndjson

@@ -1,0 +1,30 @@
+{
+  "sheet": null,
+  "where": {
+    "all": [
+      {
+        "column": "Region\nCode",
+        "op": "in",
+        "value": [
+          "DE",
+          "AT"
+        ]
+      },
+      {
+        "column": "Betrag\nEUR",
+        "op": "gte",
+        "value": 9000
+      },
+      {
+        "column": "Status",
+        "op": "eq",
+        "value": "Aktiv"
+      },
+      {
+        "column": "Tag",
+        "op": "regex",
+        "value": "^VIP(?:-|$)"
+      }
+    ]
+  }
+}

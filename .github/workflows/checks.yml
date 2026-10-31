@@ -1,0 +1,26 @@
+name: Source checks
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  source:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - run: uv lock --check
+      - run: uv run --frozen --no-install-project ruff check src tests scripts examples
+      - run: uv run --frozen --no-install-project ruff format --check src tests scripts examples
+      - run: uv run --frozen --no-install-project mypy src
+      - run: uv run --frozen --no-install-project mypy --strict scripts/artifacts.py scripts/verify_publish.py scripts/bench.py examples/create_sample.py
+      - run: uv run --frozen --no-install-project python scripts/artifacts.py plan
+      - run: cargo fmt --manifest-path native/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings
+      - run: cargo test --manifest-path native/Cargo.toml --locked
+      - run: uv run --frozen --no-install-project mkdocs build --strict
+      - run: git diff --check

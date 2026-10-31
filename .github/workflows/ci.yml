@@ -1,82 +1,18 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
-
 permissions:
   contents: read
-
 concurrency:
-  group: chooong-datasift-ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  quality:
-    strategy:
-      matrix:
-        python: ["3.13", "3.14"]
-    runs-on: [self-hosted, linux, x64, chooong-ci]
-    timeout-minutes: 30
-    env:
-      PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - run: uv lock --check
-      - run: uv sync --frozen --python ${{ matrix.python }}
-      - run: uv run --frozen ruff check src tests scripts
-      - run: uv run --frozen ruff format --check src tests scripts
-      - run: uv run --frozen mypy src
-      - run: env -u PYTHONPATH uv run --frozen pytest --cov --cov-report=term-missing
-      - run: cargo fmt --manifest-path native/Cargo.toml -- --check
-      - run: cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings
-      - run: cargo test --manifest-path native/Cargo.toml --locked
-      - run: git diff --check
-
-  package:
-    runs-on: [self-hosted, linux, x64, chooong-ci]
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - run: uv sync --frozen --python 3.13
-      - run: uv build
-      - run: uv run --frozen twine check dist/*
-      - run: uv venv --python 3.13 "$RUNNER_TEMP/wheel-venv"
-      - run: uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" dist/*.whl pytest
-      - name: Exercise installed wheel against actual XLSX fixtures
-        run: env -u PYTHONPATH "$RUNNER_TEMP/wheel-venv/bin/python" -m pytest -o addopts= tests
-      - run: uv venv --python 3.13 "$RUNNER_TEMP/sdist-venv"
-      - run: uv pip install --python "$RUNNER_TEMP/sdist-venv/bin/python" dist/*.tar.gz pytest
-      - name: Exercise rebuilt sdist against actual XLSX fixtures
-        run: env -u PYTHONPATH "$RUNNER_TEMP/sdist-venv/bin/python" -m pytest -o addopts= tests
-      - name: Record the tested artifact (external, never source-referential)
-        run: |
-          python - <<'PY'
-          import hashlib, json, os, pathlib, tomllib
-          root = pathlib.Path(".")
-          version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
-          wheels = sorted((root / "dist").glob("*.whl"))
-          assert len(wheels) == 1, wheels
-          sha = hashlib.sha256(wheels[0].read_bytes()).hexdigest()
-          metadata = {
-              "version": version,
-              "commit": os.environ["GITHUB_SHA"],
-              "wheel_filename": wheels[0].name,
-              "wheel_sha256": sha,
-          }
-          (root / "dist" / "release-metadata.json").write_text(
-              json.dumps(metadata, indent=2, sort_keys=True) + "\n"
-          )
-          print(json.dumps(metadata, indent=2, sort_keys=True))
-          PY
-      - name: Persist the tested artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-          if-no-files-found: error
+  checks:
+    if: github.event.repository.private == false
+    uses: ./.github/workflows/checks.yml
+  distributions:
+    needs: checks
+    if: github.event.repository.private == false
+    uses: ./.github/workflows/artifacts.yml
