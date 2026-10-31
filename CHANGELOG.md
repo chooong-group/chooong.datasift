@@ -29,6 +29,9 @@
 
 ### Fixed
 
+- XML-Zeilenenden in Shared-/Inline-Strings und CDATA werden korrekt normalisiert;
+  mehrzeilige Header bleiben nach erneutem Speichern in Excel zur Maske passend.
+
 - Contract-Korrektur: Nur ausgewählte Felder passender Zeilen werden extrahiert;
   die lokal eingeführten `__column_*`-Zusatzfelder entfallen.
 - Threadsicherheit des nativen Empfängers und Erkennung unvollständiger XML-Dokumente.

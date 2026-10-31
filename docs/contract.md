@@ -24,6 +24,10 @@ zusammengeführt. Gleiche Datensätze auf zwei Blättern bleiben zwei Treffer.
 Ohne `source` sucht die Engine auf jedem Blatt von oben nach unten die erste
 Zeile, die alle in `where` referenzierten Spalten enthält. Nur Textzellen gelten
 als Header; Titel, Zahlen und unvollständige Zeilen davor werden übersprungen.
+Literale XML-Zeilenenden CRLF und CR werden beim Einlesen in LF normalisiert,
+für Shared Strings, Inline Strings und CDATA, in Headern und Datenwerten.
+Explizite Zeichenreferenzen wie `&#13;` bleiben das referenzierte Zeichen;
+Leerzeichen und Groß-/Kleinschreibung werden nicht normalisiert.
 Zeilenumbrüche innerhalb einer Headerzelle gehören zum exakten Namen. Doppelte
 Header erhalten die unten beschriebenen Indizes. Kommentare und Nachbartabellen
 werden nicht zu Ausgabespalten. Nach der Erkennung werden ausschließlich die

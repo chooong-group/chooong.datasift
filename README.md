@@ -58,6 +58,8 @@ Datenzeilen. Damit lassen sich Tabellen nebeneinander, beliebige Startpositionen
 mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur in `where` verwendete Felder passender Zeilen werden ausgegeben. Beispiel für eine Tabelle
 ab C7: [examples/layout-filter.json](examples/layout-filter.json). Ohne `source`
 erfolgt die Zuordnung automatisch anhand der Spaltennamen. `header_row` entfällt.
+XML-Zeilenumbrüche werden beim Einlesen vereinheitlicht; ein erneutes Speichern
+in Excel verändert dadurch die Zuordnung mehrzeiliger Zellnamen nicht.
 Wiederholte Header heißen dabei von links nach rechts etwa `Umsatz_1` und
 `Umsatz_2`; diese Namen werden zum Filtern und in der Ausgabe verwendet.
 

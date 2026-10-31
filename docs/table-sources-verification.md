@@ -265,3 +265,56 @@ durch Nutzer prüfen; keine manuelle Auslösung oder Polling durch den Agenten.
 Abnahme: konfigurierte Lint-/Typ-/Test-/Build-Gates inklusive Negativ-/Replay-Tests
 erfolgreich. Abhängigkeit: Runner-Toolchain. Consumer-Auswirkung: unterstützte
 Plattformen bleiben bis zum Remote-Nachweis UNVERIFIED.
+
+## Nachtrag L01 — Excel-Zeilenumbrüche
+
+Prüfstand 31.10.2026, Repository `chooong.datasift`, Branch `feat/datasift-package`,
+Basis `70f88e332228fe5935ab4a74c8e768914d98ebac`, bestehender PR #1.
+Exakter Diff nach Commit: `git diff 70f88e3...feat/datasift-package`.
+
+L01 (P1, unabhängige Schließung offen): Nach dem Speichern in Excel enthielten
+Header in sharedStrings.xml literale CRLF statt LF. Der Reader übernahm rohe
+Bytes, die Maske verwendete LF; dadurch fand die Headersuche kein vollständiges
+Schema. Invariante: XML-konforme Zeilenenden verändern weder Headerzuordnung
+noch Textfilterung. Korrektur an beiden XML-Einlesepfaden durch vorhandenes
+Quick-XML `xml10_content()`, bevor der gemeinsame Text-Helper Inhalte anhängt.
+Lösungsleiter: vorhandene Bibliotheksfunktion, keine eigene Ersetzungsheuristik
+oder zusätzliche Abhängigkeit. Explizite Zeichenreferenzen werden separat
+aufgelöst und behalten das referenzierte Zeichen. Kein pauschales Trimmen.
+
+GEPRÜFT, vollständig und geändert: native/src/xlsx.rs, tests/test_xml_line_endings.py,
+README.md, CHANGELOG.md, docs/contract.md und dieses Protokoll. Direkte Consumer:
+Shared Strings sowie Worksheet-Text/CDATA, Headerauflösung in native/src/filter.rs
+und Python-/CLI-Ausgabe; bestehende Tests bleiben relevant. Modelle, native/src/lib.rs,
+Workflows, Lockfiles und Build-Konfiguration unverändert. Keine externen Consumer
+geändert. Die vorhandenen lokalen Löschungen unter rust_xlsx_filter stammen vom
+Nutzer und sind kein Bestandteil dieses Commits. Excel, lokale Maske und NDJSON
+bleiben unversioniert; Benutzerdateien gelangen nicht in Package-Artefakte.
+
+Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format,
+mypy (5 Dateien), cargo fmt, Clippy `--locked --offline --all-targets -- -D warnings`,
+cargo test (8 bestanden), pytest --cov (130 bestanden, 99,54 % Python-Coverage),
+Maturin-Wheel/sdist, Twine und `git diff --check`. Wheel-Tests unter Python 3.13
+und 3.14: jeweils 130 bestanden. Regressionen prüfen LF, CRLF und CR in Shared
+Strings, Inline Strings und CDATA für Header und Daten; Replay und unveränderte
+Eingabe werden geprüft. Negativgegenfall: explizites `&#13;` bleibt CR.
+Realer beauftragter CLI-Pfad: Exit 0, vier Treffer mit drei Maskenspalten,
+Eingabe-Hash unverändert und Maske unverändert. Zwei passende Blätter enthalten
+je zwei Treffer; `sheet: null` dedupliziert diese bewusst nicht.
+
+Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokal nachgewiesen;
+unabhängiges Review und Remote-CI UNVERIFIED.
+
+TODO L01-Review: Basis und Dateien wie oben. Vollständigen Diff unabhängig lesen,
+insbesondere Text/CDATA vor Zeichenreferenz-Auflösung; Soll: gleiche Ergebnisse
+bei allen drei XML-Zeilenenden ohne Veränderung expliziter Zeichenreferenzen.
+Verifikation: tests/test_xml_line_endings.py und README-Qualitätsbefehle inklusive
+Negativ-/Replay-Fällen wiederholen. Abnahme: keine offenen Datenkorrektheitsbefunde.
+Abhängigkeit: unabhängiger Reviewer. Consumer-Auswirkung: XML-Zeilenenden in
+Headern und Textwerten entsprechen LF, Zeichenreferenzen behalten ihren Wert.
+
+TODO L01-CI: gleicher Basis-/Dateiumfang; Nutzer prüft regulären CI-Lauf am finalen
+PR-HEAD, keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
+konfigurierte Tests/Typ-/Lint-/Build-Gates erfolgreich, einschließlich
+Zeilenenden-/Zeichenreferenz-/Replay-Tests. Abhängigkeit: Runner-Toolchain.
+Consumer-Auswirkung: weitere Plattformen bleiben bis Remote-Nachweis UNVERIFIED.

@@ -57,8 +57,7 @@ fn attribute(element: &BytesStart<'_>, wanted: &[u8]) -> Result<Option<String>, 
     Ok(None)
 }
 
-fn append_text(target: &mut String, fragment: &[u8]) -> Result<(), String> {
-    let content = std::str::from_utf8(fragment).map_err(|e| format!("Nicht-UTF-8 XML: {e}"))?;
+fn append_text(target: &mut String, content: &str) -> Result<(), String> {
     if target.len().saturating_add(content.len()) > MAX_CELL_TEXT_BYTES {
         return Err("Eine Excel-Zelle enthält mehr als 2 MiB Text".into());
     }
@@ -325,8 +324,12 @@ fn load_shared_strings(
                 }
                 _ => (),
             },
-            Event::Text(ref e) if in_t => append_text(&mut current, e.as_ref())?,
-            Event::CData(ref e) if in_t => append_text(&mut current, e.as_ref())?,
+            Event::Text(ref e) if in_t => {
+                append_text(&mut current, &e.xml10_content().map_err(|e| e.to_string())?)?
+            }
+            Event::CData(ref e) if in_t => {
+                append_text(&mut current, &e.xml10_content().map_err(|e| e.to_string())?)?
+            }
             Event::GeneralRef(ref e) if in_t => append_reference(&mut current, e.as_ref())?,
             Event::Decl(ref e) => validate_declaration(e)?,
             Event::DocType(_) => return Err("DTD ist in XLSX nicht erlaubt".into()),
@@ -651,13 +654,25 @@ fn scan_worksheet(
                 _ => (),
             },
             Event::Text(ref text) => match field {
-                Field::Value => append_text(&mut raw_value, text.as_ref())?,
-                Field::Inline => append_text(&mut inline_value, text.as_ref())?,
+                Field::Value => append_text(
+                    &mut raw_value,
+                    &text.xml10_content().map_err(|e| e.to_string())?,
+                )?,
+                Field::Inline => append_text(
+                    &mut inline_value,
+                    &text.xml10_content().map_err(|e| e.to_string())?,
+                )?,
                 Field::None => (),
             },
             Event::CData(ref text) => match field {
-                Field::Value => append_text(&mut raw_value, text.as_ref())?,
-                Field::Inline => append_text(&mut inline_value, text.as_ref())?,
+                Field::Value => append_text(
+                    &mut raw_value,
+                    &text.xml10_content().map_err(|e| e.to_string())?,
+                )?,
+                Field::Inline => append_text(
+                    &mut inline_value,
+                    &text.xml10_content().map_err(|e| e.to_string())?,
+                )?,
                 Field::None => (),
             },
             Event::GeneralRef(ref reference) => match field {
