@@ -78,7 +78,7 @@ select = [
     "UP",    # pyupgrade (für deprecated Python Syntax/Types)
 ]
 ignore = [
-    "ANN401", # Dynamische Any-Annotations erlauben
+    "ANN401", # Dynamic Any-Annotations allowed
 ]
 extend-select = ["TID252"]
 
