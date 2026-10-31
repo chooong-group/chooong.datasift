@@ -1,5 +1,10 @@
 # Prüfprotokoll
 
+Aktueller Bugfix-Nachtrag: [XLSX-Zusatzspalten](unnamed-columns-verification.md).
+Die folgenden Abschnitte dokumentieren den initialen Package-Prüfstand. Der
+damalige Push-Blocker D08 wurde durch Nutzerfreigabe und den bestehenden PR #1
+aufgehoben; aktuelle offene Abnahmen stehen im Nachtrag.
+
 Stand: 31.10.2026, Repository `chooong-group/chooong.datasift`, Branch
 `feat/datasift-package`, Basis `97d4f59614c5294ab50253213a920390da44323d`.
 HEAD und PR sind über Git bzw. den PR nachvollziehbar; keine selbstreferenziellen

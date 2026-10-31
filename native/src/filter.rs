@@ -234,6 +234,20 @@ impl Expr {
 
 type HeaderLookup = (Vec<(String, usize)>, HashMap<String, usize>);
 
+pub fn unnamed_column_name(position: usize, headers: &HashSet<String>) -> String {
+    let mut number = position + 1;
+    let mut column = String::new();
+    while number > 0 {
+        column.insert(0, char::from(b'A' + ((number - 1) % 26) as u8));
+        number = (number - 1) / 26;
+    }
+    let mut name = format!("__column_{column}");
+    while headers.contains(&name) {
+        name.push('_');
+    }
+    name
+}
+
 pub fn headers_from_row(row: &[CellValue]) -> Result<HeaderLookup, String> {
     let mut list = Vec::new();
     let mut lookup = HashMap::new();

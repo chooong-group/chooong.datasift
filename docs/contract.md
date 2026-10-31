@@ -17,7 +17,15 @@ Unbekannte Felder, Operatoren und falsche Werttypen werden abgewiesen.
 `sheet` ist ein nichtleerer Blattname; `header_row` ist eine ganze Zahl von 1 bis
 1048576 (Standard 1). Spaltennamen entsprechen exakt der Kopfzeile, ohne Trimmen.
 Leere Überschriften werden ausgelassen, doppelte oder nichttextuelle abgewiesen.
-Eine passende Zeile mit Inhalten ohne Überschrift führt zum Fehler.
+Zusatzwerte ohne Überschrift bleiben in passenden Zeilen unter
+`__column_<Excel-Spalte>` erhalten, beispielsweise `__column_M`. Diese Schlüssel
+werden ausschließlich für Ausgabe erzeugt; Filter referenzieren weiterhin nur
+benannte Spalten. Kollidiert ein erzeugter Schlüssel mit einer echten Überschrift,
+werden so viele `_` angehängt, bis der Schlüssel eindeutig ist. Die Zuordnung hängt
+nur von Spaltenposition und Kopfzeile ab, nicht von Batchgröße oder Scanverlauf.
+Unbelegte Zellen ohne Überschrift erzeugen keinen Schlüssel; explizit gespeicherte
+leere Strings bleiben erhalten. Es wird keine vollständige Zusatzspaltenliste
+vorab gelesen, daher können die Zusatzschlüssel zwischen Ergebniszeilen variieren.
 
 | Ausdruck / Operator | Wert und Bedeutung |
 | --- | --- |

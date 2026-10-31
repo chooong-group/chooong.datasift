@@ -3,6 +3,7 @@ mod filter;
 mod value;
 mod xlsx;
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver};
@@ -13,7 +14,7 @@ use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use filter::Config;
+use filter::{unnamed_column_name, Config};
 use value::CellValue;
 
 pub(crate) enum Message {
@@ -28,6 +29,8 @@ pub struct BatchIterator {
     receiver: Mutex<Option<Receiver<Message>>>,
     cancelled: Arc<AtomicBool>,
     headers: Vec<(String, usize)>,
+    header_names: HashSet<String>,
+    named_positions: HashSet<usize>,
     finished: bool,
 }
 
@@ -67,15 +70,16 @@ impl BatchIterator {
                 for row in rows {
                     let object = PyDict::new(py);
                     for (name, index) in &self.headers {
-                        match row.get(*index).unwrap_or(&CellValue::Empty) {
-                            CellValue::Empty => object.set_item(name.as_str(), py.None())?,
-                            CellValue::Text(value) => {
-                                object.set_item(name.as_str(), value.as_str())?
-                            }
-                            CellValue::Integer(value) => object.set_item(name.as_str(), *value)?,
-                            CellValue::Float(value) => object.set_item(name.as_str(), *value)?,
-                            CellValue::Bool(value) => object.set_item(name.as_str(), *value)?,
+                        write_cell(&object, name, row.get(*index).unwrap_or(&CellValue::Empty))?;
+                    }
+                    for (index, value) in row.iter().enumerate() {
+                        if self.named_positions.contains(&index)
+                            || matches!(value, CellValue::Empty)
+                        {
+                            continue;
                         }
+                        let name = unnamed_column_name(index, &self.header_names);
+                        write_cell(&object, &name, value)?;
                     }
                     output.push(object.unbind());
                 }
@@ -115,6 +119,16 @@ impl BatchIterator {
 impl Drop for BatchIterator {
     fn drop(&mut self) {
         self.cancelled.store(true, Ordering::Relaxed);
+    }
+}
+
+fn write_cell(object: &Bound<'_, PyDict>, name: &str, value: &CellValue) -> PyResult<()> {
+    match value {
+        CellValue::Empty => object.set_item(name, object.py().None()),
+        CellValue::Text(value) => object.set_item(name, value.as_str()),
+        CellValue::Integer(value) => object.set_item(name, *value),
+        CellValue::Float(value) => object.set_item(name, *value),
+        CellValue::Bool(value) => object.set_item(name, *value),
     }
 }
 
@@ -167,6 +181,8 @@ fn iter_batches_native(
         Ok(Message::Ready(headers)) => Ok(BatchIterator {
             receiver: Mutex::new(Some(receiver)),
             cancelled,
+            header_names: headers.iter().map(|(name, _)| name.clone()).collect(),
+            named_positions: headers.iter().map(|(_, index)| *index).collect(),
             headers,
             finished: false,
         }),

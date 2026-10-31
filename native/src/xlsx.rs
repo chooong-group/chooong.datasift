@@ -396,7 +396,6 @@ struct Sink<'a> {
     cancelled: &'a Arc<AtomicBool>,
     batch_size: usize,
     headers: Option<Vec<(String, usize)>>,
-    named_positions: Vec<bool>,
     predicate: Option<Expr>,
     buffer: Vec<Vec<CellValue>>,
 }
@@ -415,10 +414,6 @@ impl Sink<'_> {
             }
             let (names, lookup) = headers_from_row(&row)?;
             let predicate = Expr::compile(&self.config.predicate, &lookup)?;
-            self.named_positions = vec![false; MAX_COLS];
-            for (_, position) in &names {
-                self.named_positions[*position] = true;
-            }
             self.sender
                 .send(Message::Ready(names.clone()))
                 .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
@@ -432,16 +427,6 @@ impl Sink<'_> {
             .ok_or("Die angegebene Kopfzeile fehlt")?;
         if !predicate.matches(&row) {
             return Ok(());
-        }
-        // Never silently omit a nonempty cell simply because its column has no heading.
-        if row
-            .iter()
-            .enumerate()
-            .any(|(i, value)| !matches!(value, CellValue::Empty) && !self.named_positions[i])
-        {
-            return Err(format!(
-                "Passende Zeile {number} enthält Daten in Spalten ohne Spaltenüberschrift"
-            ));
         }
         self.buffer.push(row);
         if self.buffer.len() >= self.batch_size {
@@ -486,7 +471,6 @@ pub fn scan(
         cancelled,
         batch_size,
         headers: None,
-        named_positions: Vec::new(),
         predicate: None,
         buffer: Vec::with_capacity(batch_size),
     };

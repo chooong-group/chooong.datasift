@@ -17,6 +17,9 @@
 
 ### Fixed
 
+- Zusatzwerte in Spalten ohne Überschrift brechen den Scan nicht mehr ab:
+  Sie bleiben unter kollisionsfreien Excel-Spaltenschlüsseln wie `__column_M`
+  erhalten. Filter und bereits unterstützte Zeilen behalten ihre Semantik.
 - Threadsicherheit des nativen Empfängers und Erkennung unvollständiger XML-Dokumente.
 - Ungültige doppelte Build-Konfiguration und projektfremde CI-Kommandos ersetzt.
 - CLI schützt auch die Filterdatei vor Überschreiben.

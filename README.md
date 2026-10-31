@@ -45,6 +45,8 @@ Abbruch den Generator schließen oder den Batch-Kontextmanager verwenden.
 `BatchIterator`, `iter_matching_batches` und `iter_matching_rows`. Masken können
 als `FilterMask`, Mapping, JSON-Text oder Dateipfad übergeben werden. Ergebniszeilen
 sind unveränderliche `Row`-Mappings mit dynamischen Excel-Spaltennamen.
+Zusatzwerte in Spalten ohne Überschrift bleiben etwa als `__column_M` erhalten;
+Filter arbeiten weiterhin mit den benannten Spalten der Kopfzeile.
 
 [Filtervertrag und Grenzen](docs/contract.md) beschreiben Operatoren, Typen,
 Fehler und Ressourcenlimits. Es gibt keine Umgebungsvariablen oder Diensteinstellungen.

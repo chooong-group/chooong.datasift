@@ -156,8 +156,11 @@ def test_unnamed_data_is_never_silently_lost(tmp_path: Path) -> None:
     mask = FilterMask(
         sheet="Daten", where=ScalarCondition(column="Land", op=Operator.EQ, value="DE")
     )
-    with pytest.raises(RuntimeError, match="ohne Spaltenüberschrift"):
-        list(iter_matching_rows(path, mask))
+    rows = list(iter_matching_rows(path, mask))
+    assert len(rows) == 7
+    assert rows[0]["__column_D"] == "Aktiv"
+    assert "Status" not in rows[0]
+    assert rows[0]["Kunde"] == "ABC GmbH"
 
 
 def test_cli_protects_mask_and_redacts_invalid_values(tmp_path: Path) -> None:
@@ -272,3 +275,107 @@ def test_unsafe_xml_and_paths_fail_closed(
     _rewrite(path, part, before, after)
     with pytest.raises(ValueError, match=error):
         iter_matching_batches(path, _mask())
+
+
+@pytest.mark.parametrize("batch_size", [1, 3, 1024])
+def test_sparse_extra_columns_preserve_types_and_replay(tmp_path: Path, batch_size: int) -> None:
+    path = tmp_path / "extras.xlsx"
+    make_workbook(path)
+    extra_row = (
+        '<row r="10">'
+        '<c r="A10" t="inlineStr"><is><t>ABC Extra</t></is></c>'
+        '<c r="B10" t="inlineStr"><is><t>DE</t></is></c>'
+        '<c r="C10"><v>5000</v></c>'
+        '<c r="D10" t="inlineStr"><is><t>Aktiv</t></is></c>'
+        '<c r="M10" t="s"><v>4</v></c>'
+        '<c r="U10"><v>12.5</v></c>'
+        '<c r="V10" t="b"><v>0</v></c>'
+        '<c r="Z10"/>'
+        '<c r="AA10" t="inlineStr"><is><t></t></is></c>'
+        '<c r="XFD10"><v>42</v></c>'
+        "</row>"
+    )
+    _rewrite(path, "xl/worksheets/data42.xml", "</sheetData>", extra_row + "</sheetData>")
+    expected = [dict(row) for row in iter_matching_rows(path, _mask(), batch_size=1)]
+    with iter_matching_batches(path, _mask(), batch_size=batch_size) as batches:
+        actual = [dict(row) for batch in batches for row in batch]
+    assert actual == expected
+    assert len(actual) == 7
+    assert actual[-1] == {
+        "Kunde": "ABC Extra",
+        "Land": "DE",
+        "Umsatz": 5000,
+        "Status": "Aktiv",
+        "__column_M": "ABC GmbH",
+        "__column_U": 12.5,
+        "__column_V": False,
+        "__column_AA": "",
+        "__column_XFD": 42,
+    }
+    assert actual[-1]["__column_V"] is False
+    assert "__column_M" not in actual[0]
+
+
+def test_extra_keys_do_not_overwrite_named_columns(tmp_path: Path) -> None:
+    path = tmp_path / "collision.xlsx"
+    make_workbook(path)
+    _rewrite(path, "xl/sharedStrings.xml", "<t>Kunde</t>", "<t>__column_M</t>")
+    _rewrite(path, "xl/sharedStrings.xml", "<t>Status</t>", "<t>__column_M_</t>")
+    before = '<c r="D2" t="s"><v>6</v></c></row>'
+    after = (
+        '<c r="D2" t="s"><v>6</v></c>'
+        '<c r="M2" t="inlineStr"><is><t>synthetic extra</t></is></c></row>'
+    )
+    _rewrite(path, "xl/worksheets/data42.xml", before, after)
+    mask = FilterMask(
+        sheet="Daten", where=ScalarCondition(column="Land", op=Operator.EQ, value="DE")
+    )
+    rows = list(iter_matching_rows(path, mask))
+    assert rows[0]["__column_M"] == "ABC GmbH"
+    assert rows[0]["__column_M_"] == "Aktiv"
+    assert rows[0]["__column_M__"] == "synthetic extra"
+
+
+def test_generated_output_keys_are_not_filter_headers(tmp_path: Path) -> None:
+    path = tmp_path / "unknown-header.xlsx"
+    make_workbook(path)
+    mask = FilterMask(
+        sheet="Daten", where=ScalarCondition(column="__column_M", op=Operator.EQ, value="x")
+    )
+    with pytest.raises(ValueError, match="Unbekannte Spalte"):
+        iter_matching_batches(path, mask)
+
+
+def test_cli_preserves_sparse_extra_values_in_ndjson(tmp_path: Path) -> None:
+    path = tmp_path / "cli-extras.xlsx"
+    make_workbook(path)
+    before = '<c r="D5" t="s"><v>6</v></c></row>'
+    after = '<c r="D5" t="s"><v>6</v></c><c r="M5"><v>123</v></c></row>'
+    _rewrite(path, "xl/worksheets/data42.xml", before, after)
+    original = path.read_bytes()
+    mask = tmp_path / "mask.json"
+    mask.write_text(_mask().model_dump_json(by_alias=True))
+    destination = tmp_path / "result.ndjson"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "chooong.datasift",
+            str(path),
+            str(mask),
+            "--output",
+            str(destination),
+            "--batch-size",
+            "1",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not result.stderr
+    rows = [json.loads(line) for line in destination.read_text().splitlines()]
+    assert len(rows) == 6
+    assert [row["__column_M"] for row in rows if "__column_M" in row] == [123]
+    assert path.read_bytes() == original
+    assert not list(tmp_path.glob(".result.ndjson.*.tmp"))
