@@ -7,6 +7,11 @@ Commit- oder Artefakt-Hashes in ausgelieferten Dateien.
 
 ## Urteil
 
+BLOCKIERT für Push/PR: Die automatische Freigabeprüfung hat `git push` abgelehnt,
+weil für die Übertragung des neuen Quellcodes und der Historie an `origin` eine
+ausdrückliche Nutzerzustimmung verlangt wird. Der Branch ist ausschließlich lokal;
+es wurde kein PR erstellt. Keine Umgehung oder erneuter Push-Versuch.
+
 NICHT ENTSCHEIDBAR für eine Gesamtfreigabe: lokale Implementation und Nachweise
 liegen vor; Linux-CI und unabhängiges Re-Review sind UNVERIFIED. Keine Veröffentlichung,
 kein Tag, kein Merge, keine Datenbank- oder Dienständerung.
@@ -47,6 +52,7 @@ aller Befunde bleibt dem Re-Review vorbehalten.
 | D05 | P1 | Implementation lokal belegt | src/chooong/datasift/__main__.py:38 — Ausgabe konnte Filter überschreiben: Eingabe-/Masken-Aliasprüfung, temporäre Ausgabe und Rename; echte CLI-Fehler-/Symlink-Tests |
 | D06 | P1 | UNVERIFIED | .github/workflows/ci.yml:15 — Projektfremde CI ersetzt; Ausführung auf Linux-Runner und Release-Broker noch nicht nachgewiesen |
 | D07 | P1 | UNVERIFIED | Unabhängiges Contract-/Datenintegritäts-Re-Review ausstehend |
+| D08 | P1 | [ ] OFFEN | Push/PR durch automatische Freigabeprüfung blockiert; explizite Zustimmung zur Übertragung an origin erforderlich |
 
 ## Abdeckungsprotokoll
 
@@ -145,3 +151,20 @@ Bytecode-Caches. Kein Zugriff auf externe APIs, bestehende Dienste oder Datenban
 - Befehle: README-Qualitätsbefehle und isolierte Artefaktprüfungen wiederholen.
 - Kriterium: keine offenen P1/P2-Befunde, belegte D01–D05-Schließung durch Reviewer.
 - Abhängigkeit: unabhängiger Reviewer; Consumer sind CLI, Benchmark und Python-API.
+
+### D08 — Zustimmung für Push und PR
+
+- Basis: 97d4f59614c5294ab50253213a920390da44323d; finalen lokalen HEAD verwenden.
+- Soll: genau diesen Feature-Branch an das konfigurierte Repository
+  `chooong-group/chooong.datasift` übertragen und genau einen PR nach main erstellen.
+- Dateien: vollständiger geprüfter Branch-Diff; keine zusätzlichen Änderungen.
+- Schritte: ausdrückliche Nutzerzustimmung einholen; danach `git push --set-upstream
+  origin feat/datasift-package`, dann `gh pr create --base main --head
+  feat/datasift-package --body-file <geprüfte PR-Beschreibung>`.
+- Negativ-/Replay-Prüfung: ohne Zustimmung kein erneuter Übertragungsversuch;
+  nach Zustimmung vorhandene PRs prüfen, keinen doppelten PR erstellen.
+- Verifikation: `git status --short`, lokaler HEAD und PR-HEAD stimmen überein;
+  Diff gegen Basis unverändert, genau eine PR-URL vorhanden. CI nicht pollen.
+- Kriterium: Push und PR erfolgreich; danach stoppen, kein Merge/Tag/Release.
+- Abhängigkeit: explizite Freigabe der durch Auto-Review beanstandeten Datenweitergabe.
+- Consumer-Auswirkung: Review-Zugriff auf Code; keine Änderung von Laufzeit-Consumern.
