@@ -11,7 +11,7 @@
 - A shared dry-run/release build path and an OIDC publishing job that is hard-disabled
   pending independent review, owner approval and external PyPI/GitHub configuration.
 - Strict documentation checks and a disabled, manually activated Pages workflow.
-- A synthetic quickstart workbook generator that refuses to overwrite files.
+- A synthetic quickstart workbook generator with adjacent offset tables and comment rows; existing files are never overwritten.
 - Automatic discovery of multiple complete table schemas per worksheet, including
   adjacent and vertically offset areas, with independent predicates and row-ordered output.
 - Example masks for explicit layouts and multiline cell labels.
@@ -24,15 +24,17 @@
 
 ### Changed
 
+- Consolidated user documentation into six guides; moved release instructions to
+  `.github/RELEASING.md` and validation reports to the PR.
+
 - Benchmark defaults to 2,000,000 rows across Excel-compliant worksheets.
 - Local example workbooks live under `examples/` and remain excluded from Git and distributions; the large-workbook JSON mask is retained.
-
 - CI uses read-only GitHub-hosted standard runners; private-repository compute is
   blocked rather than silently permitting charges. Actions, uv, Rust and Maturin
   are pinned; Python/Cargo dependencies are locked.
 - Public metadata, project URLs and distribution inventories are checked.
 - Implementation modules are `models`, `reader` and `rust`; imports are absolute.
-- **Historical Greenfield breaking change:** automatic header discovery removed
+- **Breaking change:** automatic header discovery removed
   `header_row`. Masks must omit it; output/conversion include only names referenced
   by `where`, including with explicit source bindings.
 - Public import path is `chooong.datasift`; results are immutable `Row` values.

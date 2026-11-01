@@ -5,22 +5,30 @@ chooong-datasift INPUT.xlsx MASK.json [--batch-size 1024] [--output OUTPUT.ndjso
 python -m chooong.datasift INPUT.xlsx MASK.json
 ```
 
-XLSM input is supported through the same path. `MASK.json` is a UTF-8 file using
-the [JSON filter contract](contract.md). The batch size is an integer from 1 to
-65536. Without `--output`, matching records are written to stdout as NDJSON.
-Warnings/errors use stderr; cell values are excluded from CLI error messages.
+XLSM uses the same command. `MASK.json` is a UTF-8 [JSON filter](contract.md).
+The default batch size is 1024; see [valid limits](limits.md#resource-limits).
+Without `--output`, records are written to stdout as NDJSON. Errors use stderr
+and omit cell values.
 
-With `--output`, the CLI writes a temporary file in the destination directory,
-flushes/fsyncs it and atomically replaces the destination after success. A scan
-failure preserves the previous target and removes its temporary file. Input and
-mask cannot be the output destination; aliases are resolved for this check.
+## File output
 
-Exit codes: 0 for success, 1 for filter/scan/file failures, 2 for command-line
-argument errors. A generic `Filterfehler (...)` message deliberately omits
-potentially sensitive input values. Python callers receive the exception directly.
+`--output` writes a temporary file alongside the destination, flushes/fsyncs it,
+and atomically replaces the destination after the complete scan succeeds.
+A scan failure preserves the previous destination and removes the temporary
+file. Input and mask cannot be used as the output path; aliases are resolved.
 
-Stdout may contain partial results on failure. Already returned Python batches
-are likewise not transactional. Concurrent successful writers to the same output
-use last-rename-wins; there is no durable replay key. A hard process crash can
-leave a temporary file, and atomic replacement is not a power-loss durability
-promise. See [errors and resource limits](errors.md).
+Concurrent successful writers use last-rename-wins. A hard process crash can
+leave a temporary file, and replacement is not a power-loss durability guarantee.
+There is no persistent replay identifier; repeating the command scans again.
+Stdout can contain partial results on failure.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Success |
+| 1 | Filter, scan or file error |
+| 2 | Invalid command-line arguments |
+
+`Filterfehler (...)` is a generic error message that avoids exposing input values.
+Python callers receive the underlying [exception](limits.md#errors).

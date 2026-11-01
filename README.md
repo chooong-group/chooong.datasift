@@ -1,112 +1,66 @@
 # chooong.datasift
 
 [![CI](https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml/badge.svg)](https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml)
-![PyPI: not published](https://img.shields.io/badge/PyPI-not%20published-lightgrey)
-![Python 3.13 / 3.14](https://img.shields.io/badge/Python-3.13%20%7C%203.14-blue)
-![Wheel matrix: unverified](https://img.shields.io/badge/wheel%20matrix-unverified-lightgrey)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Stream XLSX/XLSM worksheets through Rust predicates. Python receives only matching
-values as immutable, typed rows. No Pandas dependency or full worksheet
-materialization; no formula calculation or Excel output.
+Extract matching values from XLSX/XLSM files using a JSON filter. Rust streams
+worksheet rows; Python receives typed, immutable results without loading whole
+sheets into a DataFrame. DataSift finds tables beyond A1 and handles repeated
+headers and neighboring tables. It does not calculate formulas or write Excel files.
 
-**Unreleased, version 0.1.0.** CPython 3.13/3.14. The release matrix targets Linux
-x86_64/aarch64, Windows x86_64, and macOS x86_64/arm64. These are release targets,
-not a claim that all platforms have passed: see the [validation matrix](docs/readiness.md).
-The PyPI and wheel badges deliberately do not claim a published release.
-
-## Install
-
-From a checkout, with Python and Rust 1.95.0 installed:
+Requires CPython 3.13 or 3.14 and Pydantic. No external service is needed.
+The package is currently unreleased; install from a checkout with Rust 1.95.0:
 
 ```bash
 python -m pip install .
-# or, in an existing environment:
+# or, in an active environment:
 uv pip install .
 ```
 
-Compatible wheels need no compiler. Registry installation with
-`pip install chooong.datasift` / `uv pip install chooong.datasift` becomes available
-only after the first approved PyPI release. No release has been published by this preparation.
+## Example
 
-## Quickstart
-
-Create a small synthetic workbook; the command refuses to overwrite a file:
+Generate synthetic data with a title, two tables at C4 and H4, and comments
+between the headers and records:
 
 ```bash
-python examples/create_sample.py sample.xlsx
+python examples/create_sample.py sample.xlsx --dirty
 ```
 
 ```python
-from chooong.datasift import FilterMask, Operator, ScalarCondition, iter_matching_rows
+from pathlib import Path
+
+from chooong.datasift import AllOf, FilterMask, NumericCondition, Operator, ScalarCondition, iter_matching_rows
 
 mask = FilterMask(
     sheet=None,
-    where=ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
+    where=AllOf(conditions=(
+        ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
+        NumericCondition(column="Amount", op=Operator.GTE, value=1000),
+    )),
 )
 for row in iter_matching_rows("sample.xlsx", mask):
-    print(dict(row))  # {'Country': 'DE'}, twice
+    print(dict(row))
+# {'Country': 'DE', 'Amount': 1500}
+# {'Country': 'DE', 'Amount': 2400}
+
+Path("sample-filter.json").write_text(mask.model_dump_json(by_alias=True), encoding="utf-8")
 ```
 
-The CLI accepts a JSON mask:
-
-```json
-{"sheet": null, "where": {"column": "Country", "op": "eq", "value": "DE"}}
-```
+Run the same filter from the CLI:
 
 ```bash
-chooong-datasift sample.xlsx examples/quickstart-filter.json --output matches.ndjson
-# equivalent entry point:
-python -m chooong.datasift sample.xlsx examples/quickstart-filter.json
+chooong-datasift sample.xlsx sample-filter.json --output matches.ndjson
 ```
 
-`sheet: null` scans all worksheets. Headers are found from the mask; repeated
-complete schemas can describe separate tables beside or below each other.
-Only columns referenced by the mask are returned. `--output` replaces its target
-atomically after the whole scan succeeds. Use the batch iterator as a context
-manager when stopping early.
+[Getting Started](docs/index.md) shows the workbook layout and filter JSON.
+See [JSON Filters](docs/contract.md), [Excel Layouts](docs/layouts.md),
+[Python API](docs/python-api.md), [CLI](docs/cli.md) and
+[Limits & Errors](docs/limits.md) for the supported behavior.
 
-## API, architecture and limits
+Python validates masks with Pydantic; the native Rust extension reads Excel XML
+and evaluates predicates. Public imports come from `chooong.datasift`, including
+`FilterMask`, `TableSource`, `Row` and the row/batch iterators.
 
-The supported imports are the exports of `chooong.datasift`, including `FilterMask`,
-filter models, `TableSource`, `ColumnBinding`, `Row`, `iter_matching_rows` and
-`iter_matching_batches`. The Python adapter validates masks with Pydantic; the
-native engine separates predicate logic, XLSX I/O and PyO3. No service or database
-is required. Runtime configuration is the mask and explicit function/CLI arguments.
-
-Headers containing line breaks within one cell are supported. Headers spread over
-multiple physical rows are **not** reconstructed. Arbitrary layouts and comments
-are not guessed; use explicit source bindings for ambiguity. No XLS/XLSB,
-encryption, date/style interpretation, or formula evaluation. Shared strings are
-held in memory. Details: [public contract](docs/contract.md),
-[limits](docs/limits.md), [errors and resources](docs/errors.md).
-
-## Develop
-
-```bash
-uv sync --frozen
-uv run --frozen ruff check src tests scripts examples
-uv run --frozen ruff format --check src tests scripts examples
-uv run --frozen mypy src
-uv run --frozen mypy --strict scripts/artifacts.py scripts/verify_publish.py scripts/bench.py examples/create_sample.py
-uv run --frozen pytest --cov --cov-report=term-missing
-cargo fmt --manifest-path native/Cargo.toml -- --check
-cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings
-cargo test --manifest-path native/Cargo.toml --locked
-uv run --frozen mkdocs build --strict
-uv build
-uv run --frozen twine check dist/*
-```
-
-The benchmark defaults to 2,000,000 synthetic rows across multiple worksheets:
-
-```bash
-uv run --frozen python scripts/bench.py
-```
-
-Local workbooks are stored in `examples/` and excluded from Git and distribution archives.
-`examples/filter_2000000.json` is retained for the corresponding local workbook.
-
-[Documentation](docs/index.md) · [Contributing](CONTRIBUTING.md) ·
-[Releases](docs/releases.md) · [Changelog](CHANGELOG.md) ·
-[Security](SECURITY.md) · [License](LICENSE)
+For development, run `uv sync --frozen`; checks and build commands are in
+[Contributing](CONTRIBUTING.md).
+[Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](LICENSE)

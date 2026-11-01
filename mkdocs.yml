@@ -13,17 +13,9 @@ exclude_docs: |
   /unnamed-columns-verification.md
   /table-sources-verification.md
 nav:
-  - Home: index.md
-  - Getting Started: getting-started.md
-  - Installation: installation.md
+  - Getting Started: index.md
+  - JSON Filters: contract.md
+  - Excel Layouts: layouts.md
   - Python API: python-api.md
   - CLI: cli.md
-  - JSON Filter Reference: contract.md
-  - Automatic Headers: headers.md
-  - Explicit Table Sources: sources.md
-  - Multiple Sheets and Tables: tables.md
-  - Known Limits: limits.md
-  - Errors and Resources: errors.md
-  - Contributing: contributing.md
-  - Releases: releases.md
-  - Validation and Release Blockers: readiness.md
+  - Limits & Errors: limits.md
