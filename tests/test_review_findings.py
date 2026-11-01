@@ -441,3 +441,12 @@ def test_recovery_requires_confirmation_of_second_destination(tmp_path: Path) ->
     recover_export(output, journal_sha256=trusted, rejected_output=rejected)
     assert output.read_bytes() == b"new"
     assert rejected.read_bytes() == b"new rejects"
+
+
+def test_empty_normalized_free_schema_does_not_abort_neighbor(tmp_path: Path) -> None:
+    path = tmp_path / "empty-headers.csv"
+    path.write_text("  ,  ,,Name,Count\n1,2,,ok,3\n")
+    records, _ = _partial(path, {"sheet": None, "header": {"trim": True}}, 1)
+    assert [r.values for r in records if r.kind == RecordKind.MATCHED] == [
+        {"Name": "ok", "Count": "3"}
+    ]

@@ -985,7 +985,7 @@ impl<'a> Sink<'a> {
                         })
                         .collect();
                     match all_headers(&normalized) {
-                        Ok(lookup) if !collision => {
+                        Ok(lookup) if !collision && !lookup.0.is_empty() => {
                             self.prepare(lookup, number, None, first, &original)?;
                             if !repeated {
                                 *self.stats.row_classes.entry(RowClass::Header).or_default() +=
