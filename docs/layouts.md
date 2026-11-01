@@ -6,7 +6,9 @@ A nonblank `sheet` string selects one worksheet; `null` scans all worksheets,
 including hidden ones, in workbook order. The string `"null"` names a worksheet.
 Chart sheets without worksheet rows are skipped.
 
-A named sheet without a complete schema raises `ValueError`. With `sheet: null`,
+An anchored named-sheet scan without a complete header raises `ValueError` at
+initialization. Free discovery resolves headers during iteration and reports
+ambiguity as an incomplete scan; see below. With `sheet: null`,
 unmatched worksheets contribute no rows; no matching schema anywhere means an
 empty result. Explicit bindings apply unchanged on each selected worksheet.
 
@@ -38,7 +40,7 @@ A repeated single name alone cannot distinguish adjacent tables from duplicate
 columns. Partial groups or horizontal groups using indexed names may require
 explicit bindings.
 
-A later complete header replaces active tables whose intervals from first to
+For anchored discovery, a later complete header replaces active tables whose intervals from first to
 last selected column overlap it. Other neighboring tables continue, including
 records on the same row as a new header. Blank rows and comments do not end a
 table. Output follows worksheet order, row number, then leftmost selected column.
@@ -91,21 +93,36 @@ bound. A corrupt XML tail still fails the scan.
 
 `header.anchors` explicitly defines the discovery schema independently of filters,
 validation and projection. With no anchors and an existing `where`, the legacy
-filter-name discovery remains. Without either, the first contiguous run of at
-least `header.min_columns` (default 2) nonblank text cells establishes a schema.
-Later exact repeated schemas are headers. This structural heuristic cannot
-identify the semantic difference between an all-text record and a header;
-use anchors or explicit bounds for ambiguous reports. Blank gaps separate
-neighboring fully automatic schemas. Anchored schemas can also be recognized
-side by side using repeated complete anchor groups. No names are invented.
+filter-name discovery remains. Without either, each contiguous run of at least
+`header.min_columns` (default 2) nonblank text cells is a candidate. That line
+and following lines form a `header.rows`-line physical header. The following record must contain
+structural evidence: a native non-text scalar or text parseable as a finite
+number, ISO date or ISO datetime. This does not convert the source value.
+The same rule applies to every table, including later and adjacent schemas.
+Blank column gaps separate neighbors; a completely empty row within a region
+ends that region, allowing a different schema below it. Single-cell titles
+below the minimum width are ignored. Exact repeated physical headers are
+structural rows, including multiline headers.
+
+All-text candidates, unconfirmed candidates at EOF and unexpected all-text lines
+inside a confirmed region are ambiguous. DataSift quarantines the region and
+records `AMBIGUOUS_HEADER` plus `SCHEMA_MISMATCH`; independent regions continue.
+It never reports these layouts as complete successful scans. Use anchors or
+explicit sources for text-only tables, comments inside free layouts, titles
+spanning multiple text columns, or tables without blank boundaries. No heuristic
+can reliably infer their business meaning from cell contents alone.
 
 Header options are `trim`, `lowercase`, `unicode` (`NFC`/`NFKC`),
 `collapse_whitespace` (including line breaks), and `aliases` (normalized label to
 canonical name), applied in that order except Unicode normalization comes first.
-Rules refer to final canonical names. Normalization collisions fail closed.
-`header.rows` (1..32) joins physical header rows with a space. In automatic mode
-these are bounded sliding windows before the first table. Use header-bound
-sources for independent multiline tables. `merged_fill: true` fills only actual
+Rules refer to final canonical names. Normalization collisions quarantine the
+affected region. Its rejects retain original values under physical Excel column
+keys (A, B, ...), because canonical names are not trustworthy. Independent tables
+continue; every scan with a schema diagnostic ends incomplete with an error.
+`header.rows` (1..32) joins physical header rows with a space. Free discovery
+uses bounded header windows for each region; anchored discovery uses a sliding
+window before its first table. Use header-bound sources when physical positions
+are known. `merged_fill: true` fills only actual
 OOXML merged header ranges from their top-left values. It needs a streaming
 metadata pass over worksheet XML before the data pass because merges can occur
 after `sheetData`. It does not materialize worksheets.
@@ -145,7 +162,9 @@ identical records are retained. One worksheet stream serves all sources.
 
 `row_policy.include` defaults to `["data"]`; `exclude` takes precedence.
 Classes: `data`, `header`, `repeated_header`, `empty`, `comment`, `total`,
-`separator`. Header and empty classifications are structural. Comments, totals
+`separator`. Header and empty classifications are structural; free discovery consumes blank
+region boundaries before row classification. Explicit sources can classify and
+include physical empty records. Comments, totals
 and separators require explicit rules; no business meaning is guessed.
 `rules` are ordered, first match wins, and each contains `classification` plus
 `rows` (physical row numbers), `where`, or both (AND). Conditions inspect original

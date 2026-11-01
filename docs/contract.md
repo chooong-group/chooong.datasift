@@ -93,7 +93,9 @@ See [Python API](python-api.md) for readers and results.
 bound column; literal names and `{ "pattern": "..." }` entries can be mixed.
 Entries expand in list order, regex/wildcard matches in physical/binding order;
 first occurrence wins. Unknown literal names and regexes without matches fail
-schema binding. An explicit source uses its aliases. Filter columns need not
+schema binding: the affected table is quarantined, independent tables continue,
+and the scan ends with `SCHEMA_MISMATCH` and `complete=false`. An explicit
+source uses its aliases. Filter columns need not
 appear in output.
 
 The pipeline binds headers, classifies rows, preserves originals, applies defaults,
@@ -104,7 +106,8 @@ not empty cells. Defaults cannot invent unbound columns. Row errors never replac
 nonempty invalid values or stop the scan.
 
 `schema_policy` is `per_table` (independent schemas, default) or `strict` (each
-bound schema must have the same names as the first schema; mismatches reject rows).
+bound schema must have the same names as the first schema; mismatches quarantine
+that table and make the final scan incomplete).
 
 ## Types and exact values
 

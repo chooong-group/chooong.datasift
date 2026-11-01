@@ -15,7 +15,8 @@ for native Parquet. No Python DataFrame or serializer processes records.
 conversion/default counts, reject frequencies and schema/file diagnostics.
 It performs no second data scan. Diagnostics contain no record values.
 Exit 0 means complete success; technical scan, validation or write errors return
-nonzero and stderr omits cell values. No file errors are silently skipped.
+nonzero and stderr omits cell values. Schema errors also return nonzero after
+processing independent tables; neither result file is committed. No file errors are silently skipped.
 
 ## File output
 
@@ -30,15 +31,46 @@ makes that state explicit. Preserve the journal and staged files, then run:
 
 ```python
 from chooong.datasift import recover_export
-recover_export("matched.ndjson")
+recover_export(
+    "matched.ndjson",
+    journal_sha256=trusted_sha256,  # from the failed export error, stored separately
+    rejected_output="rejected.ndjson",  # required if the commit includes rejects
+)
 ```
 
-Recovery rolls forward remaining staged files; completed renames stay in place only when their destination checksum matches. Missing or changed bytes fail closed.
-A new export refuses an outstanding journal. A second recovery after journal
-removal fails closed. Stable `.OUTPUT.datasift.lock` sidecars use OS file locks to
-serialize concurrent writers/recovery; they can remain after success. Inputs,
-mask and outputs must be distinct; symlink outputs and input aliases are refused.
-Directory durability on Windows is platform dependent and needs native testing.
+Recovery requires a trusted SHA-256 of the complete journal and explicit caller
+paths for **all** destinations. The native commit error includes
+`journal_sha256=<hex>` after a journal was created. Store that value separately;
+computing a hash from a possibly manipulated journal does not establish trust.
+After an abrupt process crash with no independently preserved digest, automatic
+recovery is refused: restore/re-export from the trusted input after inspecting
+the incomplete output set. The old `recover_export(output)` call is incompatible.
+
+Recovery checks manifest size/fields, exact destination bindings, reserved stage
+names and byte hashes before committing. Regular files with exactly one link are
+required for stages, journal, targets and locks. Symlinks, hardlinks and special
+files are refused. Open directory capabilities pin the output directories;
+private snapshots are hashed while copying from held file descriptors. Only
+these snapshots are renamed, so replacing a stage path after checking cannot
+substitute committed bytes. Source stages remain after recovery for inspection;
+successful ordinary export removes its own stages.
+
+Destination contents/identity, parent directories, locks and journal are checked
+again before installation. A changed destination fails closed and the journal
+remains. Completed destinations without a stage must already match the manifest.
+A new export refuses an outstanding journal; repeating recovery after journal
+removal fails. Stable `.OUTPUT.datasift.lock` sidecars serialize cooperative
+writers and may remain after success.
+
+Use caller-owned output directories protected against untrusted writers. Locks
+are advisory; there is no portable compare-and-rename transaction against a
+hostile process with the same filesystem authority. A final target symlink or
+hardlink substitution is replaced as a directory entry, never followed to write
+its linked victim. Multi-file commits can still be interrupted between installs;
+readers must honor the journal. Private snapshots use mode 0700 directories on
+Unix and inherited directory ACLs on Windows. Directory durability on Windows
+is platform dependent and needs native testing. Inputs, mask and outputs must
+be distinct; input aliases are refused.
 `--explain` is a separate diagnostic write after result commit; it is not part
 of the two-result commit protocol.
 

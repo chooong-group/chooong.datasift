@@ -23,13 +23,16 @@ initialization, even for an empty workbook; the row generator initializes lazily
 See [Python API](python-api.md#iterators).
 
 Scan failures after initialization raise `RuntimeError`. These include malformed
-selected cell values, ambiguous selected headers, corrupt ZIP/XML and late errors
+selected cell values, corrupt ZIP/XML and late errors
 in another table or worksheet. Already delivered rows are not rolled back.
+Schema errors continue independent tables, then raise `SCHEMA_MISMATCH` with
+`complete=false`; see [Python API](python-api.md#matched-and-rejected-streams).
 For file output that preserves a previous result on scan failure, use
 [CLI `--output`](cli.md#file-output).
 
-During automatic discovery, cell values are decoded until the first schema is
-found. Afterwards, valid text outside active columns can identify new headers;
+Free discovery decodes the full row so later schemas can use different columns.
+Anchored discovery decodes until the first schema is found; afterwards valid text
+outside active columns can identify new headers;
 unselected invalid values do not become header candidates. Explicit sources skip
 conversion outside their scope but still check XML structure.
 
@@ -64,3 +67,7 @@ hostile-input process memory cap. Parquet schema is fixed and independent of tab
 count. Native date/time conversion is exact to nanoseconds; Python datetime alone
 cannot represent the last three nanosecond digits, so those matching values use
 `PreciseDateTime`.
+
+Journaled exports and recovery use bounded verified copies of staged files.
+Reserve disk space for the stages plus one extra complete output set while
+private snapshots are prepared; they do not load output files into RAM.

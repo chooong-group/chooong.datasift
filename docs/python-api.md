@@ -47,8 +47,8 @@ with iter_matching_batches("sample.xlsx", mask) as batches:
     first_batch = next(batches, [])
 ```
 
-It validates the mask, workbook metadata and regexes before return. A named-sheet
-automatic scan resolves its first schema eagerly; an all-sheet scan resolves
+It validates the mask and regexes before return. An anchored named-sheet scan
+resolves workbook metadata and its first schema eagerly; free discovery and all-sheet scans resolve
 schemas during iteration. Explicit sources validate bindings without interpreting
 headers. Batches never cross worksheet boundaries and are flushed when output
 column order changes. The valid batch-size range is listed in
@@ -95,9 +95,21 @@ processes remaining files after a technical file error, records `FILE_ERROR`,
 sets `complete=false`, and still raises at the end. Already yielded rows remain
 partial; never interpret them as a complete successful result.
 
+Schema errors (missing projection/required/type/filter columns, normalization
+collisions or ambiguous free layouts) quarantine the affected table or region.
+Other tables, sheets and files continue independently of `file_errors`.
+Both scan and matching iterators yield valid partial records, then raise
+`RuntimeError` containing `SCHEMA_MISMATCH`. Final statistics have
+`complete=false` and diagnostics, including when there were no data rows.
+Matching iterators have no reject stream; consume through exhaustion and check
+completion. Early `next()` success never certifies the whole input.
+Exports refuse to commit either result after a schema error.
+
 `export(paths, mask, output, *, rejected_output=None, batch_size=1024)` writes
 native NDJSON or Parquet (selected by `.parquet` suffix) and returns `Statistics`.
-`recover_export(output)` rolls forward an interrupted journaled commit.
+`recover_export(output, *, journal_sha256, rejected_output=None)` rolls forward
+an interrupted journaled commit. Both destination paths and the trusted journal
+SHA-256 must come from the caller.
 See [CLI](cli.md) for commit semantics. Public API additions are the models and
 functions exported in `chooong.datasift.__all__`; internal native entry points
 are not a stable consumer contract.

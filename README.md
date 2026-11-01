@@ -61,6 +61,11 @@ Python validates masks with Pydantic; Rust handles parsing, discovery, types,
 filtering, matched/rejected routing and NDJSON/Parquet writing. Public imports come from `chooong.datasift`, including
 `FilterMask`, `TableSource`, `Row`, the matching iterators, `scan_batches`
 for matched/rejected records, and `export` for native file output.
+Schema failures preserve valid partial records but finish with an error; exports
+keep previous files. Free layouts require structural evidence, otherwise use
+anchors or explicit sources. Comments/totals/separators use explicit rules.
+Recovery requires caller-confirmed destinations and a trusted journal hash;
+see the [commit and recovery contract](docs/cli.md#file-output).
 
 For development, run `uv sync --frozen`; checks and build commands are in
 [Contributing](CONTRIBUTING.md).
