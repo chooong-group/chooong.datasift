@@ -2,11 +2,8 @@
 
 Security fixes target the maintained `main` branch.
 
-Do not disclose exploitable vulnerabilities, credentials, personal workbooks or
-sensitive output in public issues. If enabled, use GitHub's
-[private vulnerability reporting](https://github.com/chooong-group/chooong.datasift/security/advisories/new).
-If that facility is unavailable, request a private contact channel from the
-maintainers without including exploit details.
+This project does not offer a private vulnerability reporting channel.
+Do not post vulnerability details, credentials or sensitive workbooks in public issues.
 
 XLSX files contain ZIP/XML data. Apply external process, memory and time limits
 for untrusted input; parser limits are not an absolute resource bound. See

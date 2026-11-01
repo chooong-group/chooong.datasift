@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Security policy explicitly states that no private reporting channel is offered.
+
 - Consolidated user documentation into six guides; moved release instructions to
   `.github/RELEASING.md` and validation reports to the PR.
 
