@@ -1,0 +1,15 @@
+name: Locked Python and Rust tooling
+description: Install the pinned uv version, locked development dependencies and Rust toolchain
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      with:
+        version: "0.11.21"
+        enable-cache: false
+    - shell: bash
+      run: uv sync --frozen --no-install-project --python 3.13
+    - shell: bash
+      run: uv run --frozen --no-install-project python -c 'import sysconfig; print(sysconfig.get_path("scripts"))' >> "$GITHUB_PATH"
+    - shell: bash
+      run: rustup show

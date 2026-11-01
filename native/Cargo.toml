@@ -2,8 +2,12 @@
 name = "chooong-datasift-native"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.95"
 license = "Apache-2.0"
 description = "Streaming XLSX JSON filter with native Rust evaluation and PyO3 bindings"
+repository = "https://github.com/chooong-group/chooong.datasift"
+homepage = "https://github.com/chooong-group/chooong.datasift"
+documentation = "https://github.com/chooong-group/chooong.datasift/tree/main/docs"
 
 [lib]
 name = "rust"

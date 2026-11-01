@@ -1,0 +1,57 @@
+name: Release dry run
+# No release/tag trigger: preparation must not publish anything automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact version already committed in pyproject.toml and Cargo.toml
+        required: true
+        type: string
+      publish:
+        description: Reserved for a separately reviewed activation; publishing is hard-disabled
+        required: false
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  checks:
+    if: github.event.repository.private == false
+    uses: ./.github/workflows/checks.yml
+  distributions:
+    needs: checks
+    if: github.event.repository.private == false
+    uses: ./.github/workflows/artifacts.yml
+    with:
+      version: ${{ inputs.version }}
+  publish:
+    needs: distributions
+    # Removal of the literal false requires a future reviewed activation PR,
+    # protected environment, Pending Trusted Publisher and explicit owner approval.
+    if: ${{ false && github.event.repository.private == false && inputs.publish && vars.PYPI_PUBLISH_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          artifact-ids: ${{ needs.distributions.outputs.artifact-id }}
+          path: verified
+      - name: Recheck gate-authenticated bytes without building or installing project code
+        env:
+          EXPECTED_SHA256: ${{ needs.distributions.outputs.checksums-sha256 }}
+        run: python scripts/verify_publish.py verified "$EXPECTED_SHA256"
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
+        with:
+          packages-dir: verified/dist/
+          skip-existing: false

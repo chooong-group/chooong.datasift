@@ -4,51 +4,55 @@
 
 ### Added
 
-- Automatische Suche mehrerer vollständiger Tabellenschemata pro Arbeitsblatt,
-  auch nebeneinander und versetzt untereinander; Treffer bleiben je Tabelle getrennt
-  und werden in Zeilenreihenfolge zusammengeführt.
-
-- Beispielmaske `examples/filter_schmutzig.json` für mehrzeilige Zellnamen und
-  verschachtelte Bedingungen ohne feste Headerposition.
-
-- `sheet: null` durchsucht alle Arbeitsblätter und führt Treffer in Workbook-
-  Reihenfolge zusammen; die atomare Ausgabe gilt über alle Blätter hinweg.
-
-- Automatische Indizes für wiederholte Header: `Umsatz_1`, `Umsatz_2`, …;
-  eindeutige Namen bleiben unverändert, Namenskollisionen werden abgewiesen.
-- Explizite `TableSource`-/`ColumnBinding`-Maske für beliebige Tabellenpositionen,
-  doppelte/mehrzeilige Header, Datenbereich und auszuschließende Kommentarzeilen.
-
-- Installierbares `chooong.datasift` mit nativer Rust-XLSX-/XLSM-Streaming-Engine.
-- Typisierte Filtermodelle, unveränderliche Ergebniszeilen und schließbare Batches.
-- CLI `chooong-datasift` mit atomarer NDJSON-Dateiausgabe.
-- Reproduzierbare Python-/Rust-Abhängigkeiten und Package-Prüfungen.
+- English README and MkDocs documentation, contribution guide and issue/PR templates.
+- Native five-platform ABI3 wheel matrix, source-distribution installation checks,
+  checksum-bound fixture evidence and a complete-set release gate. Remote platform
+  validation remains a release blocker until actually executed.
+- A shared dry-run/release build path and an OIDC publishing job that is hard-disabled
+  pending independent review, owner approval and external PyPI/GitHub configuration.
+- Strict documentation checks and a disabled, manually activated Pages workflow.
+- A synthetic quickstart workbook generator with adjacent offset tables and comment rows; existing files are never overwritten.
+- Automatic discovery of multiple complete table schemas per worksheet, including
+  adjacent and vertically offset areas, with independent predicates and row-ordered output.
+- Example masks for explicit layouts and multiline cell labels.
+- `sheet: null` scans all worksheets in workbook order, with whole-scan atomic CLI output.
+- Repeated headers receive indices such as `Amount_1` and `Amount_2`;
+  unique names stay unchanged and selected collisions fail.
+- `TableSource` / `ColumnBinding` support explicit columns, data bounds and skipped rows.
+- Installable `chooong.datasift`, typed filter models, immutable rows, closeable batches
+  and the `chooong-datasift` NDJSON CLI.
 
 ### Changed
 
-- Implementierungsmodule heißen `models`, `reader` und `rust`; Imports sind
-  entsprechend der verschärften Ruff-Regeln absolut. Öffentliche Exporte bleiben erhalten.
+- Consolidated user documentation into six guides; moved release instructions to
+  `.github/RELEASING.md` and validation reports to the PR.
 
-- **Breaking Change:** Automatische Headersuche anhand aller Maskenspalten;
-  `header_row` entfällt. Ausgabe und Zellkonvertierung sind auf in `where`
-  referenzierte Spalten beschränkt, auch bei expliziten `source`-Bindungen.
-
-- Greenfield-Übernahme des PoC: Importpfad `chooong.datasift`, Ergebnisse als `Row`.
-  `rust_xlsx_filter` und `extract_rows` sind keine unterstützten APIs.
-- Metadaten verwenden die Apache-2.0-Lizenz des Repositorys.
+- Benchmark defaults to 2,000,000 rows across Excel-compliant worksheets.
+- Local example workbooks live under `examples/` and remain excluded from Git and distributions; the large-workbook JSON mask is retained.
+- CI uses read-only GitHub-hosted standard runners; private-repository compute is
+  blocked rather than silently permitting charges. Actions, uv, Rust and Maturin
+  are pinned; Python/Cargo dependencies are locked.
+- Public metadata, project URLs and distribution inventories are checked.
+- Implementation modules are `models`, `reader` and `rust`; imports are absolute.
+- **Breaking change:** automatic header discovery removed
+  `header_row`. Masks must omit it; output/conversion include only names referenced
+  by `where`, including with explicit source bindings.
+- Public import path is `chooong.datasift`; results are immutable `Row` values.
+  `rust_xlsx_filter` and `extract_rows` are not supported APIs.
+- Python and Cargo metadata use the repository's Apache-2.0 license.
 
 ### Fixed
 
-- XML-Zeilenenden in Shared-/Inline-Strings und CDATA werden korrekt normalisiert;
-  mehrzeilige Header bleiben nach erneutem Speichern in Excel zur Maske passend.
-
-- Contract-Korrektur: Nur ausgewählte Felder passender Zeilen werden extrahiert;
-  die lokal eingeführten `__column_*`-Zusatzfelder entfallen.
-- Threadsicherheit des nativen Empfängers und Erkennung unvollständiger XML-Dokumente.
-- Ungültige doppelte Build-Konfiguration und projektfremde CI-Kommandos ersetzt.
-- CLI schützt auch die Filterdatei vor Überschreiben.
+- XML line endings in shared/inline strings and CDATA are normalized, preserving
+  multiline header matches after saving in Excel.
+- Unselected fields and the earlier local `__column_*` extras are not extracted.
+- Native receiver thread safety, truncated-XML detection and protection against
+  overwriting the input/mask with CLI output.
+- Invalid duplicate build configuration and project-unrelated CI commands.
 
 ### Removed
 
-- Historischen PoC `rust_xlsx_filter/` entfernt; das Package liegt ausschließlich
-  unter `src/chooong/datasift` und `native`.
+- Automatic tag-triggered GitLab publishing and its CI-run polling. No replacement
+  upload or deployment is enabled by this preparation.
+- Historical `rust_xlsx_filter/` PoC; implementation lives in `src/chooong/datasift`
+  and `native`, with earlier code retained in Git history.

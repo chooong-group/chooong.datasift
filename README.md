@@ -1,101 +1,66 @@
 # chooong.datasift
 
-Filtert große XLSX-/XLSM-Dateien zeilenweise mit einer JSON-Maske. Rust liest und
-prüft jede Zeile; Python erhält ausschließlich Treffer. Das Package berechnet
-keine Formeln und schreibt keine Excel-Dateien.
+[![CI](https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml/badge.svg)](https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Greenfield, Version 0.1.0. Unterstützt CPython 3.13/3.14. Für einen Build aus
-Quellcode werden Rust/Cargo und ein C-Linker benötigt; installierte kompatible
-Wheels benötigen kein Rust. Keine externen Dienste.
+Extract matching values from XLSX/XLSM files using a JSON filter. Rust streams
+worksheet rows; Python receives typed, immutable results without loading whole
+sheets into a DataFrame. DataSift finds tables beyond A1 and handles repeated
+headers and neighboring tables. It does not calculate formulas or write Excel files.
 
-## Installation und Benutzung
-
-Aus diesem Repository (noch keine Registry-Veröffentlichung):
+Requires CPython 3.13 or 3.14 and Pydantic. No external service is needed.
+The package is currently unreleased; install from a checkout with Rust 1.95.0:
 
 ```bash
+python -m pip install .
+# or, in an active environment:
 uv pip install .
 ```
 
+## Example
+
+Generate synthetic data with a title, two tables at C4 and H4, and comments
+between the headers and records:
+
+```bash
+python examples/create_sample.py sample.xlsx --dirty
+```
+
 ```python
-from chooong.datasift import (
-    FilterMask, Operator, ScalarCondition, iter_matching_batches,
-)
+from pathlib import Path
+
+from chooong.datasift import AllOf, FilterMask, NumericCondition, Operator, ScalarCondition, iter_matching_rows
 
 mask = FilterMask(
     sheet=None,
-    where=ScalarCondition(column="Land", op=Operator.EQ, value="DE"),
+    where=AllOf(conditions=(
+        ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
+        NumericCondition(column="Amount", op=Operator.GTE, value=1000),
+    )),
 )
-with iter_matching_batches("daten.xlsx", mask, batch_size=1024) as batches:
-    for batch in batches:
-        for row in batch:
-            print(row["Land"])
+for row in iter_matching_rows("sample.xlsx", mask):
+    print(dict(row))
+# {'Country': 'DE', 'Amount': 1500}
+# {'Country': 'DE', 'Amount': 2400}
+
+Path("sample-filter.json").write_text(mask.model_dump_json(by_alias=True), encoding="utf-8")
 ```
+
+Run the same filter from the CLI:
 
 ```bash
-chooong-datasift daten.xlsx examples/filter.json --output treffer.ndjson
-python -m chooong.datasift daten.xlsx examples/filter.json
+chooong-datasift sample.xlsx sample-filter.json --output matches.ndjson
 ```
 
-`--output` ersetzt die Zieldatei erst nach vollständigem Erfolg atomar. Ohne
-`--output` kann stdout bei Fehlern Teilergebnisse enthalten. Die Eingabedateien
-bleiben erhalten. `iter_matching_rows` liefert einzelne Treffer; bei vorzeitigem
-Abbruch den Generator schließen oder den Batch-Kontextmanager verwenden.
+[Getting Started](docs/index.md) shows the workbook layout and filter JSON.
+See [JSON Filters](docs/contract.md), [Excel Layouts](docs/layouts.md),
+[Python API](docs/python-api.md), [CLI](docs/cli.md) and
+[Limits & Errors](docs/limits.md) for the supported behavior.
 
-## Contract und Architektur
+Python validates masks with Pydantic; the native Rust extension reads Excel XML
+and evaluates predicates. Public imports come from `chooong.datasift`, including
+`FilterMask`, `TableSource`, `Row` and the row/batch iterators.
 
-Öffentliche API: `chooong.datasift` exportiert Filtermodelle, `Operator`, `Row`,
-`BatchIterator`, `iter_matching_batches` und `iter_matching_rows`. Masken können
-als `FilterMask`, Mapping, JSON-Text oder Dateipfad übergeben werden. Ergebniszeilen
-sind unveränderliche `Row`-Mappings mit dynamischen Excel-Spaltennamen.
-`sheet: null` durchsucht alle Arbeitsblätter in Workbook-Reihenfolge und führt
-Treffer zusammen; ein Blattname wählt weiterhin genau ein Blatt. Ohne `source`
-werden Blätter ohne passende Filterspalten übersprungen. Vollständige Maskenschemas
-werden auch nebeneinander und weiter unten als Tabellenköpfe erkannt; Titel davor
-benötigen keine Zeilennummer. Ausgegeben werden ausschließlich Spalten aus `where`. Mit `source` gilt dieselbe
-Zuordnung auf jedem Blatt. [examples/filter.json](examples/filter.json) zeigt dies.
-[examples/filter_schmutzig.json](examples/filter_schmutzig.json) filtert automatisch
-erkannte mehrzeilige Zellnamen mit verschachtelten Bedingungen.
-`source` ordnet Ausgabenamen tatsächlichen Excel-Spalten zu und begrenzt die
-Datenzeilen. Damit lassen sich Tabellen nebeneinander, beliebige Startpositionen,
-mehrzeilige oder doppelte Header und Kommentarzeilen explizit behandeln. Nur in `where` verwendete Felder passender Zeilen werden ausgegeben. Beispiel für eine Tabelle
-ab C7: [examples/layout-filter.json](examples/layout-filter.json). Ohne `source`
-erfolgt die Zuordnung automatisch anhand der Spaltennamen. `header_row` entfällt.
-XML-Zeilenumbrüche werden beim Einlesen vereinheitlicht; ein erneutes Speichern
-in Excel verändert dadurch die Zuordnung mehrzeiliger Zellnamen nicht.
-Innerhalb eines einzelnen Schemas heißen doppelte Header von links nach rechts etwa `Umsatz_1` und
-`Umsatz_2`; diese Namen werden zum Filtern und in der Ausgabe verwendet.
-Wiederholen sich dagegen alle wortgleichen Maskenspalten in getrennten Gruppen,
-werden diese als unabhängige Tabellen verarbeitet. Die Ausgabe folgt je Blatt
-der Zeilenreihenfolge und bei mehreren Treffern pro Zeile von links nach rechts.
-
-[Filtervertrag und Grenzen](docs/contract.md) beschreiben Operatoren, Typen,
-Fehler und Ressourcenlimits. Es gibt keine Umgebungsvariablen oder Diensteinstellungen.
-`models.py` enthält die Pydantic-Modelle, `reader.py` den Dateiadapter und
-`rust.pyi` die Typen der nativen Erweiterung `rust`. `__init__.py` und
-`__main__.py` sind die Python-Einstiegspunkte. Alle Imports sind absolut.
-Pydantic validiert die Eingabe; der Python-Dateiadapter reicht die Maske an die
-Rust-Engine weiter. Rust trennt Filterlogik und Zellwerte von XLSX-I/O und PyO3.
-Eine zusätzliche Service-/Port-Schicht wäre hier ohne eigenen Use Case redundant.
-
-## Entwicklung
-
-```bash
-uv sync --frozen
-uv run --frozen ruff check src tests scripts
-uv run --frozen ruff format --check src tests scripts
-uv run --frozen mypy src
-uv run --frozen pytest --cov --cov-report=term-missing
-cargo fmt --manifest-path native/Cargo.toml -- --check
-cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings
-cargo test --manifest-path native/Cargo.toml --locked
-uv build
-uv run --frozen twine check dist/*
-uv run --frozen python scripts/bench.py --rows 250000
-```
-
-`uv.lock` und `native/Cargo.lock` fixieren die Entwicklungsabhängigkeiten.
-Der ursprüngliche PoC wurde entfernt; seine Historie bleibt in Git erhalten.
-Lokale Beispieldaten unter `.data/` werden nicht versioniert.
-
-[Changelog](CHANGELOG.md) · [Prüfprotokoll](docs/verification.md) ·
-[Apache-2.0-Lizenz](LICENSE)
+For development, run `uv sync --frozen`; checks and build commands are in
+[Contributing](CONTRIBUTING.md).
+[Changelog](CHANGELOG.md) · [License](LICENSE)

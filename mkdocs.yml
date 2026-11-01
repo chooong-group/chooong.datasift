@@ -1,0 +1,21 @@
+site_name: chooong.datasift
+site_description: Streaming XLSX and XLSM filtering with typed Python results
+site_url: https://chooong-group.github.io/chooong.datasift/
+repo_url: https://github.com/chooong-group/chooong.datasift
+edit_uri: edit/main/docs/
+site_dir: site
+theme:
+  name: readthedocs
+  highlightjs: true
+strict: true
+exclude_docs: |
+  /verification.md
+  /unnamed-columns-verification.md
+  /table-sources-verification.md
+nav:
+  - Getting Started: index.md
+  - JSON Filters: contract.md
+  - Excel Layouts: layouts.md
+  - Python API: python-api.md
+  - CLI: cli.md
+  - Limits & Errors: limits.md

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.9,<2"]
+requires = ["maturin==1.16.0"]
 build-backend = "maturin"
 
 [project]
@@ -13,11 +13,22 @@ license-files = ["LICENSE"]
 authors = [{name = "Chooong"}]
 dependencies = ["pydantic>=2.12,<3"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Programming Language :: Rust",
     "Typing :: Typed",
 ]
+
+[project.urls]
+Homepage = "https://github.com/chooong-group/chooong.datasift"
+Documentation = "https://github.com/chooong-group/chooong.datasift/tree/main/docs"
+Repository = "https://github.com/chooong-group/chooong.datasift"
+Issues = "https://github.com/chooong-group/chooong.datasift/issues"
+Changelog = "https://github.com/chooong-group/chooong.datasift/blob/main/CHANGELOG.md"
 
 [project.scripts]
 chooong-datasift = "chooong.datasift.__main__:main"
@@ -31,13 +42,29 @@ include = [
     {path = "tests/**/*.py", format = "sdist"},
     {path = "scripts/**/*.py", format = "sdist"},
     {path = "docs/**/*.md", format = "sdist"},
-    {path = "examples/**/*.json", format = "sdist"},
+    {path = "examples/quickstart-filter.json", format = "sdist"},
+    {path = "examples/create_sample.py", format = "sdist"},
+    {path = "examples/filter.json", format = "sdist"},
+    {path = "examples/filter_2000000.json", format = "sdist"},
+    {path = "examples/layout-filter.json", format = "sdist"},
+    {path = "examples/filter_schmutzig.json", format = "sdist"},
+    {path = ".github/release-targets.json", format = "sdist"},
+    {path = ".github/workflows/*.yml", format = "sdist"},
+    {path = ".github/actions/**/*.yml", format = "sdist"},
+    {path = "mkdocs.yml", format = "sdist"},
+    {path = "rust-toolchain.toml", format = "sdist"},
+    {path = "CONTRIBUTING.md", format = "sdist"},
     {path = "CHANGELOG.md", format = "sdist"},
     {path = "uv.lock", format = "sdist"},
 ]
 
+exclude = [".data/**", "*.xlsx", "*.xlsm", "*.xls", "*.ndjson", "AGENTS.md", "docs/*verification.md"]
+
 [dependency-groups]
 dev = [
+    "mkdocs>=1.6,<2",
+    "packaging>=25,<27",
+    "PyYAML>=6,<7",
     "mypy>=1.10,<2",
     "pre-commit>=4,<5",
     "pytest>=8.2,<10",
