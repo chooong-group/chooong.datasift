@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "chooong.datasift"
 version = "0.1.0"
-description = "Streaming XLSX/XLSM filtering with native Rust predicates"
+description = "Native streaming Excel/CSV discovery, validation, filtering and NDJSON/Parquet export"
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
 license = "Apache-2.0"
@@ -48,6 +48,8 @@ include = [
     {path = "examples/filter_2000000.json", format = "sdist"},
     {path = "examples/layout-filter.json", format = "sdist"},
     {path = "examples/filter_schmutzig.json", format = "sdist"},
+    {path = "examples/validation-filter.json", format = "sdist"},
+    {path = "examples/transactions.csv", format = "sdist"},
     {path = ".github/release-targets.json", format = "sdist"},
     {path = ".github/workflows/*.yml", format = "sdist"},
     {path = ".github/actions/**/*.yml", format = "sdist"},
