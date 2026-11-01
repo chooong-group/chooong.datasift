@@ -51,7 +51,12 @@ pub fn scan(
     let files = expand(inputs)?;
     let start = std::time::Instant::now();
     let mut stats = Statistics::default();
-    if events || files.len() > 1 {
+    if events
+        || files.len() > 1
+        || (config.source.is_none()
+            && config.sources.is_none()
+            && config.required_columns.is_empty())
+    {
         sender
             .send(Message::Ready(vec![]))
             .map_err(|_| "Verbraucher geschlossen")?;
@@ -86,13 +91,19 @@ pub fn scan(
             stats.diagnostics.push(serde_json::json!({"code":"FILE_ERROR","file":path.to_string_lossy(),"complete":false}));
         }
     }
-    stats.complete = !failed;
+    stats.complete = !failed && !stats.schema_errors;
     stats.seconds = start.elapsed().as_secs_f64();
     sender
         .send(Message::Statistics(
             serde_json::to_string(&stats).map_err(|e| e.to_string())?,
         ))
         .map_err(|_| "Verbraucher geschlossen")?;
+    if stats.schema_errors {
+        return Err(
+            "Schemaabweichungen; unabhängige Tabellen wurden weiterverarbeitet (SCHEMA_MISMATCH)"
+                .into(),
+        );
+    }
     if failed {
         return Err("Mindestens eine Datei unvollständig verarbeitet; siehe Diagnosen".into());
     }
@@ -161,8 +172,9 @@ fn csv_scan(
             row,
         )?;
     }
+    sink.finish()?;
     if !sink.has_headers() {
         sink.diagnostic("NO_SCHEMA", None)?;
     }
-    sink.flush()
+    Ok(())
 }

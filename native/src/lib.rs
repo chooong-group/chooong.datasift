@@ -1,9 +1,11 @@
 //! Rust/PyO3 bridge: the worker never constructs Python objects for rejected rows.
+mod discovery;
 mod encoding;
 mod engine;
 mod filter;
 mod input;
 mod output;
+mod recovery;
 mod rules;
 mod value;
 mod xlsx;

@@ -131,7 +131,9 @@ def test_zero_false_defaults_and_schema_rejections(tmp_path: Path) -> None:
     assert [dict(r) for r in iter_matching_rows(path, mask)] == [{"A": 0, "B": False}]
     mask["required"] = ["Missing"]
     with scan_batches(path, mask) as batches:
-        records = [r for batch in batches for r in batch]
+        records = []
+        with pytest.raises(RuntimeError, match="SCHEMA_MISMATCH"):
+            records.extend(r for batch in batches for r in batch)
         stats = batches.statistics
     assert records[0].reasons[0].code == RejectCode.SCHEMA_MISMATCH
     assert stats is not None
@@ -214,18 +216,23 @@ def test_journal_recovery_rolls_forward_and_refuses_replay(tmp_path: Path) -> No
             }
         )
     )
-    recover_export(matched)
+    trusted = sha256(journal.read_bytes()).hexdigest()
+    recover_export(matched, journal_sha256=trusted, rejected_output=rejected)
     assert matched.read_text() == "new match"
     assert rejected.read_text() == "new reject"
     assert not journal.exists()
     with pytest.raises(ValueError, match="fehlt"):
-        recover_export(matched)
+        recover_export(matched, journal_sha256=trusted, rejected_output=rejected)
 
 
 def test_encoding_bom_quotes_newlines_and_invalid_encoding(tmp_path: Path) -> None:
     path = tmp_path / "utf16.csv"
     path.write_bytes('A;B\n"München\nNord";"a; b"\n'.encode("utf-16"))
-    mask = {"sheet": None, "csv": {"encoding": "utf-16le", "delimiter": ";"}}
+    mask = {
+        "sheet": None,
+        "header": {"anchors": ["A", "B"]},
+        "csv": {"encoding": "utf-16le", "delimiter": ";"},
+    }
     rows = list(iter_matching_rows(path, mask))
     assert dict(rows[0]) == {"A": "München\nNord", "B": "a; b"}
     path.write_bytes(b"A,B\n\xff,1\n")
@@ -254,7 +261,7 @@ def test_header_normalization_and_collision_fail_closed(tmp_path: Path) -> None:
     }
     assert dict(next(iter_matching_rows(path, mask))) == {"code": "a", "amount": "1"}
     path.write_text(" CODE ,code\na,b\n")
-    with pytest.raises((ValueError, RuntimeError), match="(?i)kollision"):
+    with pytest.raises((ValueError, RuntimeError), match="SCHEMA_MISMATCH"):
         list(iter_matching_rows(path, mask))
 
 
@@ -379,6 +386,7 @@ def test_explicit_row_classes_and_default_order(tmp_path) -> None:
     path.write_text("Name,Value\ncomment,x\na,1\nTOTAL:,2\nseparator,-\n")
     mask = {
         "sheet": None,
+        "header": {"anchors": ["Name", "Value"]},
         "row_policy": {
             "rules": [
                 {"classification": "comment", "rows": [2]},
@@ -404,7 +412,11 @@ def test_strict_schema_policy_rejects_other_tables(tmp_path) -> None:
     a.write_text("A,B\n1,2\n")
     b.write_text("A,C\n3,4\n")
     with scan_batches([a, b], {"sheet": None, "schema_policy": "strict"}) as batches:
-        records = [r for batch in batches for r in batch]
+        records = []
+        with pytest.raises(RuntimeError, match="SCHEMA_MISMATCH"):
+            records.extend(r for batch in batches for r in batch)
+        assert batches.statistics is not None
+        assert not batches.statistics.complete
     assert [r.kind for r in records] == [RecordKind.MATCHED, RecordKind.REJECTED]
     assert records[1].reasons[0].code == RejectCode.SCHEMA_MISMATCH
 
@@ -511,7 +523,7 @@ def test_money_currency_mismatch_cannot_pass_through_not(tmp_path) -> None:
 @pytest.mark.parametrize("selection", [["missing"], [{"pattern": "^missing$"}]])
 def test_missing_projection_fails_without_silent_loss(tmp_path, selection) -> None:
     path = _csv(tmp_path)
-    with pytest.raises((ValueError, RuntimeError), match="select"):
+    with pytest.raises((ValueError, RuntimeError), match="SCHEMA_MISMATCH"):
         list(iter_matching_rows(path, {"sheet": None, "select": selection}))
 
 
@@ -567,16 +579,17 @@ def test_recovery_detects_missing_uncommitted_stage_and_tampering(tmp_path) -> N
             }
         )
     )
+    trusted = sha256(journal.read_bytes()).hexdigest()
     with pytest.raises(ValueError, match="überein"):
-        recover_export(output)
+        recover_export(output, journal_sha256=trusted)
     assert output.read_text() == "old result"
     assert journal.exists()
     stage.write_text("changed result")
     with pytest.raises(ValueError, match="überein"):
-        recover_export(output)
+        recover_export(output, journal_sha256=trusted)
     assert output.read_text() == "old result"
     stage.write_text("new result")
-    recover_export(output)
+    recover_export(output, journal_sha256=trusted)
     assert output.read_text() == "new result"
 
 

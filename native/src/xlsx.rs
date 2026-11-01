@@ -835,13 +835,13 @@ fn scan_worksheet(
                 if in_row || in_cell {
                     return Err("Tabellen-XML ist unvollständig".into());
                 }
-                if !sink.has_headers() && sink.config.sheet.is_some() {
+                sink.finish()?;
+                if !sink.has_headers() && sink.config.sheet.is_some() && !sink.stats.schema_errors {
                     return Err(
                         "Keine Kopfzeile mit allen Maskenspalten gefunden (Unbekannte Spalte)"
                             .into(),
                     );
                 }
-                sink.flush()?;
                 return Ok(());
             }
             _ => (),

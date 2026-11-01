@@ -221,6 +221,8 @@ class RowRule(_Model):
 
 
 class RowPolicy(_Model):
+    """Explicit rules classify comments/totals/separators; no semantic inference."""
+
     include: tuple[RowClass, ...] = (RowClass.DATA,)
     exclude: tuple[RowClass, ...] = ()
     rules: tuple[RowRule, ...] = ()

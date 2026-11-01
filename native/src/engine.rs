@@ -1,5 +1,5 @@
 //! One row pipeline shared by CSV and OOXML adapters.
-use crate::filter::{headers_from_row, tables_from_row, Config, Expr, HeaderLookup, TableSource};
+use crate::filter::{tables_from_row, Config, Expr, HeaderLookup, TableSource};
 use crate::rules::{convert, is_type, RowClass, Rules, Selection};
 use crate::value::{CellValue, Reason, ReasonCode, Record, RecordKind};
 use crate::Message;
@@ -21,6 +21,8 @@ pub struct Statistics {
     pub tables: Vec<TableExplanation>,
     pub diagnostics: Vec<Json>,
     pub complete: bool,
+    #[serde(skip)]
+    pub schema_errors: bool,
     pub seconds: f64,
     #[serde(skip)]
     pub schema: Option<Vec<String>>,
@@ -60,6 +62,14 @@ struct Table<'a> {
     explanation: usize,
 }
 
+struct BlockedRegion<'a> {
+    first: usize,
+    last: usize,
+    header_row: u32,
+    name: String,
+    source: Option<&'a TableSource>,
+}
+
 pub struct Sink<'a> {
     pub config: &'a Config,
     pub sender: &'a SyncSender<Message>,
@@ -79,6 +89,8 @@ pub struct Sink<'a> {
     buffer: Vec<Vec<CellValue>>,
     records: Vec<Record>,
     header_buffer: Vec<Vec<CellValue>>,
+    discovery: crate::discovery::Discovery,
+    blocked: Vec<BlockedRegion<'a>>,
     pending_sources: Vec<(&'a TableSource, Vec<Vec<CellValue>>)>,
 }
 impl<'a> Sink<'a> {
@@ -115,6 +127,8 @@ impl<'a> Sink<'a> {
             records: Vec::with_capacity(batch_size),
             header_buffer: Vec::new(),
             pending_sources: Vec::new(),
+            discovery: Default::default(),
+            blocked: Vec::new(),
         }
     }
     pub fn has_headers(&self) -> bool {
@@ -178,7 +192,6 @@ impl<'a> Sink<'a> {
         let predicate = if let Some(p) = &rules.predicate {
             match Expr::compile(p, &lookup) {
                 Ok(p) => Some(p),
-                Err(e) if !self.events => return Err(e),
                 Err(_) => {
                     reasons.push(Reason {
                         code: ReasonCode::SchemaMismatch,
@@ -195,10 +208,17 @@ impl<'a> Sink<'a> {
             for selection in select {
                 let selected: Vec<_> = match selection {
                     Selection::Name(name) if name == "*" => names.clone(),
-                    Selection::Name(name) => lookup
-                        .get(name)
-                        .map(|i| vec![(name.clone(), *i)])
-                        .ok_or("select: unbekannte Spalte")?,
+                    Selection::Name(name) => {
+                        if let Some(index) = lookup.get(name) {
+                            vec![(name.clone(), *index)]
+                        } else {
+                            reasons.push(Reason {
+                                code: ReasonCode::SchemaMismatch,
+                                column: Some(name.clone()),
+                            });
+                            vec![]
+                        }
+                    }
                     Selection::Pattern { pattern } => {
                         let re = crate::filter::compile_regex(pattern)?;
                         let found: Vec<_> = names
@@ -207,7 +227,10 @@ impl<'a> Sink<'a> {
                             .cloned()
                             .collect();
                         if found.is_empty() {
-                            return Err("select: Regex ohne Treffer".into());
+                            reasons.push(Reason {
+                                code: ReasonCode::SchemaMismatch,
+                                column: None,
+                            });
                         }
                         found
                     }
@@ -261,6 +284,7 @@ impl<'a> Sink<'a> {
         let repeated = self.tables.iter().any(|t| t.names == names);
         if source.is_none() {
             self.tables.retain(|t| t.last < first || t.first > last);
+            self.blocked.retain(|t| t.last < first || t.first > last);
         }
         let name = source
             .and_then(|s| s.name.clone())
@@ -291,22 +315,29 @@ impl<'a> Sink<'a> {
             data_end_row: source.and_then(|s| s.data_end_row),
         });
         if !reasons.is_empty() {
+            self.stats.schema_errors = true;
             self.diagnostic("SCHEMA_MISMATCH", Some(name.clone()))?;
         }
-        let row_rules = rules
-            .row_policy
-            .rules
-            .iter()
-            .map(|rule| {
-                Ok((
-                    rule.clone(),
-                    rule.predicate
-                        .as_ref()
-                        .map(|p| Expr::compile(p, &lookup))
-                        .transpose()?,
-                ))
-            })
-            .collect::<Result<Vec<_>, String>>()?;
+        let mut row_rules = Vec::new();
+        for rule in &rules.row_policy.rules {
+            let predicate = if let Some(p) = &rule.predicate {
+                match Expr::compile(p, &lookup) {
+                    Ok(p) => Some(p),
+                    Err(_) => {
+                        reasons.push(Reason {
+                            code: ReasonCode::SchemaMismatch,
+                            column: None,
+                        });
+                        self.stats.schema_errors = true;
+                        self.diagnostic("SCHEMA_MISMATCH", Some(name.clone()))?;
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            row_rules.push((rule.clone(), predicate));
+        }
         if self.headers.is_none() {
             self.use_headers(
                 output
@@ -367,13 +398,18 @@ impl<'a> Sink<'a> {
         Ok(())
     }
     pub fn selects_cell(&self, row: u32, col: usize) -> bool {
+        if self.free_discovery() {
+            return true;
+        }
         if !self.pending_sources.is_empty() {
             return true;
         }
         if self.tables.is_empty() {
             return self.config.source.is_none() && self.config.sources.is_none();
         }
-        self.tables.iter().any(|t| {
+        self.blocked.iter().any(|b| {
+            b.first <= col && col <= b.last && b.source.is_none_or(|s| s.contains_row(row))
+        }) || self.tables.iter().any(|t| {
             t.source.is_none_or(|s| s.contains_row(row)) && t.names.iter().any(|(_, i)| *i == col)
         })
     }
@@ -419,99 +455,75 @@ impl<'a> Sink<'a> {
             || h.collapse_whitespace
             || !h.aliases.is_empty()
         {
-            let mut originals = HashMap::new();
-            for cell in row {
-                if let CellValue::Text(raw) = cell {
-                    let normalized = h.normalize(raw);
-                    if (required.contains(&normalized)
-                        || (required.is_empty() && self.tables.is_empty()))
-                        && originals
-                            .insert(normalized, raw)
-                            .is_some_and(|previous| previous != raw)
-                    {
-                        return Err("Header-Normalisierung erzeugt eine Namenskollision".into());
+            let mut start = 0;
+            while start < row.len() {
+                if !matches!(&row[start],CellValue::Text(s) if !s.trim().is_empty()) {
+                    start += 1;
+                    continue;
+                }
+                let mut end = start + 1;
+                while end < row.len()
+                    && matches!(&row[end],CellValue::Text(s) if !s.trim().is_empty())
+                {
+                    end += 1;
+                }
+                let mut originals = HashMap::new();
+                let mut collision = false;
+                for cell in &row[start..end] {
+                    if let CellValue::Text(raw) = cell {
+                        let name = h.normalize(raw);
+                        if required.contains(&name)
+                            && originals
+                                .insert(name, raw)
+                                .is_some_and(|previous| previous != raw)
+                        {
+                            collision = true;
+                        }
                     }
                 }
+                if collision {
+                    self.quarantine(number, start, end - 1)?;
+                    for cell in &mut normalized[start..end] {
+                        *cell = CellValue::Empty;
+                    }
+                }
+                start = end;
             }
         }
-        let groups = if required.is_empty() {
-            if !self.tables.is_empty() {
-                // Automatic mode recognizes only exact repeated schemas after first discovery.
-                let schemas: Vec<_> = self
-                    .tables
-                    .iter()
-                    .map(|t| {
-                        t.names
-                            .iter()
-                            .map(|(n, _)| n.clone())
-                            .collect::<HashSet<_>>()
-                    })
-                    .collect();
-                let mut result = Vec::new();
-                for schema in schemas {
-                    result.extend(tables_from_row(&normalized, &schema)?);
-                }
-                result
-            } else {
-                // Deterministic structural heuristic: contiguous, nonblank text runs.
-                let mut result = Vec::new();
-                let mut start = 0;
-                while start < normalized.len() {
-                    if !matches!(&normalized[start],CellValue::Text(s) if !s.trim().is_empty()) {
-                        start += 1;
+        let groups = match tables_from_row(&normalized, required) {
+            Ok(groups) => groups,
+            Err(_) => {
+                // A malformed indexed schema must not hide an independent neighboring region.
+                let mut valid = Vec::new();
+                let mut first = 0;
+                while first < normalized.len() {
+                    if normalized[first].empty() {
+                        first += 1;
                         continue;
                     }
-                    let mut end = start + 1;
-                    while end < normalized.len()
-                        && matches!(&normalized[end],CellValue::Text(s) if !s.trim().is_empty())
-                    {
+                    let mut end = first + 1;
+                    while end < normalized.len() && !normalized[end].empty() {
                         end += 1;
                     }
-                    if end - start >= h.min_columns {
-                        let all: HashSet<_> = normalized[start..end]
-                            .iter()
-                            .filter_map(|v| match v {
-                                CellValue::Text(s) => Some(s.clone()),
-                                _ => None,
-                            })
-                            .collect();
-                        let (indexed, _) = headers_from_row(&normalized[start..end], &all)?;
-                        // Re-resolve duplicate names using generated suffixes.
-                        let mut counts = HashMap::new();
-                        for v in &normalized[start..end] {
-                            if let CellValue::Text(s) = v {
-                                *counts.entry(s.clone()).or_insert(0_usize) += 1;
+                    match tables_from_row(&normalized[first..end], required) {
+                        Ok(groups) => {
+                            for (names, _) in groups {
+                                let names: Vec<_> = names
+                                    .into_iter()
+                                    .map(|(name, index)| (name, index + first))
+                                    .collect();
+                                let lookup = names.iter().cloned().collect();
+                                valid.push((names, lookup));
                             }
                         }
-                        let mut seen = HashMap::new();
-                        let mut names = Vec::new();
-                        let mut lookup = HashMap::new();
-                        let _ = indexed;
-                        for (offset, v) in normalized[start..end].iter().enumerate() {
-                            if let CellValue::Text(s) = v {
-                                let count = seen.entry(s.clone()).or_insert(0_usize);
-                                *count += 1;
-                                let n = if counts[s] > 1 {
-                                    format!("{s}_{count}")
-                                } else {
-                                    s.clone()
-                                };
-                                if lookup.insert(n.clone(), start + offset).is_some() {
-                                    return Err("Mehrdeutige normalisierte Header".into());
-                                }
-                                names.push((n, start + offset));
-                            }
-                        }
-                        result.push((names, lookup));
+                        Err(_) => self.quarantine(number, first, end - 1)?,
                     }
-                    start = end;
+                    first = end;
                 }
-                result
+                valid
             }
-        } else {
-            tables_from_row(&normalized, required)?
         };
-        for (index, (mut names, mut lookup)) in groups.into_iter().enumerate() {
+        'groups: for (index, (mut names, mut lookup)) in groups.into_iter().enumerate() {
             if h.trim
                 || h.lowercase
                 || h.unicode.is_some()
@@ -526,7 +538,10 @@ impl<'a> Sink<'a> {
                             .insert(normalized, raw)
                             .is_some_and(|previous| previous != raw)
                         {
-                            return Err("Header-Normalisierung erzeugt eine Namenskollision".into());
+                            let first = names.iter().map(|(_, i)| *i).min().unwrap_or(0);
+                            let last = names.iter().map(|(_, i)| *i).max().unwrap_or(first);
+                            self.quarantine(number, first, last)?;
+                            continue 'groups;
                         }
                     }
                 }
@@ -551,7 +566,24 @@ impl<'a> Sink<'a> {
                 {
                     end += 1;
                 }
-                let all = all_headers(&normalized[first..end])?;
+                let mut labels = HashMap::new();
+                let collision = row[first..end].iter().any(|cell| match cell {
+                    CellValue::Text(raw) => labels
+                        .insert(h.normalize(raw), raw)
+                        .is_some_and(|prior| prior != raw),
+                    _ => false,
+                });
+                if collision {
+                    self.quarantine(number, first, end - 1)?;
+                    continue;
+                }
+                let all = match all_headers(&normalized[first..end]) {
+                    Ok(all) => all,
+                    Err(_) => {
+                        self.quarantine(number, first, end - 1)?;
+                        continue;
+                    }
+                };
                 names = all.0.into_iter().map(|(n, i)| (n, i + first)).collect();
                 lookup = names.iter().cloned().collect();
             }
@@ -565,7 +597,7 @@ impl<'a> Sink<'a> {
         }
         self.stats.rows_read += 1;
         let mut header_row = std::borrow::Cow::Borrowed(&row);
-        if (self.tables.is_empty() || !self.pending_sources.is_empty()) && !self.merges.is_empty() {
+        if !self.merges.is_empty() {
             for merge in &self.merges {
                 if merge.first_row == number {
                     if let Some(value) = header_row.get(merge.first_col) {
@@ -588,6 +620,7 @@ impl<'a> Sink<'a> {
             }
         }
         let mut prepared = Vec::new();
+        let mut invalid = Vec::new();
         for (index, (source, buffer)) in self.pending_sources.iter_mut().enumerate() {
             if source
                 .header_rows(self.config.rules.header.rows)
@@ -602,6 +635,7 @@ impl<'a> Sink<'a> {
                 let mut joined = vec![CellValue::Empty; first.min(width)];
                 let mut original = joined.clone();
                 let mut normalized_labels = HashMap::new();
+                let mut collision = false;
                 for col in first..width {
                     let label = buffer
                         .iter()
@@ -617,24 +651,47 @@ impl<'a> Sink<'a> {
                             .insert(normalized.clone(), label.clone())
                             .is_some_and(|previous| previous != label)
                     {
-                        return Err("Header-Normalisierung erzeugt eine Namenskollision".into());
+                        collision = true;
                     }
                     original.push(CellValue::Text(label));
                     joined.push(CellValue::Text(normalized));
                 }
-                let lookup = all_headers(&joined)?;
-                prepared.push((index, *source, lookup, original));
+                match all_headers(&joined) {
+                    Ok(lookup) if !collision && !lookup.0.is_empty() => {
+                        prepared.push((index, *source, lookup, original))
+                    }
+                    _ => invalid.push((index, *source, first, width.saturating_sub(1))),
+                }
             }
         }
-        for (index, _, _, _) in prepared.iter().rev() {
-            self.pending_sources.remove(*index);
+        let mut removed: Vec<_> = prepared
+            .iter()
+            .map(|(i, _, _, _)| *i)
+            .chain(invalid.iter().map(|(i, _, _, _)| *i))
+            .collect();
+        removed.sort_unstable();
+        removed.dedup();
+        for index in removed.into_iter().rev() {
+            self.pending_sources.remove(index);
+        }
+        for (_, source, first, last) in invalid {
+            self.quarantine(number, first, last)?;
+            self.blocked.last_mut().expect("quarantined source").source = Some(source);
         }
         for (index, source, lookup, original) in prepared {
             self.prepare(lookup, number, Some(source), index, &original)?;
         }
         if self.config.source.is_none() && self.config.sources.is_none() {
-            self.discover(number, &header_row)?;
+            if self.free_discovery() {
+                let events = self
+                    .discovery
+                    .observe(number, &header_row, &self.config.rules.header);
+                self.discovery_events(events)?;
+            } else {
+                self.discover(number, &header_row)?;
+            }
         }
+        self.reject_blocked(number, &row)?;
         for index in 0..self.tables.len() {
             let table = &self.tables[index];
             if table.source.is_some_and(|s| !s.contains_row(number)) {
@@ -824,6 +881,156 @@ impl<'a> Sink<'a> {
         }
         Ok(())
     }
+    pub fn free_discovery(&self) -> bool {
+        self.config.source.is_none()
+            && self.config.sources.is_none()
+            && self.config.required_columns.is_empty()
+    }
+    fn quarantine(&mut self, number: u32, first: usize, last: usize) -> Result<(), String> {
+        self.stats.schema_errors = true;
+        if self.headers.is_none() {
+            self.use_headers(vec![])?;
+        }
+        self.tables
+            .retain(|t| t.source.is_some() || t.last < first || t.first > last);
+        self.blocked.retain(|t| t.last < first || t.first > last);
+        let name = format!("invalid-{number}-{}", first + 1);
+        self.diagnostic("SCHEMA_MISMATCH", Some(name.clone()))?;
+        self.blocked.push(BlockedRegion {
+            first,
+            last,
+            header_row: number,
+            name,
+            source: None,
+        });
+        Ok(())
+    }
+    fn reject_blocked(&mut self, number: u32, row: &[CellValue]) -> Result<(), String> {
+        for index in 0..self.blocked.len() {
+            let region = &self.blocked[index];
+            if region.source.is_some_and(|s| !s.contains_row(number))
+                || number <= region.header_row
+                || (region.first..=region.last).all(|i| row.get(i).is_none_or(CellValue::empty))
+            {
+                continue;
+            }
+            self.stats.rejected += 1;
+            *self
+                .stats
+                .reasons
+                .entry(ReasonCode::SchemaMismatch)
+                .or_default() += 1;
+            if self.events && self.rejects {
+                let bindings: Vec<_> = (region.first..=region.last)
+                    .map(|i| (column_name(i), row.get(i).unwrap_or(&CellValue::Empty)))
+                    .collect();
+                self.records.push(Record {
+                    kind: RecordKind::Rejected,
+                    file: self.file.clone(),
+                    sheet: self.sheet.clone(),
+                    table: region.name.clone(),
+                    row: number,
+                    values: bindings
+                        .iter()
+                        .map(|(n, v)| (n.clone(), v.json()))
+                        .collect(),
+                    source_types: bindings
+                        .iter()
+                        .map(|(n, v)| (n.clone(), v.source_type().to_owned()))
+                        .collect(),
+                    reasons: vec![Reason {
+                        code: ReasonCode::SchemaMismatch,
+                        column: None,
+                    }],
+                });
+                if self.records.len() >= self.batch_size {
+                    self.flush()?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn discovery_events(&mut self, events: Vec<crate::discovery::Event>) -> Result<(), String> {
+        for event in events {
+            match event {
+                crate::discovery::Event::Close { first, last } => {
+                    self.tables.retain(|t| t.last < first || t.first > last);
+                    self.blocked.retain(|t| t.last < first || t.first > last);
+                }
+                crate::discovery::Event::Header {
+                    number,
+                    first,
+                    raw,
+                    repeated,
+                } => {
+                    let mut original = vec![CellValue::Empty; first];
+                    original.extend(raw);
+                    let h = &self.config.rules.header;
+                    let mut seen = HashMap::new();
+                    let mut collision = false;
+                    let normalized: Vec<_> = original
+                        .iter()
+                        .map(|c| match c {
+                            CellValue::Text(s) => {
+                                let n = h.normalize(s);
+                                if seen
+                                    .insert(n.clone(), s)
+                                    .is_some_and(|previous| previous != s)
+                                {
+                                    collision = true;
+                                }
+                                CellValue::Text(n)
+                            }
+                            _ => c.clone(),
+                        })
+                        .collect();
+                    match all_headers(&normalized) {
+                        Ok(lookup) if !collision => {
+                            self.prepare(lookup, number, None, first, &original)?;
+                            if !repeated {
+                                *self.stats.row_classes.entry(RowClass::Header).or_default() +=
+                                    h.rows as u64;
+                            }
+                        }
+                        _ => self.quarantine(number, first, original.len().saturating_sub(1))?,
+                    }
+                }
+                crate::discovery::Event::Ambiguous {
+                    first,
+                    last,
+                    start,
+                    pending,
+                } => {
+                    self.quarantine(start, first, last)?;
+                    self.diagnostic("AMBIGUOUS_HEADER", None)?;
+                    for (number, cells) in pending {
+                        let mut physical = vec![CellValue::Empty; first];
+                        physical.extend(cells);
+                        self.blocked
+                            .last_mut()
+                            .expect("quarantined region")
+                            .header_row = start.saturating_sub(1);
+                        self.reject_blocked(number, &physical)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+    pub fn finish(&mut self) -> Result<(), String> {
+        if self.free_discovery() {
+            let events = self.discovery.finish();
+            self.discovery_events(events)?;
+        }
+        if !self.pending_sources.is_empty() {
+            if self.headers.is_none() {
+                self.use_headers(vec![])?;
+            }
+            self.stats.schema_errors = true;
+            self.diagnostic("SCHEMA_MISMATCH", None)?;
+        }
+        self.flush()
+    }
     pub fn flush(&mut self) -> Result<(), String> {
         if !self.buffer.is_empty() {
             self.sender
@@ -870,4 +1077,17 @@ fn all_headers(row: &[CellValue]) -> Result<HeaderLookup, String> {
         }
     }
     Ok((names, lookup))
+}
+
+fn column_name(mut index: usize) -> String {
+    let mut name = Vec::new();
+    loop {
+        name.push(b'A' + (index % 26) as u8);
+        if index < 26 {
+            break;
+        }
+        index = index / 26 - 1;
+    }
+    name.reverse();
+    String::from_utf8(name).expect("ASCII column")
 }

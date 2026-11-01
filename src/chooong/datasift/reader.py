@@ -164,9 +164,15 @@ def export(
     return Statistics.model_validate_json(value)
 
 
-def recover_export(output: str | Path) -> None:
-    """Roll forward an interrupted, journaled output commit."""
-    rust.recover_export(str(output))
+def recover_export(
+    output: str | Path, *, journal_sha256: str, rejected_output: str | Path | None = None
+) -> None:
+    """Recover only caller-authorized destinations and an independently trusted journal digest."""
+    rust.recover_export(
+        str(output),
+        journal_sha256,
+        str(rejected_output) if rejected_output is not None else None,
+    )
 
 
 def _validate_mask_outputs(mask: MaskInput, destinations: tuple[str | Path | None, ...]) -> None:

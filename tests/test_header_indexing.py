@@ -100,14 +100,17 @@ def test_three_occurrences_retain_physical_order_and_values(tmp_path: Path) -> N
         ("Kunde", "Umsatz", "Umsatz", "Umsatz_1"),
     ],
 )
-def test_index_collision_fails_before_iterator_is_returned(
+def test_index_collision_fails_at_scan_end(
     tmp_path: Path,
     headers: tuple[str, ...],
 ) -> None:
     path = tmp_path / "collision.xlsx"
     _workbook(path, headers=headers)
-    with pytest.raises(ValueError, match="nach Indizierung nicht eindeutig"):
-        iter_matching_batches(path, _mask())
+    with (
+        pytest.raises(RuntimeError, match="SCHEMA_MISMATCH"),
+        iter_matching_batches(path, _mask()) as batches,
+    ):
+        list(batches)
 
 
 def test_missing_text_header_is_rejected(tmp_path: Path) -> None:

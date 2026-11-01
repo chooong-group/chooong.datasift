@@ -1,4 +1,5 @@
 //! Streaming native serializers and an explicit recoverable two-file commit protocol.
+use crate::recovery::{Entry, Journal, Transaction};
 use crate::{
     filter::Config,
     value::{Record, RecordKind},
@@ -15,12 +16,13 @@ use pyo3::{
     exceptions::{PyRuntimeError, PyValueError},
     prelude::*,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
+#[cfg(test)]
+use std::fs::{self, OpenOptions};
+
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{BufWriter, Read, Write},
+    fs::File,
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
     sync::{atomic::AtomicBool, mpsc::sync_channel, Arc},
 };
@@ -242,12 +244,16 @@ enum Writer {
     Parquet(Box<ArrowWriter<File>>),
 }
 impl Writer {
+    #[cfg(test)]
     fn new(path: &Path, parquet: bool, rejected: bool) -> Result<Self, String> {
         let file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(path)
             .map_err(|_| "Temporäre Ausgabe kann nicht angelegt werden")?;
+        Self::from_file(file, parquet, rejected)
+    }
+    fn from_file(file: File, parquet: bool, rejected: bool) -> Result<Self, String> {
         if parquet {
             Ok(Self::Parquet(Box::new(
                 ArrowWriter::try_new(file, schema(), None).map_err(|e| e.to_string())?,
@@ -280,35 +286,21 @@ impl Writer {
         }
         Ok(())
     }
-    fn finish(self) -> Result<(), String> {
+    fn finish(self) -> Result<File, String> {
         match self {
             Self::Json(mut writer, _) => {
                 writer.flush().map_err(|_| "Flush fehlgeschlagen")?;
-                writer
-                    .get_ref()
-                    .sync_all()
-                    .map_err(|_| "fsync fehlgeschlagen".to_owned())
+                let file = writer.into_inner().map_err(|_| "Flush fehlgeschlagen")?;
+                file.sync_all().map_err(|_| "fsync fehlgeschlagen")?;
+                Ok(file)
             }
             Self::Parquet(writer) => {
                 let file = writer.into_inner().map_err(|e| e.to_string())?;
-                file.sync_all()
-                    .map_err(|_| "fsync fehlgeschlagen".to_owned())
+                file.sync_all().map_err(|_| "fsync fehlgeschlagen")?;
+                Ok(file)
             }
         }
     }
-}
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Entry {
-    destination: PathBuf,
-    stage: PathBuf,
-    sha256: String,
-}
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Journal {
-    version: u8,
-    entries: Vec<Entry>,
 }
 fn journal_path(output: &Path) -> Result<PathBuf, String> {
     let name = output
@@ -316,15 +308,6 @@ fn journal_path(output: &Path) -> Result<PathBuf, String> {
         .and_then(|s| s.to_str())
         .ok_or("Ungültiger Ausgabename")?;
     Ok(output.with_file_name(format!(".{name}.datasift-commit.json")))
-}
-fn sync_parent(path: &Path) -> Result<(), String> {
-    #[cfg(unix)]
-    {
-        File::open(path.parent().ok_or("Ausgabe ohne Verzeichnis")?)
-            .and_then(|f| f.sync_all())
-            .map_err(|_| "Verzeichnis-fsync fehlgeschlagen")?;
-    }
-    Ok(())
 }
 fn absolute_output(path: &str) -> Result<PathBuf, String> {
     let path = Path::new(path);
@@ -340,64 +323,6 @@ fn absolute_output(path: &str) -> Result<PathBuf, String> {
         return Err("Ausgabe darf kein Symlink sein".into());
     }
     Ok(result)
-}
-fn sha256(path: &Path) -> Result<String, String> {
-    if path.is_symlink() {
-        return Err("Commit-Datei darf kein Symlink sein".into());
-    }
-    let mut file = File::open(path).map_err(|_| "Commit-Datei fehlt")?;
-    let mut hash = Sha256::new();
-    let mut buffer = [0; 65536];
-    loop {
-        let count = file
-            .read(&mut buffer)
-            .map_err(|_| "Commit-Datei nicht lesbar")?;
-        if count == 0 {
-            break;
-        }
-        hash.update(&buffer[..count]);
-    }
-    Ok(format!("{:x}", hash.finalize()))
-}
-fn commit(journal: &Journal, path: &Path) -> Result<(), String> {
-    for entry in &journal.entries {
-        if sha256(&entry.stage)? != entry.sha256 {
-            return Err("Commit-Datei stimmt nicht mit Journal überein".into());
-        }
-        fs::rename(&entry.stage, &entry.destination)
-            .map_err(|_| "Commit unvollständig; Journal erhalten, recover_export ausführen")?;
-        sync_parent(&entry.destination)?;
-    }
-    fs::remove_file(path).map_err(|_| "Commit fertig, Journal konnte nicht gelöscht werden")?;
-    sync_parent(path)
-}
-fn acquire_locks(destinations: &[PathBuf]) -> Result<Vec<File>, String> {
-    let mut sorted = destinations.to_vec();
-    sorted.sort();
-    sorted.dedup();
-    sorted
-        .iter()
-        .map(|path| {
-            let name = path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .ok_or("Ungültiger Ausgabepfad")?;
-            let lock_path = path.with_file_name(format!(".{name}.datasift.lock"));
-            if lock_path.is_symlink() {
-                return Err("Lock darf kein Symlink sein".into());
-            }
-            let file = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
-                .open(lock_path)
-                .map_err(|_| "Ausgabe-Lock nicht anlegbar")?;
-            file.try_lock()
-                .map_err(|_| "Ausgabe wird bereits geschrieben")?;
-            Ok(file)
-        })
-        .collect()
 }
 fn same_file(a: &Path, b: &Path) -> bool {
     if a.canonicalize()
@@ -454,7 +379,7 @@ fn export(
     if destinations.iter().any(|p| reserved.contains(p)) {
         return Err("Ausgaben kollidieren mit Commit-/Lock-Metadaten".into());
     }
-    let _locks = acquire_locks(&destinations)?;
+    let transaction = Transaction::new(&destinations)?;
     for destination in std::iter::once(&output).chain(rejected.iter()) {
         for input in &inputs {
             if same_file(input, destination) {
@@ -493,14 +418,14 @@ fn export(
         entries,
     };
     let result = (|| {
-        let mut matched = Writer::new(
-            &journal.entries[0].stage,
+        let mut matched = Writer::from_file(
+            transaction.create_stage(0, &journal.entries[0].stage)?,
             output.extension().is_some_and(|e| e == "parquet"),
             false,
         )?;
         let mut rejects = if let Some(path) = &rejected {
-            Some(Writer::new(
-                &journal.entries[1].stage,
+            Some(Writer::from_file(
+                transaction.create_stage(1, &journal.entries[1].stage)?,
                 path.extension().is_some_and(|e| e == "parquet"),
                 true,
             )?)
@@ -555,30 +480,26 @@ fn export(
         drop(receiver);
         worker.join().map_err(|_| "Worker-Panik")?;
         scan?;
-        matched.finish()?;
+        let mut files = vec![matched.finish()?];
         if let Some(writer) = rejects {
-            writer.finish()?;
+            files.push(writer.finish()?);
         }
-        for entry in &mut journal.entries {
-            entry.sha256 = sha256(&entry.stage)?;
+        for (entry, file) in journal.entries.iter_mut().zip(&mut files) {
+            entry.sha256 = crate::recovery::file_digest(file)?;
         }
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&journal_file)
-            .map_err(|_| "Commit-Journal nicht anlegbar")?;
-        serde_json::to_writer(&mut file, &journal).map_err(|_| "Journal-Schreibfehler")?;
-        file.sync_all()
-            .map_err(|_| "Journal-fsync fehlgeschlagen")?;
-        sync_parent(&journal_file)?;
-        commit(&journal, &journal_file)?;
+        let journal_bytes =
+            serde_json::to_vec(&journal).map_err(|_| "Journal-Serialisierung fehlgeschlagen")?;
+        let journal_sha256 = crate::recovery::digest(&journal_bytes);
+        transaction.write_journal(&journal_file, &journal_bytes)?;
+        transaction
+            .commit(&journal, &journal_file, &journal_sha256)
+            .map_err(|error| format!("{error}; recovery journal_sha256={journal_sha256}"))?;
         statistics.ok_or("Statistik fehlt".into())
     })();
-    if !journal_file.exists() {
-        for entry in &journal.entries {
-            let _ = fs::remove_file(&entry.stage);
-        }
+    if !transaction.has_journal(&journal_file) {
+        transaction.cleanup(&journal);
     }
+
     result
 }
 #[pyfunction(name="export",signature=(paths,filter_json,output,rejected_output=None,batch_size=1024))]
@@ -593,84 +514,21 @@ pub fn export_native(
     py.detach(move || export(paths, filter_json, output, rejected_output, batch_size))
         .map_err(PyRuntimeError::new_err)
 }
-#[pyfunction]
-pub fn recover_export(py: Python<'_>, output: String) -> PyResult<()> {
+#[pyfunction(signature=(output,journal_sha256,rejected_output=None))]
+pub fn recover_export(
+    py: Python<'_>,
+    output: String,
+    journal_sha256: String,
+    rejected_output: Option<String>,
+) -> PyResult<()> {
     py.detach(move || {
         let output = absolute_output(&output)?;
         let path = journal_path(&output)?;
-        let metadata = fs::metadata(&path).map_err(|_| "Commit-Journal fehlt")?;
-        if path.is_symlink() || metadata.len() > 16384 {
-            return Err("Journal zu groß".to_owned());
+        let mut targets = vec![output];
+        if let Some(rejected) = rejected_output {
+            targets.push(absolute_output(&rejected)?);
         }
-        let journal: Journal =
-            serde_json::from_reader(File::open(&path).map_err(|_| "Journal nicht lesbar")?)
-                .map_err(|_| "Ungültiges Journal")?;
-        if journal.version != 1
-            || journal.entries.is_empty()
-            || journal.entries.len() > 2
-            || journal.entries[0].destination != output
-        {
-            return Err("Journal gehört nicht zur Ausgabe".into());
-        }
-        let destinations: Vec<_> = journal
-            .entries
-            .iter()
-            .map(|e| e.destination.clone())
-            .collect();
-        let _locks = acquire_locks(&destinations)?;
-        for entry in &journal.entries {
-            if entry.sha256.len() != 64
-                || !entry.sha256.bytes().all(|b| b.is_ascii_hexdigit())
-                || entry
-                    .destination
-                    .parent()
-                    .and_then(|p| p.canonicalize().ok())
-                    .as_deref()
-                    != entry.destination.parent()
-                || entry.stage.parent() != entry.destination.parent()
-                || entry.stage.is_symlink()
-                || entry.destination.is_symlink()
-                || !entry
-                    .stage
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .is_some_and(|s| {
-                        s.starts_with(&format!(
-                            ".{}.datasift-",
-                            entry
-                                .destination
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("")
-                        )) && s.ends_with(".tmp")
-                    })
-            {
-                return Err("Unsicheres Journal".into());
-            }
-        }
-        // Verify every stage or already-renamed destination before changing any output.
-        for entry in &journal.entries {
-            let source = if entry.stage.exists() {
-                &entry.stage
-            } else {
-                &entry.destination
-            };
-            if sha256(source)? != entry.sha256 {
-                return Err("Recovery-Datei stimmt nicht mit Journal überein".into());
-            }
-        }
-        // Roll forward only pending stages; completed renames were verified above.
-        for entry in &journal.entries {
-            if entry.stage.exists() {
-                fs::rename(&entry.stage, &entry.destination)
-                    .map_err(|_| "Recovery fehlgeschlagen")?;
-            } else if !entry.destination.is_file() {
-                return Err("Recovery-Daten fehlen".into());
-            }
-            sync_parent(&entry.destination)?;
-        }
-        fs::remove_file(&path).map_err(|_| "Journal-Löschung fehlgeschlagen")?;
-        sync_parent(&path)
+        crate::recovery::recover(targets, &path, &journal_sha256)
     })
     .map_err(PyValueError::new_err)
 }
@@ -791,10 +649,10 @@ mod integration_tests {
         let root = std::env::temp_dir().join(format!("datasift-lock-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         let path = root.join("output.ndjson");
-        let guard = acquire_locks(std::slice::from_ref(&path)).unwrap();
-        assert!(acquire_locks(std::slice::from_ref(&path)).is_err());
+        let guard = Transaction::new(std::slice::from_ref(&path)).unwrap();
+        assert!(Transaction::new(std::slice::from_ref(&path)).is_err());
         drop(guard);
-        let second = acquire_locks(std::slice::from_ref(&path)).unwrap();
+        let second = Transaction::new(std::slice::from_ref(&path)).unwrap();
         drop(second);
         fs::remove_file(root.join(".output.ndjson.datasift.lock")).unwrap();
         fs::remove_dir(root).unwrap();

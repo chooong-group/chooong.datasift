@@ -204,8 +204,11 @@ def test_source_rejects_conflicting_header_and_unknown_alias(tmp_path: Path) -> 
         source=_source_mask().source,
         where=ScalarCondition(column="Unknown", op=Operator.EQ, value="x"),
     )
-    with pytest.raises(ValueError, match="Unbekannte Spalte"):
-        iter_matching_batches(path, mask)
+    with (
+        pytest.raises(RuntimeError, match="SCHEMA_MISMATCH"),
+        iter_matching_batches(path, mask) as batches,
+    ):
+        list(batches)
 
 
 def test_selected_corruption_is_an_error_and_cli_preserves_existing_output(tmp_path: Path) -> None:

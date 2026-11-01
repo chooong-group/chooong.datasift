@@ -253,40 +253,6 @@ impl Config {
                 }
             }
         }
-        let lookup = if let Some(source) = &spec.source {
-            if source.explicit() {
-                source.headers()?.1
-            } else {
-                spec.rules
-                    .predicate
-                    .as_ref()
-                    .map(referenced_columns)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, n)| (n, i))
-                    .collect()
-            }
-        } else {
-            spec.required_columns
-                .iter()
-                .enumerate()
-                .map(|(index, name)| (name.clone(), index))
-                .collect()
-        };
-        // Reject invalid filters even when every worksheet is empty/incompatible.
-        if let Some(predicate) = &spec.rules.predicate {
-            let lookup = if spec.source.as_ref().is_some_and(|s| s.rules.is_none()) {
-                lookup
-            } else {
-                referenced_columns(predicate)
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, n)| (n, i))
-                    .collect()
-            };
-            Expr::compile(predicate, &lookup)?;
-        }
         Ok(spec)
     }
 }
