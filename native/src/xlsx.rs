@@ -22,7 +22,7 @@ const MAX_CELL_TEXT_BYTES: usize = 2 * 1024 * 1024;
 const MAX_COLS: usize = 16_384;
 const MAX_ROWS: u32 = 1_048_576;
 
-use crate::value::CellValue;
+use crate::value::{CellValue, Merge};
 
 /// quick-xml reports EOF even when enclosing tags remain open.
 fn validate_depth(event: &Event<'_>, depth: &mut usize) -> Result<(), String> {
@@ -392,6 +392,61 @@ pub(crate) struct RawCell<'a> {
     pub style: usize,
 }
 
+impl Sink<'_> {
+    pub fn read_cell(
+        &self,
+        row: u32,
+        col: usize,
+        cell: crate::xlsx::RawCell<'_>,
+        strings: &[String],
+    ) -> Result<Option<CellValue>, String> {
+        let crate::xlsx::RawCell {
+            kind,
+            value,
+            inline,
+            style,
+        } = cell;
+        if self.selects_cell(row, col) {
+            if matches!(kind, "n" | "")
+                && !value.trim().is_empty()
+                && (!self.config.rules.types.is_empty()
+                    || self.needs_exact_numbers()
+                    || self.styles.get(style).is_some_and(|f| !f.is_empty()))
+            {
+                // Validate syntax, retain the original OOXML decimal lexeme.
+                crate::xlsx::finish_cell(kind, value, inline, strings)?;
+                let raw = value.trim().to_owned();
+                if let Some(format) = self.styles.get(style).filter(|f| !f.is_empty()) {
+                    return Ok(Some(CellValue::StyledNumber {
+                        raw,
+                        format: format.clone(),
+                    }));
+                }
+                return Ok(Some(CellValue::NumberText(raw)));
+            }
+            return crate::xlsx::finish_cell(kind, value, inline, strings).map(Some);
+        }
+        if self.config.source.is_some() || self.config.sources.is_some() {
+            return Ok(None);
+        }
+        let label = match kind {
+            "inlineStr" => Some(inline),
+            "s" => value
+                .trim()
+                .parse::<usize>()
+                .ok()
+                .and_then(|i| strings.get(i))
+                .map(String::as_str),
+            "str" | "e" | "d" => Some(value),
+            _ => None,
+        };
+        let h = &self.config.rules.header;
+        Ok(label
+            .filter(|l| self.config.header_labels.contains(&h.normalize(l)))
+            .map(|l| CellValue::Text(l.to_owned())))
+    }
+}
+
 pub(crate) fn finish_cell(
     kind: &str,
     value: &str,
@@ -430,21 +485,7 @@ pub(crate) fn finish_cell(
             "" => Ok(CellValue::Empty),
             _ => Err(format!("Ungültiger Bool-Wert {raw:?}")),
         },
-        "" | "n" => {
-            if raw.is_empty() {
-                return Ok(CellValue::Empty);
-            }
-            if let Ok(integer) = raw.parse::<i64>() {
-                return Ok(CellValue::Integer(integer));
-            }
-            let number = raw
-                .parse::<f64>()
-                .map_err(|_| format!("Ungültiger Excel-Zahlenwert {raw:?}"))?;
-            if !number.is_finite() {
-                return Err("Nicht-endlicher Excel-Zahlenwert".into());
-            }
-            Ok(CellValue::Float(number))
-        }
+        "" | "n" => CellValue::number(raw),
         other => Err(format!("Nicht unterstützter Excel-Zelltyp {other:?}")),
     }
 }
@@ -504,13 +545,6 @@ fn load_styles(archive: &mut ZipArchive<File>, path: Option<&str>) -> Result<Vec
         buf.clear();
     }
     Ok(styles)
-}
-#[derive(Clone)]
-pub(crate) struct Merge {
-    pub first_col: usize,
-    pub last_col: usize,
-    pub first_row: u32,
-    pub last_row: u32,
 }
 fn load_merges(archive: &mut ZipArchive<File>, worksheet: &str) -> Result<Vec<Merge>, String> {
     let member = archive.by_name(worksheet).map_err(|_| "Worksheet fehlt")?;

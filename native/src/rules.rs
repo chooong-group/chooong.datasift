@@ -386,7 +386,7 @@ pub fn convert(value: &CellValue, rule: &TypeRule, date1904: bool) -> Result<Cel
     }
     if is_type(value, rule.target) {
         if let CellValue::NumberText(raw) = value {
-            return crate::xlsx::finish_cell("n", raw, "", &[]);
+            return CellValue::number(raw);
         }
         return Ok(value.clone());
     }

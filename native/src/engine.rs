@@ -72,7 +72,7 @@ pub struct Sink<'a> {
     pub date1904: bool,
     pub stats: &'a mut Statistics,
     pub styles: Vec<String>,
-    pub merges: Vec<crate::xlsx::Merge>,
+    pub merges: Vec<crate::value::Merge>,
     merge_values: HashMap<(u32, usize), CellValue>,
     headers: Option<Vec<(String, usize)>>,
     tables: Vec<Table<'a>>,
@@ -377,57 +377,8 @@ impl<'a> Sink<'a> {
             t.source.is_none_or(|s| s.contains_row(row)) && t.names.iter().any(|(_, i)| *i == col)
         })
     }
-    pub fn read_cell(
-        &self,
-        row: u32,
-        col: usize,
-        cell: crate::xlsx::RawCell<'_>,
-        strings: &[String],
-    ) -> Result<Option<CellValue>, String> {
-        let crate::xlsx::RawCell {
-            kind,
-            value,
-            inline,
-            style,
-        } = cell;
-        if self.selects_cell(row, col) {
-            if matches!(kind, "n" | "")
-                && !value.trim().is_empty()
-                && (!self.config.rules.types.is_empty()
-                    || self.tables.iter().any(|t| !t.rules.types.is_empty())
-                    || self.styles.get(style).is_some_and(|f| !f.is_empty()))
-            {
-                // Validate syntax, retain the original OOXML decimal lexeme.
-                crate::xlsx::finish_cell(kind, value, inline, strings)?;
-                let raw = value.trim().to_owned();
-                if let Some(format) = self.styles.get(style).filter(|f| !f.is_empty()) {
-                    return Ok(Some(CellValue::StyledNumber {
-                        raw,
-                        format: format.clone(),
-                    }));
-                }
-                return Ok(Some(CellValue::NumberText(raw)));
-            }
-            return crate::xlsx::finish_cell(kind, value, inline, strings).map(Some);
-        }
-        if self.config.source.is_some() || self.config.sources.is_some() {
-            return Ok(None);
-        }
-        let label = match kind {
-            "inlineStr" => Some(inline),
-            "s" => value
-                .trim()
-                .parse::<usize>()
-                .ok()
-                .and_then(|i| strings.get(i))
-                .map(String::as_str),
-            "str" | "e" | "d" => Some(value),
-            _ => None,
-        };
-        let h = &self.config.rules.header;
-        Ok(label
-            .filter(|l| self.config.header_labels.contains(&h.normalize(l)))
-            .map(|l| CellValue::Text(l.to_owned())))
+    pub(crate) fn needs_exact_numbers(&self) -> bool {
+        !self.config.rules.types.is_empty() || self.tables.iter().any(|t| !t.rules.types.is_empty())
     }
     fn discover(&mut self, number: u32, row: &[CellValue]) -> Result<(), String> {
         let h = &self.config.rules.header;
@@ -765,7 +716,7 @@ impl<'a> Sink<'a> {
                     } else if let CellValue::NumberText(raw) | CellValue::StyledNumber { raw, .. } =
                         cell
                     {
-                        *cell = crate::xlsx::finish_cell("n", raw, "", &[])?;
+                        *cell = CellValue::number(raw)?;
                     }
                     if cell.empty() && table.rules.required.contains(name) {
                         reasons.push(Reason {

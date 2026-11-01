@@ -22,7 +22,32 @@ pub enum CellValue {
     StyledNumber { raw: String, format: String },
 }
 
+#[derive(Clone)]
+pub(crate) struct Merge {
+    pub first_col: usize,
+    pub last_col: usize,
+    pub first_row: u32,
+    pub last_row: u32,
+}
+
 impl CellValue {
+    pub fn number(raw: &str) -> Result<Self, String> {
+        let raw = raw.trim();
+        if raw.is_empty() {
+            return Ok(Self::Empty);
+        }
+        if let Ok(integer) = raw.parse::<i64>() {
+            return Ok(Self::Integer(integer));
+        }
+        let number = raw
+            .parse::<f64>()
+            .map_err(|_| "Ungültiger Excel-Zahlenwert")?;
+        if !number.is_finite() {
+            return Err("Nicht-endlicher Excel-Zahlenwert".into());
+        }
+        Ok(Self::Float(number))
+    }
+
     pub fn source_type(&self) -> &'static str {
         match self {
             Self::Empty => "null",

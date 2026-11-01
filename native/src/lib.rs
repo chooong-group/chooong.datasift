@@ -139,7 +139,7 @@ fn write_cell(object: &Bound<'_, PyDict>, name: &str, value: &CellValue) -> PyRe
         CellValue::Float(value) => object.set_item(name, *value),
         CellValue::Bool(value) => object.set_item(name, *value),
         CellValue::StyledNumber { raw, .. } | CellValue::NumberText(raw) => {
-            let value = xlsx::finish_cell("n", raw, "", &[]).map_err(PyRuntimeError::new_err)?;
+            let value = CellValue::number(raw).map_err(PyRuntimeError::new_err)?;
             write_cell(object, name, &value)
         }
         CellValue::Currency(code) => object.set_item(name, code),
