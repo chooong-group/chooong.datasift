@@ -54,7 +54,6 @@ include = [
     {path = "mkdocs.yml", format = "sdist"},
     {path = "rust-toolchain.toml", format = "sdist"},
     {path = "CONTRIBUTING.md", format = "sdist"},
-    {path = "SECURITY.md", format = "sdist"},
     {path = "CHANGELOG.md", format = "sdist"},
     {path = "uv.lock", format = "sdist"},
 ]

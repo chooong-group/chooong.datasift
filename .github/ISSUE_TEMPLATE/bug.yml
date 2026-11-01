@@ -3,7 +3,7 @@ description: A reproducible package, CLI or documentation defect
 body:
   - type: markdown
     attributes:
-      value: Use synthetic inputs only. Report security vulnerabilities privately; do not attach personal workbooks, credentials or sensitive logs.
+      value: Use synthetic inputs only. Do not attach personal workbooks, credentials or sensitive logs.
   - type: input
     id: version
     attributes:

@@ -63,4 +63,4 @@ and evaluates predicates. Public imports come from `chooong.datasift`, including
 
 For development, run `uv sync --frozen`; checks and build commands are in
 [Contributing](CONTRIBUTING.md).
-[Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](LICENSE)
+[Changelog](CHANGELOG.md) · [License](LICENSE)

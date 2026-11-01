@@ -4,7 +4,7 @@
 
 ### Added
 
-- English README and MkDocs documentation, contribution/security guides and issue/PR templates.
+- English README and MkDocs documentation, contribution guide and issue/PR templates.
 - Native five-platform ABI3 wheel matrix, source-distribution installation checks,
   checksum-bound fixture evidence and a complete-set release gate. Remote platform
   validation remains a release blocker until actually executed.
@@ -23,8 +23,6 @@
   and the `chooong-datasift` NDJSON CLI.
 
 ### Changed
-
-- Security policy explicitly states that no private reporting channel is offered.
 
 - Consolidated user documentation into six guides; moved release instructions to
   `.github/RELEASING.md` and validation reports to the PR.
