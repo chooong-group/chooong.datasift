@@ -13,7 +13,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/tooling
-      - run: uv run --frozen --no-install-project mkdocs build --strict
+      - run: uv run --frozen --no-sync mkdocs build --strict
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: site

@@ -50,6 +50,8 @@
 
 ### Fixed
 
+- Use supported `uv run --no-sync` in native CI/release checks; retain dependency-only `uv sync --no-install-project`.
+
 - XML line endings in shared/inline strings and CDATA are normalized, preserving
   multiline header matches after saving in Excel.
 - Unselected fields and the earlier local `__column_*` extras are not extracted.
