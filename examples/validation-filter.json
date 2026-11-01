@@ -1,0 +1,10 @@
+{
+  "sheet": null,
+  "header": {"anchors": ["CustomerID", "Amount", "Country"]},
+  "select": ["CustomerID", "Amount", "Country"],
+  "required": ["CustomerID", "Amount"],
+  "defaults": {"Amount": "0,00", "Country": "UNKNOWN"},
+  "types": {
+    "Amount": {"type": "money", "convert": true, "currency": "EUR", "locale": "de-DE"}
+  }
+}

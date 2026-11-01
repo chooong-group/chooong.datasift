@@ -4,6 +4,13 @@
 
 ### Added
 
+- Native CSV input, deterministic multi-file scanning, optional predicates,
+  independent discovery anchors and ordered literal/regex/wildcard projection.
+- Required/default/type rules, exact Decimal/Money and temporal conversions,
+  configurable headers, multiple sources and explicit row classification.
+- One-pass matched/rejected streaming, source metadata, explain/statistics,
+  native NDJSON/Parquet exports and journaled two-file commit/recovery.
+
 - English README and MkDocs documentation, contribution guide and issue/PR templates.
 - Native five-platform ABI3 wheel matrix, source-distribution installation checks,
   checksum-bound fixture evidence and a complete-set release gate. Remote platform

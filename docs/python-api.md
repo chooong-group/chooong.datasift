@@ -64,3 +64,47 @@ threads; separate scans have separate workers.
 `dict(row)`. Its columns follow the [filter selection](contract.md#returned-columns).
 Cell representations are defined in [Limits & Errors](limits.md#cell-values).
 `CellValue`, `Expression` and `MaskInput` are exported type aliases.
+
+
+## Matched and rejected streams
+
+```python
+from chooong.datasift import RecordKind, scan_batches
+
+with scan_batches(["a.csv", "b.xlsx"], {"sheet": None}, batch_size=1024) as scan:
+    for batch in scan:
+        for record in batch:
+            if record.kind == RecordKind.REJECTED:
+                print(record.row, record.reasons)
+    statistics = scan.statistics
+```
+
+`scan_batches` returns a closeable/context-managed `ScanIterator`. Each
+`ScanRecord` contains `kind`, `file`, `sheet`, `table`, physical `row`, `values`,
+`source_types`, and structured `reasons`. Rejected values are originals; matched
+values are converted/projected. Exact event values use typed tagged models such
+as `MoneyLiteral`. Multiple reasons are retained. `rejected=False` avoids building
+reject records. One ordered stream avoids buffering an independently unread
+second iterator. Two queued native batches enforce backpressure. Early close
+cancels the worker; statistics remain unavailable until the scan finishes.
+Matching iterators also expose final `.statistics`.
+
+Paths accept a single path, a sequence or glob patterns. Exact duplicate path
+strings are processed once after lexical sorting. `file_errors: "continue"`
+processes remaining files after a technical file error, records `FILE_ERROR`,
+sets `complete=false`, and still raises at the end. Already yielded rows remain
+partial; never interpret them as a complete successful result.
+
+`export(paths, mask, output, *, rejected_output=None, batch_size=1024)` writes
+native NDJSON or Parquet (selected by `.parquet` suffix) and returns `Statistics`.
+`recover_export(output)` rolls forward an interrupted journaled commit.
+See [CLI](cli.md) for commit semantics. Public API additions are the models and
+functions exported in `chooong.datasift.__all__`; internal native entry points
+are not a stable consumer contract.
+
+
+Table explanations include original and normalized header names, zero-based
+physical bindings, actual data bounds, header settings and declared type rules.
+Default diagnostics identify columns without copying configured cell values.
+See `Statistics`, `TableExplanation`, `Diagnostic` and `RejectReason` for the
+typed result contract.
