@@ -23,10 +23,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   checks:
-    if: github.event.repository.private == false
     uses: ./.github/workflows/checks.yml
   release-identity:
-    if: github.event.repository.private == false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -47,7 +45,6 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
   distributions:
     needs: [checks, release-identity]
-    if: github.event.repository.private == false
     uses: ./.github/workflows/artifacts.yml
     with:
       version: ${{ inputs.version }}
@@ -55,7 +52,7 @@ jobs:
     needs: distributions
     # Removal of the literal false requires a future reviewed activation PR,
     # protected environment, Pending Trusted Publisher and explicit owner approval.
-    if: ${{ false && github.event.repository.private == false && inputs.publish && vars.PYPI_PUBLISH_ENABLED == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ false && inputs.publish && vars.PYPI_PUBLISH_ENABLED == 'true' && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -86,7 +83,7 @@ jobs:
         run: python scripts/verify_publish.py verified "$EXPECTED_SHA256" --pypi-version "$VERSION"
   github-release:
     needs: publish
-    if: ${{ needs.publish.result == 'success' && github.event.repository.private == false }}
+    if: ${{ needs.publish.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

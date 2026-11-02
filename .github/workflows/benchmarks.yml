@@ -13,7 +13,6 @@ concurrency:
   cancel-in-progress: false
 jobs:
   benchmark:
-    if: github.event.repository.private == false
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:

@@ -56,4 +56,4 @@ ratios without inventing regression thresholds. Without a released baseline the
 report is an initial baseline, not a before/after comparison. Do not compare
 measurements from different platforms. The manual **Performance measurements**
 workflow follows the same procedure and uploads both reports; it never runs on
-normal pushes or PRs and skips private repositories.
+normal pushes or PRs. It is available in both private and public repositories.

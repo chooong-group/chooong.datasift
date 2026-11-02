@@ -39,8 +39,8 @@ metadata, tags, licenses, inventories and SHA-256 hashes. Missing platforms,
 failed/skipped tests or modified bytes block the complete set.
 
 Run **Release dry run** manually with the committed version and `publish: false`.
-Private-repository jobs are skipped under the existing cost policy; a skip is
-not validation. Record actual platform results in the PR. Benchmarks are a separate
+Validation jobs run for both private and public repositories. Record actual
+platform results in the PR. Benchmarks are a separate
 manual workflow; see [Benchmarks](../docs/development/benchmarks.md).
 
 For a local artifact, put exactly one wheel or sdist in `bundle/dist/`:
@@ -69,7 +69,7 @@ Activation requires a separately reviewed removal of the literal `false` publish
 guard, verified PyPI project ownership and Trusted Publisher configuration, and a
 protected `pypi` environment with required reviewers. Disable any historical
 GitLab publisher/broker permissions before activation. Do not change repository
-visibility or enable private paid runners to obtain validation.
+visibility or organization billing settings as part of release preparation.
 
 Once separately enabled, dispatch the release workflow on that tag with the
 matching version, exact `approved-commit` and `publish: true`. It verifies the tag,
@@ -83,7 +83,7 @@ after that verification. A partial upload needs investigation before recovery.
 
 Pages deployment remains hard-disabled. The prepared workflow builds the site,
 checks its sources/examples and uploads only `site/`. Enabling deployment needs
-an explicit reviewed change to the literal `false` guards, a public repository,
+an explicit reviewed change to the literal `false` guards,
 `PAGES_DEPLOY_ENABLED=true` and an authorized GitHub Pages environment. Do not
 change repository visibility, organization settings or budget guards as a shortcut.
 The package Documentation URL stays on GitHub until Pages is reachable and authorized.
