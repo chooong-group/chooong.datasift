@@ -70,7 +70,6 @@ class WheelTarget(Model):
     rust_target: Annotated[str, Field(pattern=r"^[a-z0-9_-]+$")]
     platform_tag: Annotated[str, Field(pattern=r"^[a-z0-9_]+$")]
     manylinux: Annotated[str, Field(pattern=r"^\d+_\d+$")] | None
-    interpreter: Annotated[str, Field(pattern=r"^[A-Za-z0-9_./-]+$")]
 
 
 class Targets(Model):

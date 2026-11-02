@@ -26,6 +26,11 @@ a tag, merges a PR or publishes a release. Unrelated changes are rejected.
 CI and **Release dry run** share the five-platform ABI3 build matrix: Linux x86_64
 and ARM64, macOS x86_64 and ARM64, and Windows x86_64. Every wheel and the sdist is
 installed in isolated Python 3.12, 3.13 and 3.14 environments on a matching runner.
+Builds use `uvx` with the Maturin version pinned in `pyproject.toml`, the Rust
+toolchain from `rust-toolchain.toml`, and `--release --locked`. Python 3.12 is
+installed explicitly for the ABI3 build. Linux uses `ziglang==0.15.2` as a
+build-only linker with `--zig --compatibility manylinux_2_28 --auditwheel check`;
+macOS and Windows use their native toolchains. No Maturin GitHub Action is required.
 The gate binds each artifact and JUnit report to one commit/version and checks
 metadata, tags, licenses, inventories and SHA-256 hashes. Missing platforms,
 failed/skipped tests or modified bytes block the complete set.

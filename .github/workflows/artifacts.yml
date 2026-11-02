@@ -27,6 +27,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       maturin: ${{ steps.plan.outputs.maturin }}
       rust: ${{ steps.plan.outputs.rust }}
+      python: ${{ steps.plan.outputs.python }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -57,14 +58,28 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/tooling
       - run: mkdir -p bundle/dist bundle/evidence
-      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
-        with:
-          command: build
-          maturin-version: ${{ needs.plan.outputs.maturin }}
-          rust-toolchain: ${{ needs.plan.outputs.rust }}
-          target: ${{ matrix.rust_target }}
-          manylinux: ${{ matrix.manylinux }}
-          args: --release --locked --out bundle/dist --interpreter ${{ matrix.interpreter }}
+      - name: Build the native ABI3 wheel with pinned Maturin
+        env:
+          MATURIN_VERSION: ${{ needs.plan.outputs.maturin }}
+          RUSTUP_TOOLCHAIN: ${{ needs.plan.outputs.rust }}
+          BUILD_PYTHON: ${{ needs.plan.outputs.python }}
+          RUST_TARGET: ${{ matrix.rust_target }}
+          MANYLINUX: ${{ matrix.manylinux }}
+        run: |
+          uv python install "$BUILD_PYTHON"
+          build_python=$(uv python find "$BUILD_PYTHON")
+          rustup target add "$RUST_TARGET" --toolchain "$RUSTUP_TOOLCHAIN"
+          rustc --version
+          tools=()
+          args=()
+          if [ -n "$MANYLINUX" ]; then
+            # Zig supplies the older glibc baseline on the native Ubuntu runners.
+            tools+=(--with ziglang==0.15.2)
+            args+=(--zig --compatibility "manylinux_$MANYLINUX" --auditwheel check)
+          fi
+          uvx --python "$BUILD_PYTHON" --from "maturin==$MATURIN_VERSION" "${tools[@]}" maturin build \
+            --release --locked --target "$RUST_TARGET" --out bundle/dist \
+            --interpreter "$build_python" "${args[@]}"
       - name: Install the exact wheel and test all supported Python versions natively
         env:
           TARGET_ID: ${{ matrix.id }}
