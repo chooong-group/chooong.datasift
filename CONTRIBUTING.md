@@ -7,16 +7,17 @@ when behavior changes. Version bumps and publication require a release decision.
 
 ## Setup and checks
 
-Install CPython 3.13 or 3.14, uv and the Rust toolchain in `rust-toolchain.toml`.
+Install CPython 3.12, 3.13 or 3.14, uv and the Rust toolchain in `rust-toolchain.toml`.
 `uv sync --frozen` builds the native extension and installs locked development
 dependencies.
 
 ```bash
 uv sync --frozen
-uv run --frozen ruff check src tests
-uv run --frozen ruff format --check src tests
-uv run --frozen mypy src
-uv run --frozen pytest --cov --cov-report=term-missing
+uv run --frozen ruff check src tests tooling scripts release
+uv run --frozen ruff format --check src tests tooling scripts release
+uv run --frozen mypy --strict src scripts release tests/benchmarks
+uv run --frozen pytest tests/ -m "not benchmark" --cov --cov-report=term-missing
+uv run --frozen pytest tooling/tests/
 cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
 cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings
 cargo test --manifest-path datasift-core/Cargo.toml --locked
@@ -27,6 +28,11 @@ git diff --check
 ```
 
 ## Tests and review
+
+Tests are grouped by behavior. Shared deterministic generators live in
+`tests/fixtures/`; `tests/conftest.py` supplies common temporary inputs.
+Release tooling tests run separately under `tooling/tests/` without network access.
+Large workloads are opt-in: see [Benchmarks](tests/benchmarks/README.md).
 
 The [core README](datasift-core/README.md#test-structure) describes the Rust test
 suites. Run them with Cargo; repository-level pytest tests cover the Python API and CLI.

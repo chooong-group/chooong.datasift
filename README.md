@@ -8,7 +8,7 @@ worksheet rows; Python receives typed, immutable results without loading whole
 sheets into a DataFrame. DataSift finds tables beyond A1 and handles repeated
 headers and neighboring tables. It does not calculate formulas or write Excel files.
 
-Requires CPython 3.13 or 3.14 and Pydantic. No external service is needed.
+Requires CPython 3.12, 3.13 or 3.14 and Pydantic. No external service is needed.
 The package is currently unreleased; install from a checkout with Rust 1.95.0:
 
 ```bash
@@ -66,4 +66,5 @@ see the [commit and recovery contract](docs/cli.md#file-output).
 The [Rust core](datasift-core/README.md) lives in `datasift-core/`; Python sources are in `src/chooong/datasift/`.
 For development, run `uv sync --frozen`; checks and build commands are in
 [Contributing](CONTRIBUTING.md).
+Performance measurements are opt-in; see [Benchmarks](tests/benchmarks/README.md).
 [Changelog](CHANGELOG.md) · [License](LICENSE)

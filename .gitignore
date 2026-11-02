@@ -227,3 +227,11 @@ __marimo__/
 *.xlsm
 *.xls
 *.ndjson
+
+# Local performance measurements and isolated artifact environments
+/benchmark-results/
+/candidate-dist/
+/candidate-env/
+/baseline-env/
+/bundle/
+/verified/

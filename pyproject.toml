@@ -7,7 +7,7 @@ name = "chooong.datasift"
 version = "0.1.0"
 description = "Native streaming Excel/CSV discovery, validation, filtering and NDJSON/Parquet export"
 readme = "README.md"
-requires-python = ">=3.13,<3.15"
+requires-python = ">=3.12,<3.15"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{name = "Chooong"}]
@@ -17,6 +17,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Programming Language :: Rust",
@@ -40,6 +41,12 @@ python-source = "src"
 features = ["pyo3/extension-module"]
 include = [
     {path = "tests/**/*.py", format = "sdist"},
+    {path = "tests/benchmarks/README.md", format = "sdist"},
+    {path = ".github/RELEASING.md", format = "sdist"},
+    {path = "tooling/**/*.py", format = "sdist"},
+    {path = "release/**/*.py", format = "sdist"},
+    {path = "scripts/**/*.py", format = "sdist"},
+    {path = ".github/release-targets.json", format = "sdist"},
     {path = "docs/**/*.md", format = "sdist"},
     {path = ".github/workflows/*.yml", format = "sdist"},
     {path = ".github/actions/**/*.yml", format = "sdist"},
@@ -67,7 +74,7 @@ dev = [
 
 [tool.ruff]
 required-version = ">=0.16.3"
-target-version = "py313"
+target-version = "py312"
 extend-exclude = [".cache"]
 line-length = 100
 indent-width = 4
@@ -135,15 +142,15 @@ line-ending = "lf"
 docstring-code-format = true
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 strict = true
 warn_unreachable = true
 mypy_path = "src"
 explicit_package_bases = true
-exclude = "^tests/"
 
 [tool.pytest.ini_options]
-addopts = "-ra --strict-markers --strict-config"
+addopts = '-ra --strict-markers --strict-config -m "not benchmark"'
+markers = ["benchmark: isolated performance workloads (opt-in)"]
 testpaths = ["tests"]
 
 [tool.coverage.run]

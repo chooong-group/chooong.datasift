@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "wheels": [
+    {"id": "linux-x86_64", "runner": "ubuntu-24.04", "system": "Linux", "machine": "x86_64", "rust_target": "x86_64-unknown-linux-gnu", "platform_tag": "manylinux_2_28_x86_64", "manylinux": "2_28", "interpreter": "/opt/python/cp312-cp312/bin/python3.12"},
+    {"id": "linux-arm64", "runner": "ubuntu-24.04-arm", "system": "Linux", "machine": "arm64", "rust_target": "aarch64-unknown-linux-gnu", "platform_tag": "manylinux_2_28_aarch64", "manylinux": "2_28", "interpreter": "/opt/python/cp312-cp312/bin/python3.12"},
+    {"id": "windows-x86_64", "runner": "windows-2022", "system": "Windows", "machine": "x86_64", "rust_target": "x86_64-pc-windows-msvc", "platform_tag": "win_amd64", "manylinux": null, "interpreter": "python"},
+    {"id": "macos-x86_64", "runner": "macos-15-intel", "system": "Darwin", "machine": "x86_64", "rust_target": "x86_64-apple-darwin", "platform_tag": "macosx_11_0_x86_64", "manylinux": null, "interpreter": "python"},
+    {"id": "macos-arm64", "runner": "macos-15", "system": "Darwin", "machine": "arm64", "rust_target": "aarch64-apple-darwin", "platform_tag": "macosx_11_0_arm64", "manylinux": null, "interpreter": "python"}
+  ]
+}

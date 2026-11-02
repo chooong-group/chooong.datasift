@@ -1,0 +1,124 @@
+name: Build and test distributions
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+        default: ""
+    outputs:
+      artifact-id:
+        value: ${{ jobs.gate.outputs.artifact-id }}
+        description: Immutable artifact containing the verified distribution set
+      checksums-sha256:
+        value: ${{ jobs.gate.outputs.checksums-sha256 }}
+        description: Authenticated checksum manifest for the publishing job
+concurrency:
+  group: artifacts-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  plan:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      maturin: ${{ steps.plan.outputs.maturin }}
+      rust: ${{ steps.plan.outputs.rust }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - id: plan
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          args=()
+          if [ -n "$RELEASE_VERSION" ]; then args+=(--version "$RELEASE_VERSION"); fi
+          uv run --frozen --no-sync python scripts/artifacts.py plan --commit "$GITHUB_SHA" --github-output "$GITHUB_OUTPUT" "${args[@]}"
+  wheel:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - run: mkdir -p bundle/dist bundle/evidence
+      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
+        with:
+          command: build
+          maturin-version: ${{ needs.plan.outputs.maturin }}
+          rust-toolchain: ${{ needs.plan.outputs.rust }}
+          target: ${{ matrix.rust_target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --locked --out bundle/dist --interpreter ${{ matrix.interpreter }}
+      - name: Install the exact wheel and test all supported Python versions natively
+        env:
+          TARGET_ID: ${{ matrix.id }}
+        run: uv run --frozen --no-sync python scripts/artifacts.py test --kind wheel --target "$TARGET_ID" --commit "$GITHUB_SHA"
+      - run: uv run --frozen --no-sync twine check bundle/dist/*
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: candidate-${{ matrix.id }}
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 7
+  sdist:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - run: uv build --sdist --out-dir bundle/dist
+      - name: Build and install the exact sdist in clean Python 3.12, 3.13 and 3.14 environments
+        run: uv run --frozen --no-sync python scripts/artifacts.py test --kind sdist --target sdist --commit "$GITHUB_SHA"
+      - run: uv run --frozen --no-sync twine check bundle/dist/*
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: candidate-sdist
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 7
+  gate:
+    needs: [plan, wheel, sdist]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      checksums-sha256: ${{ steps.gate.outputs.checksums-sha256 }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: candidate-*
+          merge-multiple: true
+          path: bundle
+      - id: gate
+        run: uv run --frozen --no-sync python scripts/artifacts.py gate --commit "$GITHUB_SHA" --github-output "$GITHUB_OUTPUT"
+      - run: uv run --frozen --no-sync twine check verified/dist/*
+      - id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-candidate
+          path: verified/
+          if-no-files-found: error
+          retention-days: 7

@@ -47,7 +47,7 @@ and [export/recovery contract](../docs/cli.md#file-output) for the full behavior
 ## Development
 
 Install Rust 1.95.0 (pinned in [`rust-toolchain.toml`](../rust-toolchain.toml)),
-CPython 3.13 or 3.14, uv and a native linker. Run from the repository root:
+CPython 3.12, 3.13 or 3.14, uv and a native linker. Run from the repository root:
 
 ```bash
 uv sync --frozen

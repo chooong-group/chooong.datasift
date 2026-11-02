@@ -6,7 +6,7 @@ between their headers and data.
 
 ## Install
 
-Use CPython 3.13 or 3.14. From a checkout:
+Use CPython 3.12, 3.13 or 3.14. From a checkout:
 
 ```bash
 python -m pip install .

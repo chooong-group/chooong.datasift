@@ -1,6 +1,9 @@
 name: Documentation deployment (disabled)
 on:
   workflow_dispatch:
+concurrency:
+  group: docs-pages-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:

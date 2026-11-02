@@ -82,7 +82,7 @@ def iter_matching_rows(
     mask: MaskInput,
     *,
     batch_size: int = DEFAULT_BATCH_SIZE,
-) -> Generator[Row]:
+) -> Generator[Row, None, None]:
     """Yield matches; closing the generator cancels its underlying scan."""
     with iter_matching_batches(xlsx_path, mask, batch_size=batch_size) as batches:
         for batch in batches:

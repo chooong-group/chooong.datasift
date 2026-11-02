@@ -13,7 +13,7 @@ repos:
         types_or: [python, pyi]
       - id: mypy
         name: mypy
-        entry: uv run mypy src
+        entry: uv run mypy src scripts release tests/benchmarks
         language: system
         pass_filenames: false
       - id: pytest
@@ -21,3 +21,14 @@ repos:
         entry: uv run pytest
         language: system
         pass_filenames: false
+      - id: tooling-tests
+        name: release tooling tests
+        entry: uv run pytest tooling/tests/
+        language: system
+        pass_filenames: false
+      - id: rust-format
+        name: cargo fmt check
+        entry: cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
+        language: system
+        pass_filenames: false
+        types: [rust]
