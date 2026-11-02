@@ -114,6 +114,16 @@ def _change_archive(artifact: Path, receipt: dict, failure: str) -> None:
         )
     elif failure == "wrong_license":
         _rewrite_zip(artifact, metadata_name, metadata.replace(b"Apache-2.0", b"MIT"))
+    elif failure in {"wrong_license_bytes", "license_crlf"}:
+        license_name = metadata_name.removesuffix("METADATA") + "licenses/LICENSE"
+        with ZipFile(artifact) as archive:
+            license_bytes = archive.read(license_name)
+        content = (
+            license_bytes.replace(b"\n", b"\r\n")
+            if failure == "license_crlf"
+            else b"Incorrect synthetic license"
+        )
+        _rewrite_zip(artifact, license_name, content)
     elif failure == "wrong_content_tag":
         _rewrite_zip(artifact, wheel_name, wheel.replace(b"cp312", b"cp311"))
     else:

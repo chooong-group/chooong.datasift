@@ -21,7 +21,13 @@ def release_checkout(tmp_path: Path) -> Path:
     """An isolated, clean commit permits tests during pre-commit and source edits."""
     repo = tmp_path / "checkout"
     repo.mkdir()
-    for name in (*source_files(REPO), ".github/release-targets.json", "LICENSE", "CHANGELOG.md"):
+    for name in (
+        *source_files(REPO),
+        ".github/release-targets.json",
+        ".gitattributes",
+        "LICENSE",
+        "CHANGELOG.md",
+    ):
         target = repo / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO / name, target)

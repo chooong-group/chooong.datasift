@@ -36,7 +36,9 @@ build-only linker with `--zig --compatibility manylinux_2_28 --auditwheel check`
 macOS and Windows use their native toolchains. No Maturin GitHub Action is required.
 The gate binds each artifact and JUnit report to one commit/version and checks
 metadata, tags, licenses, inventories and SHA-256 hashes. Missing platforms,
-failed/skipped tests or modified bytes block the complete set.
+failed/skipped tests or modified bytes block the complete set. `.gitattributes`
+checks out `LICENSE` with LF endings on every build host, including Windows;
+license comparisons remain byte-for-byte and do not normalize artifact contents.
 
 Run **Release dry run** manually with the committed version and `publish: false`.
 Validation jobs run for both private and public repositories. Record actual

@@ -2,8 +2,10 @@
 
 import io
 import json
+import subprocess
 import tarfile
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 
@@ -13,6 +15,7 @@ from tooling.tests.fixtures import (
     _change_receipt,
     _change_report,
     _gate,
+    _rewrite_zip,
     _sha,
     _write_json,
 )
@@ -119,6 +122,8 @@ def test_gate_rejects_incomplete_or_inconsistent_source_distributions(
         "missing_native",
         "wrong_metadata",
         "wrong_license",
+        "wrong_license_bytes",
+        "license_crlf",
     ],
 )
 def test_gate_rejects_invalid_evidence_without_creating_publishable_output(
@@ -154,6 +159,8 @@ def test_gate_rejects_invalid_evidence_without_creating_publishable_output(
         _write_json(receipt_path, receipt)
     result = _gate(bundle)
     assert result.returncode != 0, result.stdout
+    if failure in {"wrong_license_bytes", "license_crlf"}:
+        assert "Wheel license file mismatch" in result.stderr
     assert not bundle.output.exists()
 
 
@@ -174,3 +181,43 @@ def test_artifact_test_sources_remain_bound_to_the_recorded_commit(
         release_checkout / "tests/fixtures/excel.py"
     ).read_bytes() == b"synthetic concurrent edit"
     assert not (snapshot / ".git").exists()
+
+
+def test_gate_accepts_windows_license_from_autocrlf_checkout(
+    synthetic_bundle: SyntheticBundle, tmp_path: Path
+) -> None:
+    bundle = synthetic_bundle
+    windows_checkout = tmp_path / "windows-checkout"
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--quiet",
+            "--no-hardlinks",
+            "--config",
+            "core.autocrlf=true",
+            str(bundle.repo),
+            str(windows_checkout),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    # Confirm the checkout really applies Windows-style conversion to other text.
+    assert b"\r\n" in (windows_checkout / "src/chooong/datasift/models.py").read_bytes()
+    license_bytes = (windows_checkout / "LICENSE").read_bytes()
+    assert license_bytes == (bundle.repo / "LICENSE").read_bytes()
+    assert b"\r\n" not in license_bytes
+
+    receipt_path = bundle.root / "evidence/windows-x86_64.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    artifact = bundle.root / "dist" / receipt["filename"]
+    with ZipFile(artifact) as archive:
+        license_name = next(
+            name for name in archive.namelist() if name.endswith("/licenses/LICENSE")
+        )
+    _rewrite_zip(artifact, license_name, license_bytes)
+    receipt["sha256"] = _sha(artifact)
+    _write_json(receipt_path, receipt)
+    result = _gate(bundle)
+    assert result.returncode == 0, result.stderr
+    assert _sha(bundle.output / "dist" / artifact.name) == receipt["sha256"]
