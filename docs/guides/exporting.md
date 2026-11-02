@@ -32,8 +32,13 @@ import json
 
 assert json.loads(Path("matched.ndjson").read_text()) == {"ID": "a", "Amount": 12}
 assert json.loads(Path("rejected.ndjson").read_text())["values"]["Amount"] == "bad"
-export("input.csv", mask, "matched.parquet", rejected_output="rejected.parquet")
+parquet_statistics = export(
+    "input.csv", mask, "matched.parquet", rejected_output="rejected.parquet"
+)
+assert parquet_statistics.complete
+assert (parquet_statistics.matched, parquet_statistics.rejected) == (1, 1)
 assert Path("matched.parquet").read_bytes().startswith(b"PAR1")
+assert Path("rejected.parquet").read_bytes().endswith(b"PAR1")
 ```
 
 ## Commit and recovery
@@ -60,3 +65,31 @@ original offset is retained; null offset means civil local time. Money retains
 its currency. Reasons/source types are JSON stored in UTF-8 fields. The fixed
 schema preserves different table shapes without inference or a full input scan;
 writing uses bounded batches/row groups.
+
+### Interpreting the generated schema
+
+Parquet output is an event envelope, not a wide table with one top-level column
+per input header. For the example above the matched record has `kind="matched"`,
+`sheet="csv"`, `row=2`, and two elements in `values`: ID uses its `text` payload
+(`"a"`), while Amount uses `integer` (12). The rejected record retains Amount as
+`text="bad"`, rather than the attempted conversion result.
+
+| Envelope field | Arrow type / contents |
+| --- | --- |
+| `kind`, `file`, `sheet`, `table` | Non-null UTF-8 strings |
+| `row` | Non-null Int64, physical Excel row / logical CSV record |
+| `values` | Non-null list of structs, each with a non-null UTF-8 `name` and nullable typed payloads |
+| `reasons`, `source_types` | Non-null UTF-8 containing JSON, not nested Arrow maps |
+
+The fixed payload types are UTF-8 text/currency, Int64 integer, Float64 float,
+Boolean, Decimal256(76,28), Date32, timestamp microseconds and Int32 remainder/offset.
+Null cells retain their name with no populated payload. To analyze a column,
+expand `values`, select its `name` and read the appropriate payload. DataSift
+does not provide a public Parquet reader; downstream readers must handle this
+envelope explicitly.
+
+For interrupted writes, follow the existing
+[commit and recovery protocol](../reference/file-safety.md#commit-protocol).
+The recovery call there illustrates the public signature; it needs a real failed
+commit and a separately preserved trusted digest. Do not manufacture journals or
+derive trust by hashing a journal of unknown provenance.

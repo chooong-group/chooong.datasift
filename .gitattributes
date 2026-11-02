@@ -1,2 +1,18 @@
 # Keep packaged license bytes identical across native build hosts.
 LICENSE text eol=lf
+
+# Preserve original upstream license bytes on every build host.
+compliance/texts/* -text
+THIRD_PARTY_NOTICES.txt text eol=lf
+compliance/inventory.json text eol=lf
+
+# Review-bound control files must have identical bytes on Windows builds.
+uv.lock text eol=lf
+datasift-core/Cargo.lock text eol=lf
+datasift-core/Cargo.toml text eol=lf
+rust-toolchain.toml text eol=lf
+.github/release-targets.json text eol=lf
+licenses/third-party/* -text
+
+# Keep the original Rust standard-library notice byte-for-byte, including whitespace.
+licenses/third-party/90567e2718bf7fd65a71a3a43c5596488e80e5f51ed02bfea6fec54458b5f3d1.txt whitespace=-blank-at-eol,-blank-at-eof

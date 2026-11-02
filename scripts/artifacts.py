@@ -27,6 +27,11 @@ from packaging.utils import canonicalize_name, parse_sdist_filename, parse_wheel
 from packaging.version import Version
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.licenses import graph_file, require_artifact
+
 SHA256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 Commit = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
 FileName = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.+-]*$")]
@@ -227,6 +232,7 @@ class Receipt(Model):
     commit: Commit
     version: str
     runs: tuple[TestRun, ...]
+    graph_sha256: SHA256 | None = None
 
 
 class Manifest(Model):
@@ -387,6 +393,7 @@ def validate_artifact(path: Path, ctx: Context, receipt_kind: Kind, identifier: 
         validate_wheel(path, ctx, identifier)
     else:
         validate_sdist(path, ctx)
+    require_artifact(path, ctx.repo, identifier)
 
 
 def validate_wheel(path: Path, ctx: Context, identifier: str) -> None:
@@ -453,6 +460,8 @@ def source_files(repo: Path) -> tuple[str, ...]:
                 "tooling",
                 "scripts",
                 "release",
+                "licenses",
+                "THIRD_PARTY_NOTICES.txt",
                 "pyproject.toml",
                 "uv.lock",
                 "rust-toolchain.toml",
@@ -697,6 +706,7 @@ def test_artifact(ctx: Context, args: Arguments) -> None:
         commit=ctx.commit,
         version=ctx.project.version,
         runs=tuple(runs),
+        graph_sha256=digest(graph_file(artifact, args.target)) if args.kind == Kind.WHEEL else None,
     )
     (evidence / f"{args.target}.json").write_text(
         receipt.model_dump_json(indent=2) + "\n", encoding="utf-8"
@@ -714,6 +724,12 @@ def verify_receipt(ctx: Context, bundle: Path, receipt: Receipt) -> None:
     artifact = safe_file(bundle / "dist", receipt.filename)
     if digest(artifact) != receipt.sha256:
         raise ValueError("Artifact SHA-256 mismatch")
+    if receipt.kind == Kind.WHEEL:
+        graph = safe_file(bundle / "licenses", receipt.target + ".cargo.json")
+        if receipt.graph_sha256 is None or digest(graph) != receipt.graph_sha256:
+            raise ValueError("Resolved Cargo graph checksum mismatch")
+    elif receipt.graph_sha256 is not None:
+        raise ValueError("Source receipt must not claim an embedded Cargo graph")
     validate_artifact(artifact, ctx, receipt.kind, receipt.target)
     if sorted(run.requested_python for run in receipt.runs) != list(ctx.project.pythons):
         raise ValueError("Missing or duplicate Python runtime evidence")
@@ -722,6 +738,17 @@ def verify_receipt(ctx: Context, bundle: Path, receipt: Receipt) -> None:
         junit = safe_file(bundle / "evidence", run.junit)
         if digest(junit) != run.junit_sha256 or junit_count(junit) != run.tests:
             raise ValueError("Test evidence checksum/count mismatch")
+
+
+def copy_graph(bundle: Path, copied: Path, receipt: Receipt) -> None:
+    if receipt.kind == Kind.WHEEL:
+        copied_graph = graph_file(copied, receipt.target)
+        copied_graph.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(
+            graph_file(bundle / "dist" / receipt.filename, receipt.target), copied_graph
+        )
+        if digest(copied_graph) != receipt.graph_sha256:
+            raise ValueError("Resolved Cargo graph changed while staging")
 
 
 def gate(ctx: Context, args: Arguments) -> None:
@@ -753,6 +780,7 @@ def gate(ctx: Context, args: Arguments) -> None:
             shutil.copyfile(bundle / "dist" / receipt.filename, copied)
             if digest(copied) != receipt.sha256:
                 raise ValueError("Artifact changed while staging the verified bundle")
+            copy_graph(bundle, copied, receipt)
         (stage / "SHA256SUMS").write_text(
             "".join(f"{receipt.sha256}  {receipt.filename}\n" for receipt in receipts),
             encoding="utf-8",

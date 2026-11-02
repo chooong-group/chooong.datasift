@@ -1,6 +1,8 @@
 """Documentation checks execute real examples and reject broken contracts/links."""
 
 import re
+import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -27,12 +29,30 @@ from scripts.docs import (
 
 
 def test_documented_examples_execute_against_real_native_engine() -> None:
-    import sys
-
     pages = tuple(document(path) for path in markdown_files(ROOT))
     check_links(ROOT, pages)
     check_navigation(ROOT)
     check_examples(pages, Path(sys.executable))
+
+
+@pytest.mark.parametrize(
+    ("page", "heading"),
+    [
+        ("complex-layouts", "Automatic Excel example"),
+        ("complex-layouts", "Automatic CSV example"),
+        ("complex-layouts", "Text-only data and comments"),
+        ("complex-layouts", "Different rules per table"),
+        ("csv", "Encoding, quoting and multiline fields"),
+        ("validation", "Exact values and dates in Python"),
+    ],
+)
+def test_standalone_examples_need_no_previous_snippets(page: str, heading: str) -> None:
+    path = ROOT / "docs/guides" / f"{page}.md"
+    section = path.read_text(encoding="utf-8").split(f"## {heading}\n", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    example = replace(document(path), fences=fences(section))
+    assert any(block.language == "python" for block in example.fences)
+    check_examples((example,), Path(sys.executable))
 
 
 def test_filter_reference_covers_public_model_fields_and_enums() -> None:
@@ -82,8 +102,6 @@ def test_links_validate_existing_files_and_heading_anchors(tmp_path: Path) -> No
 
 
 def test_bad_native_example_fails_and_does_not_change_its_source(tmp_path: Path) -> None:
-    import sys
-
     path = tmp_path / "bad.md"
     path.write_text("""# Example
 
@@ -127,7 +145,7 @@ def test_navigation_rejects_orphan_and_missing_pages(tmp_path: Path) -> None:
         check_navigation(tmp_path)
 
 
-def test_current_changelog_prepares_and_replays_without_docs_or_tooling_notes(
+def test_unreleased_changelog_prepares_and_replays_without_docs_or_tooling_notes(
     release_repo: Path,
 ) -> None:
     notes = (release_repo / "CHANGELOG.md").read_text()

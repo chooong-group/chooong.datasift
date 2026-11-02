@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.0
+
 ### Added
 
 - Streaming XLSX/XLSM and CSV input with deterministic multi-file/glob ordering.

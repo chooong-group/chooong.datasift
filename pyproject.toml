@@ -9,25 +9,51 @@ description = "Native streaming Excel/CSV discovery, validation, filtering and N
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.txt", "licenses/third-party/*.txt"]
 authors = [{name = "Marcus Steinbach"}]
 maintainers = [{name = "Chooong"}]
 dependencies = ["pydantic>=2.12,<3"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Intended Audience :: Information Technology",
+
+    "Environment :: Console",
+
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Rust",
+
+    "Topic :: Office/Business",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Filters",
+    "Topic :: Utilities",
+
     "Typing :: Typed",
+]
+keywords = [
+    "excel",
+    "xlsx",
+    "xlsm",
+    "csv",
+    "rust",
+    "streaming",
+    "table-discovery",
+    "data-extraction",
+    "data-validation",
+    "data-filtering",
+    "data-processing",
+    "etl",
+    "parquet",
+    "ndjson",
 ]
 
 [project.urls]
 Homepage = "https://github.com/chooong-group/chooong.datasift"
-Documentation = "https://github.com/chooong-group/chooong.datasift/tree/main/docs"
+Documentation = "https://datasift.chooong.com"
 Repository = "https://github.com/chooong-group/chooong.datasift"
 Issues = "https://github.com/chooong-group/chooong.datasift/issues"
 Changelog = "https://github.com/chooong-group/chooong.datasift/blob/main/CHANGELOG.md"
@@ -60,7 +86,7 @@ include = [
     {path = "uv.lock", format = "sdist"},
 ]
 
-exclude = [".data/**", "*.xlsx", "*.xlsm", "*.xls", "*.ndjson", "AGENTS.md", "docs/*verification.md"]
+exclude = ["compliance/**", ".data/**", "*.xlsx", "*.xlsm", "*.xls", "*.ndjson", "AGENTS.md", "docs/*verification.md"]
 
 [dependency-groups]
 dev = [

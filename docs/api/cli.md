@@ -57,6 +57,43 @@ assert [json.loads(line)["ID"] for line in Path("matches.ndjson").read_text().sp
 assert json.loads(Path("statistics.json").read_text())["complete"] is True
 ```
 
+### Filter multiple files and inspect the report
+
+Reuse `a.csv` and `b.csv` from above. This mask converts Amount before applying
+the numeric filter, returns only ID, and records both matches and rejections:
+
+<!-- file: filtered.json -->
+
+```json
+{
+  "sheet": null,
+  "header": {"anchors": ["ID", "Amount"]},
+  "types": {"Amount": {"type": "integer", "convert": true}},
+  "where": {"column": "Amount", "op": "gte", "value": 2},
+  "select": ["ID"]
+}
+```
+
+```bash
+chooong-datasift '*.csv' filtered.json --output filtered.ndjson --rejected-output rejected.ndjson --explain filtered-report.json
+```
+
+```python
+assert json.loads(Path("filtered.ndjson").read_text()) == {"ID": "b"}
+rejected = json.loads(Path("rejected.ndjson").read_text())
+assert rejected["values"] == {"ID": "a", "Amount": "1"}
+assert rejected["reasons"] == [{"code": "FILTER_NOT_MATCHED", "column": None}]
+report = json.loads(Path("filtered-report.json").read_text())
+assert report["complete"] is True
+assert (report["matched"], report["rejected"], report["conversions"]) == (1, 1, 2)
+assert len(report["tables"]) == 2
+assert report["tables"][0]["bindings"] == [["ID", 0], ["Amount", 1]]
+```
+
+Use [advanced filtering](../guides/advanced-filtering.md) for AND/OR/NOT and regex.
+[Error handling](../guides/error-handling.md) shows partial multi-file results;
+failed scans do not write `--explain` through this CLI.
+
 ## Exit status and diagnostics
 
 - 0: completed successfully, including empty results or rejected data rows.

@@ -5,6 +5,10 @@ matched values to Python; `scan_batches` transfers matched/rejected event record
 through one ordered stream. A worker channel holds at most two queued messages;
 a slow consumer applies backpressure.
 
+Use [batch processing](../guides/batch-processing.md) for an incremental consumer
+and cleanup example, or [error handling](../guides/error-handling.md) for partial
+results and final incomplete statistics.
+
 ## Memory
 
 Whole worksheets are not materialized. Memory still includes workbook metadata,

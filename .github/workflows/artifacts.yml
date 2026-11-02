@@ -79,6 +79,18 @@ jobs:
           uvx --python "$BUILD_PYTHON" --from "maturin==$MATURIN_VERSION" "${tools[@]}" maturin build \
             --release --locked --target "$RUST_TARGET" --out bundle/dist \
             --interpreter "$build_python" "${args[@]}"
+      - name: Audit the actual wheel and dependency licenses
+        env:
+          TARGET_ID: ${{ matrix.id }}
+        run: uv run --frozen --no-sync python scripts/licenses.py audit --dist bundle/dist --output "bundle/licenses/$TARGET_ID.json"
+      - name: Preserve license findings even when release is blocked
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: license-audit-${{ matrix.id }}
+          path: bundle/licenses/
+          if-no-files-found: error
+          retention-days: 7
       - name: Install the exact wheel and test all supported Python versions natively
         env:
           TARGET_ID: ${{ matrix.id }}
@@ -100,6 +112,16 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/tooling
       - run: uv build --sdist --out-dir bundle/dist
+      - name: Audit the actual source distribution and dependency licenses
+        run: uv run --frozen --no-sync python scripts/licenses.py audit --dist bundle/dist --output bundle/licenses/sdist.json
+      - name: Preserve license findings even when release is blocked
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: license-audit-sdist
+          path: bundle/licenses/
+          if-no-files-found: error
+          retention-days: 7
       - name: Build and install the exact sdist in clean Python 3.12, 3.13 and 3.14 environments
         run: uv run --frozen --no-sync python scripts/artifacts.py test --kind sdist --target sdist --commit "$GITHUB_SHA"
       - run: uv run --frozen --no-sync twine check bundle/dist/*

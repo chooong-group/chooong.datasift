@@ -5,6 +5,15 @@ text or null, so enable conversion before numeric comparisons. Row numbers count
 logical records from 1, including headers; an embedded newline does not add a row.
 CSV event metadata uses worksheet name `csv`.
 
+## Automatic table discovery
+
+Both [discovery modes](automatic-table-discovery.md) work on CSV records, including
+headers after a preamble and several table regions. Start with the
+[standalone Free Discovery example](complex-layouts.md#automatic-csv-example);
+use [anchors for text-only tables](complex-layouts.md#text-only-data-and-comments).
+Automatic table detection does not detect delimiter or encoding: defaults are
+comma and UTF-8. Configure other formats explicitly as below.
+
 ## Delimiters and types
 
 Create `sales.csv`:
@@ -82,3 +91,37 @@ mask = {
 }
 assert next(iter_matching_rows("sales.csv", mask))["ID"] == "a"
 ```
+
+## Encoding, quoting and multiline fields
+
+This standalone example creates a UTF-16 file with a BOM, semicolon delimiters,
+an embedded newline, a quoted delimiter and doubled quotes. Delimiter and encoding
+are configured explicitly; neither is sniffed from the input.
+
+```python
+from pathlib import Path
+
+from chooong.datasift import CsvConfig, FilterMask, HeaderConfig, scan_batches
+
+Path("quoted.csv").write_bytes(
+    'ID;Note\na;"Café\nNorth; say ""hello"""\nb;plain\n'.encode("utf-16")
+)
+mask = FilterMask(
+    sheet=None,
+    csv=CsvConfig(encoding="utf-16le", delimiter=";"),
+    header=HeaderConfig(anchors=("ID", "Note")),
+)
+with scan_batches("quoted.csv", mask) as scan:
+    records = [record for batch in scan for record in batch]
+    statistics = scan.statistics
+assert [(record.row, record.values) for record in records] == [
+    (2, {"ID": "a", "Note": 'Café\nNorth; say "hello"'}),
+    (3, {"ID": "b", "Note": "plain"}),
+]
+assert statistics is not None and statistics.complete
+```
+
+The embedded newline belongs to record 2, not a new logical record. Malformed
+encoding is an error; replacement characters are not silently inserted. Completely
+blank lines are skipped by the CSV parser, so use explicit empty fields such as
+`,,,` (with comma delimiters) for Free Discovery region boundaries.

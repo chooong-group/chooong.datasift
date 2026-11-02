@@ -10,7 +10,7 @@ import pytest
 from scripts import verify_publish
 
 
-@pytest.mark.parametrize("failure", [None, "bytes", "missing", "yanked", "origin"])
+@pytest.mark.parametrize("failure", [None, "bytes", "metadata", "missing", "yanked", "origin"])
 def test_pypi_verification_checks_the_exact_published_file_set(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -36,6 +36,8 @@ def test_pypi_verification_checks_the_exact_published_file_set(
     }
     if failure == "missing":
         payload["urls"] = []
+    elif failure == "metadata":
+        payload["urls"][0]["digests"] = {"sha256": "0" * 64}
     elif failure == "yanked":
         payload["urls"][0]["yanked"] = True
     elif failure == "origin":
@@ -52,6 +54,6 @@ def test_pypi_verification_checks_the_exact_published_file_set(
     if failure is None:
         verify_publish.verify_pypi(tmp_path, expected, "0.1.0")
     else:
-        with pytest.raises(ValueError, match="Published|publication|origin"):
+        with pytest.raises(ValueError, match="Published|publication|origin|validated artifact"):
             verify_publish.verify_pypi(tmp_path, expected, "0.1.0")
     assert (distribution / "sample.whl").read_bytes() == data
