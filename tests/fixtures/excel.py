@@ -75,8 +75,8 @@ def cli_inputs(tmp_path: Path) -> tuple[Path, Path]:
     mask.write_text(
         json.dumps(
             {
-                "sheet": "Daten",
-                "where": {"column": "Land", "op": "eq", "value": "DE"},
+                "sheet": "Data",
+                "where": {"column": "Country", "op": "eq", "value": "DE"},
             }
         )
     )
@@ -139,7 +139,7 @@ def make_workbook(path: Path, *, malformed: bool = False, header_row: int = 1) -
  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <sheets>
 <sheet name="Meta" sheetId="1" r:id="rId9"/>
-<sheet name="Daten" sheetId="2" r:id="rId42"/>
+<sheet name="Data" sheetId="2" r:id="rId42"/>
 </sheets>
 </workbook>""",
         )
@@ -167,7 +167,7 @@ def make_workbook(path: Path, *, malformed: bool = False, header_row: int = 1) -
             """<?xml version="1.0" encoding="UTF-8"?>
 <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"""
             + "".join(f"<si><t>{escape(value)}</t></si>" for value in _SHARED)
-            + "<si><r><t>ABC &amp; </t></r><r><t>Söhne</t></r>"
+            + "<si><r><t>ABC &amp; </t></r><r><t>Sons</t></r>"
             '<rPh sb="0" eb="1"><t>IGNORED</t></rPh></si>' + "</sst>",
         )
         base = header_row
@@ -254,7 +254,7 @@ def make_workbook(path: Path, *, malformed: bool = False, header_row: int = 1) -
             f'<row r="{base + 7}">'
             + "".join(
                 [
-                    cell("A", base + 7, "ABC Leer"),
+                    cell("A", base + 7, "ABC Empty"),
                     cell("B", base + 7, "DE"),
                     cell("D", base + 7, 6, "shared"),
                 ]
@@ -285,7 +285,7 @@ def make_workbook(path: Path, *, malformed: bool = False, header_row: int = 1) -
 
 def indexed_workbook(
     path: Path,
-    headers: tuple[str | int | None, ...] = ("Kunde", "Land", "Umsatz", "Umsatz"),
+    headers: tuple[str | int | None, ...] = ("Customer", "Country", "Revenue", "Revenue"),
     header_row: int = 1,
 ) -> None:
     make_workbook(path, header_row=header_row)
@@ -351,7 +351,7 @@ def table_layout(path: Path) -> None:
             ),
         ),
     )
-    for original, label in zip(("Kunde", "Land", "Umsatz"), _LABELS, strict=True):
+    for original, label in zip(("Customer", "Country", "Revenue"), _LABELS, strict=True):
         rewrite(path, "xl/sharedStrings.xml", f"<t>{original}</t>", f"<t>{label}</t>")
 
 
@@ -368,18 +368,18 @@ def layout_workbook(path: Path) -> None:
     rows = [
         '<row r="1">' + cell("A", 1, "Synthetic title") + "</row>",
         '<row r="3">'
-        + cell("C", 3, "Kunde")
-        + cell("D", 3, "Umsatz")
-        + cell("E", 3, "Umsatz")
-        + cell("G", 3, "Kunde")
-        + cell("H", 3, "Umsatz")
+        + cell("C", 3, "Customer")
+        + cell("D", 3, "Revenue")
+        + cell("E", 3, "Revenue")
+        + cell("G", 3, "Customer")
+        + cell("H", 3, "Revenue")
         + "</row>",
         '<row r="4">'
         + cell("C", 4, "Name")
-        + cell("D", 4, "Aktuell")
-        + cell("E", 4, "Vorjahr")
+        + cell("D", 4, "Current")
+        + cell("E", 4, "PreviousYear")
         + cell("G", 4, "Name")
-        + cell("H", 4, "Aktuell")
+        + cell("H", 4, "Current")
         + "</row>",
         '<row r="5">' + cell("C", 5, "Comment between header and data") + "</row>",
         '<row r="7">'
@@ -432,14 +432,18 @@ _NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 
 _FIRST = worksheet(
-    '<row r="1">' + cell("A", 1, "Land") + cell("B", 1, "Value") + "</row>",
+    '<row r="1">' + cell("A", 1, "Country") + cell("B", 1, "Value") + "</row>",
     '<row r="2">' + cell("A", 2, "DE") + cell("B", 2, 101) + "</row>",
     '<row r="3">' + cell("A", 3, "AT") + cell("B", 3, 1) + "</row>",
 )
 
 
 _SECOND = worksheet(
-    '<row r="1">' + cell("A", 1, "Value") + cell("C", 1, "Land") + cell("D", 1, "Note") + "</row>",
+    '<row r="1">'
+    + cell("A", 1, "Value")
+    + cell("C", 1, "Country")
+    + cell("D", 1, "Note")
+    + "</row>",
     '<row r="2">' + cell("A", 2, 202) + cell("C", 2, "DE") + cell("D", 2, "second") + "</row>",
     '<row r="3">' + cell("A", 3, 203) + cell("C", 3, "DE") + cell("D", 3, "repeat") + "</row>",
 )
@@ -451,21 +455,21 @@ _NUMERIC = worksheet('<row r="1">' + cell("A", 1, 99) + "</row>")
 _UNRELATED = worksheet('<row r="1">' + cell("A", 1, "Other") + "</row>")
 
 
-_HEADERS = ("Kunde", "Land", "Umsatz", "Status")
+_HEADERS = ("Customer", "Country", "Revenue", "Status")
 
 
 _SHARED = (
     *_HEADERS,
-    "ABC GmbH",
+    "ABC Ltd",
     "DE",
-    "Aktiv",
-    "XYZ AG",
+    "Active",
+    "XYZ Inc",
     "AT",
     "ABC Berlin",
-    "ABC München",
+    "ABC São Paulo",
     "ABC Hamburg",
-    "Inaktiv",
-    "Offen",
+    "Inactive",
+    "Open",
 )
 
 

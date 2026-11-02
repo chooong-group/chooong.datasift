@@ -23,12 +23,12 @@ def test_typed_models_roundtrip_and_immutable_rows(tmp_path: Path) -> None:
     with iter_matching_batches(path, mask, batch_size=2) as batches:
         rows = [row for batch in batches for row in batch]
     assert len(rows) == 6
-    assert rows[0]["Land"] == "DE"
-    assert tuple(rows[0]) == ("Kunde", "Land", "Status")
+    assert rows[0]["Country"] == "DE"
+    assert tuple(rows[0]) == ("Customer", "Country", "Status")
     assert len(rows[0]) == 3
     assert not list(batches)
     with pytest.raises(TypeError):
-        rows[0].cells["Kunde"] = "changed"
+        rows[0].cells["Customer"] = "changed"
 
 
 @pytest.mark.parametrize("batch_size", [0, -1, 65537, True, 1.5])
@@ -43,10 +43,10 @@ def test_invalid_batches_fail_before_io(batch_size: object) -> None:
         {"sheet": " "},
         {"header_row": True},
         {"unknown": 1},
-        {"where": {"column": "Land", "op": "unknown", "value": "DE"}},
-        {"where": {"column": "Land", "op": "is_empty", "value": None}},
-        {"where": {"column": "Umsatz", "op": "gte", "value": True}},
-        {"where": {"column": "Umsatz", "op": "eq", "value": float("nan")}},
+        {"where": {"column": "Country", "op": "unknown", "value": "DE"}},
+        {"where": {"column": "Country", "op": "is_empty", "value": None}},
+        {"where": {"column": "Revenue", "op": "gte", "value": True}},
+        {"where": {"column": "Revenue", "op": "eq", "value": float("nan")}},
     ],
 )
 def test_untrusted_masks_fail_closed(updates: dict[str, object]) -> None:
@@ -58,8 +58,8 @@ def test_untrusted_masks_fail_closed(updates: dict[str, object]) -> None:
 
 @pytest.mark.parametrize("group", ["conditions", "condition"])
 def test_python_field_names_are_not_wire_aliases(group: str) -> None:
-    predicate = {"column": "Land", "op": "eq", "value": "DE"}
-    payload = {"sheet": "Daten", "where": {group: [predicate]}}
+    predicate = {"column": "Country", "op": "eq", "value": "DE"}
+    payload = {"sheet": "Data", "where": {group: [predicate]}}
     with pytest.raises(ValidationError):
         iter_matching_batches("missing.xlsx", payload)
     with pytest.raises(ValidationError):
@@ -70,15 +70,15 @@ def test_python_field_names_are_not_wire_aliases(group: str) -> None:
     "condition",
     [
         {"column": "UNKNOWN", "op": "eq", "value": "hello"},
-        {"column": "Umsatz", "op": "gte", "value": "1000"},
-        {"column": "Kunde", "op": "regex", "value": "("},
+        {"column": "Revenue", "op": "gte", "value": "1000"},
+        {"column": "Customer", "op": "regex", "value": "("},
         {"any": []},
-        {"column": "Kunde", "op": "contains", "value": "ABC", "evil": "bad"},
+        {"column": "Customer", "op": "contains", "value": "ABC", "evil": "bad"},
     ],
 )
 def test_mask_errors_are_eager(xlsx: Path, condition: dict) -> None:
     with pytest.raises(ValueError, match=".+"):
-        iter_matching_batches(xlsx, {"sheet": "Daten", "where": condition})
+        iter_matching_batches(xlsx, {"sheet": "Data", "where": condition})
 
 
 def test_full_model_contract_roundtrip() -> None:

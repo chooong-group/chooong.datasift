@@ -22,11 +22,11 @@ from tests.fixtures.excel import Sheet, cell, make_workbook, rewrite, worksheet,
 def test_unindexed_duplicate_name_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "headers.xlsx"
     make_workbook(path)
-    rewrite(path, "xl/sharedStrings.xml", "<t>Status</t>", "<t>Umsatz</t>")
+    rewrite(path, "xl/sharedStrings.xml", "<t>Status</t>", "<t>Revenue</t>")
     mask = FilterMask(
-        sheet="Daten", where=ScalarCondition(column="Umsatz", op=Operator.EQ, value=5000)
+        sheet="Data", where=ScalarCondition(column="Revenue", op=Operator.EQ, value=5000)
     )
-    with pytest.raises(ValueError, match="Unbekannte Spalte"):
+    with pytest.raises(ValueError, match="Unknown column"):
         iter_matching_batches(path, mask)
 
 

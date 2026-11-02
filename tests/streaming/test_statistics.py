@@ -65,7 +65,7 @@ def test_multiple_files_sorted_and_failure_is_not_success(tmp_path: Path) -> Non
     broken.write_bytes(b"broken")
     with scan_batches(str(tmp_path / "*.*"), {"sheet": None, "file_errors": "continue"}) as batches:
         records = []
-        with pytest.raises(RuntimeError, match="unvollständig"):
+        with pytest.raises(RuntimeError, match="not fully processed"):
             records.extend(record for batch in batches for record in batch)
         assert len(records) == 2
         assert batches.statistics is not None

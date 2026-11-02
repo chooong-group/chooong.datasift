@@ -27,23 +27,23 @@ pub(crate) fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 fn descriptor_metadata(file: &File) -> Result<cap_std::fs::Metadata, String> {
-    cap_std::fs::File::from_std(file.try_clone().map_err(|_| "Dateihandle nicht klonbar")?)
+    cap_std::fs::File::from_std(file.try_clone().map_err(|_| "Cannot clone file handle")?)
         .metadata()
-        .map_err(|_| "Dateimetadaten nicht lesbar".into())
+        .map_err(|_| "Cannot read file metadata".into())
 }
 pub(crate) fn file_digest(file: &mut File) -> Result<String, String> {
     let metadata = descriptor_metadata(file)?;
     if !metadata.is_file() || metadata.nlink() != 1 {
-        return Err("Commit-Datei muss regulär und ohne Hardlinks sein".into());
+        return Err("Commit file must be regular and have no hard links".into());
     }
     file.seek(SeekFrom::Start(0))
-        .map_err(|_| "Commit-Datei nicht positionierbar")?;
+        .map_err(|_| "Cannot seek in commit file")?;
     let mut hash = Sha256::new();
     let mut buffer = [0; 65536];
     loop {
         let count = file
             .read(&mut buffer)
-            .map_err(|_| "Commit-Datei nicht lesbar")?;
+            .map_err(|_| "Cannot read commit file")?;
         if count == 0 {
             break;
         }
@@ -72,7 +72,7 @@ fn target_state(dir: &Dir, name: &std::ffi::OsStr) -> Result<TargetState, String
             })
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(TargetState::Missing),
-        Err(_) => Err("Zielzustand nicht prüfbar".into()),
+        Err(_) => Err("Cannot verify target state".into()),
     }
 }
 struct Destination {
@@ -97,27 +97,30 @@ fn single_file(
         .nonblock(true);
     let file = dir
         .open_with(name, &options)
-        .map_err(|_| "Datei fehlt oder ist kein sicherer regulärer Pfad")?
+        .map_err(|_| "File is missing or is not a safe regular path")?
         .into_std();
     let metadata = descriptor_metadata(&file)?;
     if !metadata.is_file() || metadata.nlink() != 1 {
-        return Err("Symlinks, Hardlinks und Spezialdateien sind nicht erlaubt".into());
+        return Err("Symlinks, hard links and special files are not allowed".into());
     }
     Ok(file)
 }
 impl Destination {
     fn open(path: &Path) -> Result<Self, String> {
-        let parent = path.parent().ok_or("Zielverzeichnis fehlt")?;
-        let name = path.file_name().ok_or("Zielname fehlt")?.to_os_string();
+        let parent = path.parent().ok_or("Missing destination directory")?;
+        let name = path
+            .file_name()
+            .ok_or("Missing destination name")?
+            .to_os_string();
         let dir = Dir::open_ambient_dir(parent, cap_std::ambient_authority())
-            .map_err(|_| "Zielverzeichnis nicht lesbar")?;
+            .map_err(|_| "Cannot read destination directory")?;
         let lock_name = format!(
             ".{}.datasift.lock",
-            name.to_str().ok_or("Zielname ist nicht UTF-8")?
+            name.to_str().ok_or("Destination name is not UTF-8")?
         );
         let lock = single_file(&dir, lock_name.as_ref(), true, true)?;
         lock.try_lock()
-            .map_err(|_| "Ausgabe wird bereits geschrieben")?;
+            .map_err(|_| "Output is already being written")?;
         let initial = target_state(&dir, &name)?;
         Ok(Self {
             initial,
@@ -129,32 +132,32 @@ impl Destination {
     }
     fn validate(&self) -> Result<(), String> {
         let parent = Dir::open_ambient_dir(
-            self.path.parent().ok_or("Zielverzeichnis fehlt")?,
+            self.path.parent().ok_or("Missing destination directory")?,
             cap_std::ambient_authority(),
         )
-        .map_err(|_| "Zielverzeichnis wurde ausgetauscht")?;
+        .map_err(|_| "Destination directory was replaced")?;
         let original = self
             .dir
             .dir_metadata()
-            .map_err(|_| "Verzeichnismetadaten fehlen")?;
+            .map_err(|_| "Missing directory metadata")?;
         let current = parent
             .dir_metadata()
-            .map_err(|_| "Verzeichnismetadaten fehlen")?;
+            .map_err(|_| "Missing directory metadata")?;
         if original.dev() != current.dev() || original.ino() != current.ino() {
-            return Err("Zielverzeichnis wurde ausgetauscht".into());
+            return Err("Destination directory was replaced".into());
         }
         let lock_name = format!(
             ".{}.datasift.lock",
-            self.name.to_str().ok_or("Ungültiger Zielname")?
+            self.name.to_str().ok_or("Invalid destination name")?
         );
         let named_lock = single_file(&self.dir, lock_name.as_ref(), false, false)?;
         let held = descriptor_metadata(&self.lock)?;
         let named = descriptor_metadata(&named_lock)?;
         if held.dev() != named.dev() || held.ino() != named.ino() {
-            return Err("Ausgabe-Lock wurde ausgetauscht".into());
+            return Err("Output lock was replaced".into());
         }
         if target_state(&self.dir, &self.name)? != self.initial {
-            return Err("Zieldatei wurde während der Transaktion geändert".into());
+            return Err("Destination file changed during the transaction".into());
         }
 
         Ok(())
@@ -163,10 +166,10 @@ impl Destination {
         #[cfg(unix)]
         self.dir
             .try_clone()
-            .map_err(|_| "Verzeichnis nicht klonbar")?
+            .map_err(|_| "Cannot clone directory")?
             .into_std_file()
             .sync_all()
-            .map_err(|_| "Verzeichnis-fsync fehlgeschlagen")?;
+            .map_err(|_| "Directory fsync failed")?;
         Ok(())
     }
 }
@@ -179,7 +182,7 @@ fn validate_manifest(journal: &Journal, targets: &[PathBuf]) -> Result<(), Strin
         || targets.len() > 2
         || journal.entries.len() != targets.len()
     {
-        return Err("Journal-Ziele müssen vom Aufrufer vollständig bestätigt sein".into());
+        return Err("Journal destinations must be fully confirmed by the caller".into());
     }
     for (i, (entry, target)) in journal.entries.iter().zip(targets).enumerate() {
         if &entry.destination != target
@@ -187,31 +190,31 @@ fn validate_manifest(journal: &Journal, targets: &[PathBuf]) -> Result<(), Strin
             || entry.stage.parent() != target.parent()
             || !valid_hash(&entry.sha256)
         {
-            return Err("Unsicheres Journal oder nicht bestätigter Zielpfad".into());
+            return Err("Unsafe journal or unconfirmed destination path".into());
         }
         let name = entry
             .stage
             .file_name()
             .and_then(|s| s.to_str())
-            .ok_or("Ungültiger Stage-Name")?;
+            .ok_or("Invalid stage name")?;
         let prefix = format!(
             ".{}.datasift-",
             target
                 .file_name()
                 .and_then(|s| s.to_str())
-                .ok_or("Ungültiger Zielname")?
+                .ok_or("Invalid destination name")?
         );
         let generation = name
             .strip_prefix(&prefix)
             .and_then(|s| s.strip_suffix(".tmp"))
-            .ok_or("Unsicherer Stage-Pfad")?;
+            .ok_or("Unsafe stage path")?;
         let segments: Vec<_> = generation.split('-').collect();
         if !(2..=3).contains(&segments.len())
             || segments
                 .iter()
                 .any(|s| s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()))
         {
-            return Err("Ungültiger Stage-Identifier".into());
+            return Err("Invalid stage identifier".into());
         }
     }
     Ok(())
@@ -222,11 +225,11 @@ fn journal_bytes(
     expected: &str,
 ) -> Result<Vec<u8>, String> {
     if !valid_hash(expected) {
-        return Err("Vertrauenswürdiger journal_sha256 muss ein SHA-256-Wert sein".into());
+        return Err("Trusted journal_sha256 must be a SHA-256 value".into());
     }
     let mut file = single_file(
         &destination.dir,
-        path.file_name().ok_or("Journalname fehlt")?,
+        path.file_name().ok_or("Missing journal name")?,
         false,
         false,
     )?;
@@ -234,9 +237,9 @@ fn journal_bytes(
     Read::by_ref(&mut file)
         .take(16385)
         .read_to_end(&mut bytes)
-        .map_err(|_| "Journal nicht lesbar")?;
+        .map_err(|_| "Cannot read journal")?;
     if bytes.len() > 16384 || !digest(&bytes).eq_ignore_ascii_case(expected) {
-        return Err("Journal-Prüfsumme stimmt nicht mit journal_sha256 überein".into());
+        return Err("Journal checksum does not match journal_sha256".into());
     }
     Ok(bytes)
 }
@@ -244,21 +247,21 @@ fn snapshot(source: &mut File, private: &Dir, expected: &str) -> Result<(), Stri
     let before = descriptor_metadata(source)?;
     source
         .seek(SeekFrom::Start(0))
-        .map_err(|_| "Quelldatei nicht positionierbar")?;
-    let mut temporary = TempFile::new(private).map_err(|_| "Privater Snapshot nicht anlegbar")?;
+        .map_err(|_| "Cannot seek in source file")?;
+    let mut temporary = TempFile::new(private).map_err(|_| "Cannot create private snapshot")?;
     let mut hash = Sha256::new();
     let mut buffer = [0; 65536];
     loop {
         let count = source
             .read(&mut buffer)
-            .map_err(|_| "Quelldatei nicht lesbar")?;
+            .map_err(|_| "Cannot read source file")?;
         if count == 0 {
             break;
         }
         hash.update(&buffer[..count]);
         temporary
             .write_all(&buffer[..count])
-            .map_err(|_| "Snapshot-Schreibfehler")?;
+            .map_err(|_| "Snapshot write failed")?;
     }
     let after = descriptor_metadata(source)?;
     if before.len() != after.len()
@@ -267,17 +270,17 @@ fn snapshot(source: &mut File, private: &Dir, expected: &str) -> Result<(), Stri
         || after.nlink() != 1
         || format!("{:x}", hash.finalize()) != expected
     {
-        return Err("Recovery-Datei stimmt nicht mit Journal überein".into());
+        return Err("Recovery file does not match journal".into());
     }
     temporary
         .as_file()
         .sync_all()
-        .map_err(|_| "Snapshot-fsync fehlgeschlagen")?;
+        .map_err(|_| "Snapshot fsync failed")?;
     temporary
         .replace("ready")
-        .map_err(|_| "Snapshot nicht persistierbar")
+        .map_err(|_| "Cannot persist snapshot")
         .map(|_| ())
-        .map_err(|_| "Privater Snapshot nicht persistierbar".into())
+        .map_err(|_| "Cannot persist private snapshot".into())
 }
 struct Prepared {
     sources: Vec<Option<File>>,
@@ -289,27 +292,27 @@ impl Prepared {
         let mut private = Vec::new();
         for (entry, destination) in journal.entries.iter().zip(destinations) {
             destination.validate()?;
-            let stage = entry.stage.file_name().ok_or("Stage-Name fehlt")?;
+            let stage = entry.stage.file_name().ok_or("Missing stage name")?;
             let source = match destination.dir.symlink_metadata(stage) {
                 Ok(_) => Some(single_file(&destination.dir, stage, false, false)?),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                     let mut completed =
                         single_file(&destination.dir, &destination.name, false, false)?;
                     if file_digest(&mut completed)? != entry.sha256 {
-                        return Err("Recovery-Datei stimmt nicht mit Journal überein".into());
+                        return Err("Recovery file does not match journal".into());
                     }
                     None
                 }
-                Err(_) => return Err("Stage nicht prüfbar".into()),
+                Err(_) => return Err("Cannot verify stage".into()),
             };
             let directory = TempDir::new_in(&destination.dir)
-                .map_err(|_| "Privates Recovery-Verzeichnis nicht anlegbar")?;
+                .map_err(|_| "Cannot create private recovery directory")?;
             #[cfg(unix)]
             {
                 use cap_std::fs::PermissionsExt;
                 directory
                     .set_permissions(".", cap_std::fs::Permissions::from_mode(0o700))
-                    .map_err(|_| "Privates Verzeichnis nicht absicherbar")?;
+                    .map_err(|_| "Cannot secure private directory")?;
             }
             if let Some(mut file) = source {
                 snapshot(&mut file, &directory, &entry.sha256)?;
@@ -335,15 +338,15 @@ impl Prepared {
                 // Only a verified private copy is renamed; the external stage pathname is never used.
                 private
                     .rename("ready", &destination.dir, &destination.name)
-                    .map_err(|_| "Commit unvollständig; Journal und Stages erhalten")?;
+                    .map_err(|_| "Commit incomplete; journal and stages preserved")?;
                 destination.sync()?;
             }
         }
         journal_bytes(&destinations[0], path, expected)?;
         destinations[0]
             .dir
-            .remove_file(path.file_name().ok_or("Journalname fehlt")?)
-            .map_err(|_| "Commit fertig, Journal-Löschung fehlgeschlagen")?;
+            .remove_file(path.file_name().ok_or("Missing journal name")?)
+            .map_err(|_| "Commit complete, journal removal failed")?;
         destinations[0].sync()
     }
 }
@@ -376,15 +379,14 @@ impl Transaction {
         }
         destination
             .dir
-            .open_with(path.file_name().ok_or("Stage-Name fehlt")?, &options)
+            .open_with(path.file_name().ok_or("Missing stage name")?, &options)
             .map(|file| file.into_std())
-            .map_err(|_| "Stage nicht sicher anlegbar".into())
+            .map_err(|_| "Cannot safely create stage".into())
     }
     pub fn write_journal(&self, path: &Path, bytes: &[u8]) -> Result<(), String> {
         let mut file = self.create_stage(0, path)?;
-        file.write_all(bytes).map_err(|_| "Journal-Schreibfehler")?;
-        file.sync_all()
-            .map_err(|_| "Journal-fsync fehlgeschlagen")?;
+        file.write_all(bytes).map_err(|_| "Journal write failed")?;
+        file.sync_all().map_err(|_| "Journal fsync failed")?;
         self.destinations[0].sync()
     }
     pub fn has_journal(&self, path: &Path) -> bool {
@@ -408,9 +410,9 @@ impl Transaction {
     }
 }
 pub(crate) fn recover(targets: Vec<PathBuf>, path: &Path, expected: &str) -> Result<(), String> {
-    let first = Destination::open(targets.first().ok_or("Ausgabe fehlt")?)?;
+    let first = Destination::open(targets.first().ok_or("Missing output")?)?;
     let bytes = journal_bytes(&first, path, expected)?;
-    let journal: Journal = serde_json::from_slice(&bytes).map_err(|_| "Ungültiges Journal")?;
+    let journal: Journal = serde_json::from_slice(&bytes).map_err(|_| "Invalid journal")?;
     validate_manifest(&journal, &targets)?;
     let mut destinations = vec![first];
     for target in targets.iter().skip(1) {

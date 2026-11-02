@@ -161,7 +161,7 @@ impl Rules {
             .iter()
             .any(|r| r.rows.is_empty() && r.predicate.is_none())
         {
-            return Err("Zeilenregel benötigt rows oder where".into());
+            return Err("Row rule requires rows or where".into());
         }
 
         if !(1..=32).contains(&self.header.rows)
@@ -172,11 +172,11 @@ impl Rules {
                 .as_deref()
                 .is_some_and(|s| !matches!(s, "NFC" | "NFKC"))
         {
-            return Err("Ungültige Header-Konfiguration".into());
+            return Err("Invalid header configuration".into());
         }
         if let Some(select) = &self.select {
             if select.is_empty() {
-                return Err("select darf nicht leer sein".into());
+                return Err("select must not be empty".into());
             }
             for item in select {
                 if let Selection::Pattern { pattern } = item {
@@ -193,21 +193,21 @@ impl Rules {
                 .as_deref()
                 .is_some_and(|c| iso_currency::Currency::from_code(c).is_none())
             {
-                return Err("Unbekannter ISO-4217-Code".into());
+                return Err("Unknown ISO-4217 code".into());
             }
             if rule
                 .locale
                 .as_deref()
                 .is_some_and(|l| !matches!(l, "de-DE" | "en-US"))
             {
-                return Err("Nicht unterstützte Locale".into());
+                return Err("Unsupported locale".into());
             }
             if rule.currency.is_some() && rule.target != DataType::Money {
-                return Err("currency benötigt money".into());
+                return Err("currency requires money".into());
             }
             if rule.format.is_some() && !matches!(rule.target, DataType::Date | DataType::Datetime)
             {
-                return Err("format benötigt date/datetime".into());
+                return Err("format requires date/datetime".into());
             }
         }
         Ok(())
@@ -303,7 +303,7 @@ pub fn decimal_text(text: &str, locale: Option<&str>) -> Result<Decimal, String>
         };
         let pieces: Vec<_> = input.split(point).collect();
         if pieces.len() > 2 || pieces.get(1).is_some_and(|s| s.contains(group)) {
-            return Err("Mehrdeutiges Zahlenformat".into());
+            return Err("Ambiguous number format".into());
         }
         let integer = pieces[0].trim_start_matches(['+', '-']);
         if integer.contains(group) {
@@ -314,7 +314,7 @@ pub fn decimal_text(text: &str, locale: Option<&str>) -> Result<Decimal, String>
                     .iter()
                     .any(|s| s.len() != 3 || !s.bytes().all(|b| b.is_ascii_digit()))
             {
-                return Err("Ungültige Tausendergruppen".into());
+                return Err("Invalid thousands groups".into());
             }
         }
         normalized = input.replace(group, "").replace(point, ".");
@@ -324,7 +324,7 @@ pub fn decimal_text(text: &str, locale: Option<&str>) -> Result<Decimal, String>
     };
     Decimal::from_str_exact(number)
         .or_else(|_| Decimal::from_scientific(number))
-        .map_err(|_| "Dezimalwert außerhalb des exakten Wertebereichs".into())
+        .map_err(|_| "Decimal value outside the exact range".into())
 }
 
 fn numeric_text(value: &CellValue) -> Option<String> {
@@ -357,7 +357,7 @@ pub fn convert(value: &CellValue, rule: &TypeRule, date1904: bool) -> Result<Cel
                 .find(|s| iso_currency::Currency::from_code(s).is_some());
             if let Some(code) = code {
                 if rule.currency.as_deref().is_some_and(|c| c != code) {
-                    return Err("Widersprüchliche Währungsformatierung".into());
+                    return Err("Conflicting currency formatting".into());
                 }
                 native_rule.currency = Some(code.to_owned());
                 native_rule.convert = true;
@@ -394,36 +394,36 @@ pub fn convert(value: &CellValue, rule: &TypeRule, date1904: bool) -> Result<Cel
         return Ok(CellValue::Empty);
     }
     if !rule.convert {
-        return Err("Typ stimmt nicht überein".into());
+        return Err("Type mismatch".into());
     }
-    let raw = numeric_text(value).ok_or("Wert ist nicht konvertierbar")?;
+    let raw = numeric_text(value).ok_or("Value cannot be converted")?;
     let text = raw.trim();
     Ok(match rule.target {
         DataType::String => CellValue::Text(raw),
         DataType::Integer => {
             let d = decimal_text(text, rule.locale.as_deref())?;
             if !d.fract().is_zero() {
-                return Err("Verlustbehaftete Integer-Konvertierung".into());
+                return Err("Lossy integer conversion".into());
             }
-            CellValue::Integer(d.to_i64().ok_or("Integer außerhalb i64")?)
+            CellValue::Integer(d.to_i64().ok_or("Integer outside i64 range")?)
         }
         DataType::Float | DataType::Number => {
             let d = decimal_text(text, rule.locale.as_deref())?;
-            let f = d.to_f64().ok_or("Ungültiger Float")?;
+            let f = d.to_f64().ok_or("Invalid float")?;
             if Decimal::from_f64_retain(f) != Some(d) {
-                return Err("Float-Konvertierung ist nicht exakt".into());
+                return Err("Float conversion is not exact".into());
             }
             CellValue::Float(f)
         }
         DataType::Boolean => match text {
             "true" => CellValue::Bool(true),
             "false" => CellValue::Bool(false),
-            _ => return Err("Boolean erwartet true/false".into()),
+            _ => return Err("Boolean expects true/false".into()),
         },
         DataType::Decimal => CellValue::Decimal(decimal_text(text, rule.locale.as_deref())?),
         DataType::CurrencyCode => {
             if iso_currency::Currency::from_code(text).is_none() {
-                return Err("Unbekannter ISO-4217-Code".into());
+                return Err("Unknown ISO-4217 code".into());
             }
             CellValue::Currency(text.to_owned())
         }
@@ -434,18 +434,18 @@ pub fn convert(value: &CellValue, rule: &TypeRule, date1904: bool) -> Result<Cel
             for word in &words {
                 if iso_currency::Currency::from_code(word).is_some() {
                     if code.as_deref().is_some_and(|c| c != *word) {
-                        return Err("Widersprüchliche Währung".into());
+                        return Err("Conflicting currency".into());
                     }
                     code = Some((*word).to_owned());
                     amount = amount.replace(word, "");
                 }
             }
             let currency =
-                code.ok_or("Währung muss eindeutig konfiguriert oder als ISO-Code angegeben sein")?;
+                code.ok_or("Currency must be configured unambiguously or supplied as an ISO code")?;
             // Symbols never establish currency; a configured code is authoritative.
             if rule.currency.is_some() {
                 let symbol = iso_currency::Currency::from_code(&currency)
-                    .ok_or("Unbekannte Währung")?
+                    .ok_or("Unknown currency")?
                     .symbol()
                     .to_string();
                 amount = amount.replace(&symbol, "");
@@ -459,7 +459,7 @@ pub fn convert(value: &CellValue, rule: &TypeRule, date1904: bool) -> Result<Cel
             if rule.target == DataType::Datetime && rule.format.is_none() {
                 if let Ok(zoned) = chrono::DateTime::parse_from_rfc3339(text) {
                     if !(1..=9999).contains(&zoned.year()) {
-                        return Err("Datum außerhalb 0001..9999".into());
+                        return Err("Date outside 0001..9999".into());
                     }
                     return Ok(CellValue::ZonedDateTime(zoned));
                 }
@@ -469,62 +469,57 @@ pub fn convert(value: &CellValue, rule: &TypeRule, date1904: bool) -> Result<Cel
                 CellValue::NumberText(_) | CellValue::Integer(_) | CellValue::Float(_)
             ) {
                 let serial = decimal_text(text, None)?;
-                let days = serial
-                    .floor()
-                    .to_i64()
-                    .ok_or("Datumsbereich überschritten")?;
+                let days = serial.floor().to_i64().ok_or("Date out of range")?;
                 if !date1904 && days == 60 {
-                    return Err("Excel 1900-02-29 existiert nicht".into());
+                    return Err("Excel 1900-02-29 does not exist".into());
                 }
                 let base = NaiveDate::from_ymd_opt(
                     if date1904 { 1904 } else { 1899 },
                     if date1904 { 1 } else { 12 },
                     if date1904 { 1 } else { 31 },
                 )
-                .ok_or("Ungültiges Basisdatum")?;
+                .ok_or("Invalid base date")?;
                 let days = if !date1904 && days > 60 {
                     days - 1
                 } else {
                     days
                 };
                 let date = base
-                    .checked_add_signed(
-                        Duration::try_days(days).ok_or("Datumsbereich überschritten")?,
-                    )
-                    .ok_or("Datumsbereich überschritten")?;
+                    .checked_add_signed(Duration::try_days(days).ok_or("Date out of range")?)
+                    .ok_or("Date out of range")?;
                 let nanos = (serial - serial.floor()) * Decimal::from(86_400_000_000_000_i64);
                 if !nanos.fract().is_zero() {
-                    return Err("Datum verliert Nanosekundenpräzision".into());
+                    return Err("Date loses nanosecond precision".into());
                 }
                 date.and_time(NaiveTime::MIN)
                     .checked_add_signed(Duration::nanoseconds(
-                        nanos.to_i64().ok_or("Zeitbereich überschritten")?,
+                        nanos.to_i64().ok_or("Time out of range")?,
                     ))
-                    .ok_or("Zeitbereich überschritten")?
+                    .ok_or("Time out of range")?
             } else if rule.target == DataType::Date {
                 NaiveDate::parse_from_str(text, rule.format.as_deref().unwrap_or("%Y-%m-%d"))
-                    .map_err(|_| "Ungültiges Datum")?
+                    .map_err(|_| "Invalid date")?
                     .and_time(NaiveTime::MIN)
             } else {
                 NaiveDateTime::parse_from_str(
                     text,
                     rule.format.as_deref().unwrap_or("%Y-%m-%dT%H:%M:%S%.f"),
                 )
-                .map_err(|_| "Ungültiges Datum/Zeit")?
+                .map_err(|_| "Invalid date/time")?
             };
             if !(1..=9999).contains(&datetime.year()) {
-                return Err("Datum außerhalb 0001..9999".into());
+                return Err("Date outside 0001..9999".into());
             }
             if rule.target == DataType::Date {
                 if datetime.time() != NaiveTime::MIN {
-                    return Err("date würde Uhrzeit verlieren".into());
+                    return Err("date would lose the time of day".into());
                 }
                 CellValue::Date(datetime.date())
             } else {
                 CellValue::DateTime(datetime)
             }
         }
-        DataType::Null => return Err("Nichtleerer Wert ist nicht null".into()),
+        DataType::Null => return Err("Nonempty value is not null".into()),
     })
 }
 

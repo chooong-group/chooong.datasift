@@ -22,7 +22,7 @@ def test_mask_filename_or_json_text(xlsx: Path, mask: dict, tmp_path: Path) -> N
 
 
 def test_missing_sheet_error_is_eager(xlsx: Path) -> None:
-    with pytest.raises(ValueError, match="Arbeitsblatt"):
+    with pytest.raises(ValueError, match="Worksheet"):
         iter_matching_batches(
-            xlsx, {"sheet": "Unbekannt", "where": {"column": "Kunde", "op": "eq", "value": "a"}}
+            xlsx, {"sheet": "Unknown", "where": {"column": "Customer", "op": "eq", "value": "a"}}
         )

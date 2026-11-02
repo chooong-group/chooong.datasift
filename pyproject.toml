@@ -101,7 +101,7 @@ select = [
     "S107",  # hardcoded-password-default
     "SIM",   # flake8-simplify
     "T20",   # flake8-print
-    "UP",    # pyupgrade (für deprecated Python Syntax/Types)
+    "UP",    # pyupgrade (for deprecated Python syntax/types)
 ]
 ignore = [
     "ANN401", # Dynamic Any-Annotations allowed

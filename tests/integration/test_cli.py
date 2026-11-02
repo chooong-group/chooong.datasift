@@ -42,8 +42,8 @@ def test_late_sheet_failure_propagates_and_cli_keeps_existing_output(tmp_path: P
     broken = _SECOND.replace(cell("A", 2, 202), '<c r="A2" t="s"><v>999999</v></c>')
     write_book(path, Sheet("First", _FIRST), Sheet("Broken", broken))
     with iter_matching_batches(path, sheet_mask(), batch_size=1) as batches:
-        assert dict(next(batches)[0]) == {"Land": "DE", "Value": 101}
-        with pytest.raises(RuntimeError, match="Shared-String-Index"):
+        assert dict(next(batches)[0]) == {"Country": "DE", "Value": 101}
+        with pytest.raises(RuntimeError, match="Shared string index"):
             list(batches)
     mask = tmp_path / "mask.json"
     mask.write_text(sheet_mask().model_dump_json(by_alias=True))
@@ -108,7 +108,7 @@ def test_cli_writes_real_rows(
     output = destination.read_text() if file_output else capsys.readouterr().out
     rows = [json.loads(line) for line in output.splitlines()]
     assert len(rows) == 7
-    assert all(row == {"Land": "DE"} for row in rows)
+    assert all(row == {"Country": "DE"} for row in rows)
     assert workbook.read_bytes() == original
 
 
@@ -139,7 +139,7 @@ def test_late_error_preserves_target_and_cleans_temp(
     assert error.value.code == 1
     assert destination.read_text() == "previous result"
     assert not list(tmp_path.glob(".output.ndjson.*.tmp"))
-    assert "Filterfehler (RuntimeError)" in capsys.readouterr().err
+    assert "Filter error (RuntimeError)" in capsys.readouterr().err
 
 
 def test_cli_rejects_input_alias(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -220,7 +220,7 @@ def test_cli_extracts_only_bound_fields_in_ndjson(tmp_path: Path) -> None:
     assert not result.stderr
     rows = [json.loads(line) for line in destination.read_text().splitlines()]
     assert len(rows) == 6
-    assert all(set(row) == {"Kunde", "Land", "Status"} for row in rows)
+    assert all(set(row) == {"Customer", "Country", "Status"} for row in rows)
     assert path.read_bytes() == original
     assert not list(tmp_path.glob(".result.ndjson.*.tmp"))
 
@@ -330,9 +330,9 @@ def test_cli_emits_indexed_keys(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     rows = [json.loads(line) for line in output.read_text().splitlines()]
     assert len(rows) == 3
-    assert rows[0]["Umsatz_1"] == 5000
-    assert rows[0]["Umsatz_2"] == "Aktiv"
-    assert all("Umsatz" not in row for row in rows)
+    assert rows[0]["Revenue_1"] == 5000
+    assert rows[0]["Revenue_2"] == "Active"
+    assert all("Revenue" not in row for row in rows)
 
 
 def test_later_discovered_table_failure_keeps_cli_output_atomic(tmp_path: Path) -> None:
@@ -350,7 +350,7 @@ def test_later_discovered_table_failure_keeps_cli_output_atomic(tmp_path: Path) 
     )
     with iter_matching_batches(path, table_mask(), batch_size=1) as batches:
         assert next(batches)[0][_LABELS[1]] == 902
-        with pytest.raises(RuntimeError, match="Shared-String-Index"):
+        with pytest.raises(RuntimeError, match="Shared string index"):
             list(batches)
     result = subprocess.run(
         [sys.executable, "-m", "chooong.datasift", str(path), str(mask), "--output", str(target)],
@@ -482,6 +482,6 @@ def test_layout_example_cli_output(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert [json.loads(line) for line in output.read_text().splitlines()] == [
-        {"Kunde": "ABC One", "Umsatz": 120},
-        {"Kunde": "ABC Two", "Umsatz": 200},
+        {"Customer": "ABC One", "Revenue": 120},
+        {"Customer": "ABC Two", "Revenue": 200},
     ]

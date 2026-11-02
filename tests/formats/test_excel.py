@@ -37,7 +37,7 @@ def test_skipped_schema_does_not_hide_truncated_xml(tmp_path: Path) -> None:
     write_book(
         path, Sheet("First", _FIRST), Sheet("Unrelated", _UNRELATED.removesuffix("</worksheet>"))
     )
-    with pytest.raises(RuntimeError, match="unvollständig"):
+    with pytest.raises(RuntimeError, match="incomplete"):
         list(iter_matching_rows(path, sheet_mask()))
 
 
@@ -51,7 +51,7 @@ def test_external_sheet_is_rejected_without_affecting_named_selection(tmp_path: 
         'Target="https://invalid.example/sheet.xml" TargetMode="External"',
     )
     assert [row["Value"] for row in iter_matching_rows(path, sheet_mask("First"))] == [101]
-    with pytest.raises(ValueError, match="Externes Arbeitsblatt"):
+    with pytest.raises(ValueError, match="External worksheet"):
         iter_matching_batches(path, sheet_mask())
 
 
@@ -61,7 +61,7 @@ def test_truncated_xml_is_not_success(tmp_path: Path, part: str) -> None:
     make_workbook(path)
     before = "</worksheet>" if "worksheets" in part else "</sst>"
     rewrite(path, part, before, "")
-    with pytest.raises((RuntimeError, ValueError), match="unvollständig"):
+    with pytest.raises((RuntimeError, ValueError), match="incomplete"):
         list(iter_matching_rows(path, contract_mask(), batch_size=1))
 
 
@@ -78,7 +78,7 @@ def test_truncated_xml_is_not_success(tmp_path: Path, part: str) -> None:
             "xl/_rels/workbook.xml.rels",
             'Target="worksheets/data42.xml"',
             'Target="../../outside.xml"',
-            "ausbrechen",
+            "escape",
         ),
     ],
 )
@@ -100,7 +100,7 @@ def test_source_still_rejects_truncated_xml_after_selected_range(tmp_path: Path)
     path = tmp_path / "truncated.xlsx"
     layout_workbook(path)
     rewrite(path, "xl/worksheets/data42.xml", "</worksheet>", "")
-    with pytest.raises(RuntimeError, match="unvollständig"):
+    with pytest.raises(RuntimeError, match="incomplete"):
         list(iter_matching_rows(path, source_mask()))
 
 

@@ -55,8 +55,10 @@ def test_no_matching_schema_is_an_empty_result(tmp_path: Path) -> None:
 def test_invalid_regex_and_missing_sheet_field_fail_eagerly(tmp_path: Path) -> None:
     path = tmp_path / "empty.xlsx"
     write_book(path, Sheet("Empty", worksheet()))
-    mask = FilterMask(sheet=None, where=TextCondition(column="Land", op=Operator.REGEX, value="("))
-    with pytest.raises(ValueError, match="Ungültiger Regex"):
+    mask = FilterMask(
+        sheet=None, where=TextCondition(column="Country", op=Operator.REGEX, value="(")
+    )
+    with pytest.raises(ValueError, match="Invalid regex"):
         iter_matching_batches(path, mask)
     with pytest.raises(ValidationError):
-        iter_matching_batches(path, {"where": {"column": "Land", "op": "eq", "value": "DE"}})
+        iter_matching_batches(path, {"where": {"column": "Country", "op": "eq", "value": "DE"}})

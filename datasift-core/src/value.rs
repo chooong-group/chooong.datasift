@@ -39,11 +39,9 @@ impl CellValue {
         if let Ok(integer) = raw.parse::<i64>() {
             return Ok(Self::Integer(integer));
         }
-        let number = raw
-            .parse::<f64>()
-            .map_err(|_| "Ungültiger Excel-Zahlenwert")?;
+        let number = raw.parse::<f64>().map_err(|_| "Invalid Excel number")?;
         if !number.is_finite() {
-            return Err("Nicht-endlicher Excel-Zahlenwert".into());
+            return Err("Nonfinite Excel number".into());
         }
         Ok(Self::Float(number))
     }
@@ -122,11 +120,11 @@ impl CellValue {
                 if let Some(n) = n.as_i64() {
                     Self::Integer(n)
                 } else {
-                    Self::Float(n.as_f64().ok_or("Ungültige Zahl")?)
+                    Self::Float(n.as_f64().ok_or("Invalid number")?)
                 }
             }
             Value::Object(_) => crate::filter::exact_value(value)?,
-            _ => return Err("Standardwert muss ein Skalar sein".into()),
+            _ => return Err("Default value must be a scalar".into()),
         })
     }
 }

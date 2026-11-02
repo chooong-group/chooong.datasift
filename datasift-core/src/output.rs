@@ -73,7 +73,7 @@ fn decimal(value: &str) -> Result<i256, String> {
     for _ in d.scale()..28 {
         n = n
             .checked_mul(i256::from_i128(10))
-            .ok_or("Decimal256 außerhalb Wertebereich")?;
+            .ok_or("Decimal256 out of range")?;
     }
     Ok(n)
 }
@@ -115,46 +115,46 @@ fn parquet_batch(records: &[Record]) -> Result<RecordBatch, String> {
                 }
                 Value::Object(o) => match o.get("type").and_then(Value::as_str) {
                     Some("decimal") => {
-                        dec = Some(decimal(o["value"].as_str().ok_or("Decimal fehlt")?)?)
+                        dec = Some(decimal(o["value"].as_str().ok_or("Missing decimal")?)?)
                     }
                     Some("money") => {
-                        dec = Some(decimal(o["amount"].as_str().ok_or("Betrag fehlt")?)?);
+                        dec = Some(decimal(o["amount"].as_str().ok_or("Missing amount")?)?);
                         currency = o["currency"].as_str();
                     }
                     Some("date") => {
                         let d = chrono::NaiveDate::parse_from_str(
-                            o["value"].as_str().ok_or("Datum fehlt")?,
+                            o["value"].as_str().ok_or("Missing date")?,
                             "%Y-%m-%d",
                         )
-                        .map_err(|_| "Ungültiges Datum")?;
+                        .map_err(|_| "Invalid date")?;
                         date = Some(
                             i32::try_from(
                                 d.signed_duration_since(
                                     chrono::NaiveDate::from_ymd_opt(1970, 1, 1)
-                                        .ok_or("Ungültiges Datum")?,
+                                        .ok_or("Invalid date")?,
                                 )
                                 .num_days(),
                             )
-                            .map_err(|_| "Datumsbereich")?,
+                            .map_err(|_| "Date out of range")?,
                         );
                     }
                     Some("datetime") => {
-                        let text = o["value"].as_str().ok_or("Zeit fehlt")?;
+                        let text = o["value"].as_str().ok_or("Missing time")?;
                         let d = if let Ok(zoned) = chrono::DateTime::parse_from_rfc3339(text) {
                             utc_offset = Some(zoned.offset().local_minus_utc());
                             zoned.with_timezone(&chrono::Utc)
                         } else {
                             chrono::NaiveDateTime::parse_from_str(text, "%Y-%m-%dT%H:%M:%S%.f")
-                                .map_err(|_| "Ungültige Zeit")?
+                                .map_err(|_| "Invalid time")?
                                 .and_utc()
                         };
                         datetime = Some(d.timestamp_micros());
                         nano = Some((d.timestamp_subsec_nanos() % 1000) as i32);
                     }
-                    _ => return Err("Unbekannter Ausgabetyp".into()),
+                    _ => return Err("Unknown output type".into()),
                 },
                 Value::Null => (),
-                _ => return Err("Ungültiger Zellwert".into()),
+                _ => return Err("Invalid cell value".into()),
             }
             texts.push(text);
             ints.push(int);
@@ -167,7 +167,7 @@ fn parquet_batch(records: &[Record]) -> Result<RecordBatch, String> {
             nanos.push(nano);
             utc_offsets.push(utc_offset);
         }
-        offsets.push(i32::try_from(names.len()).map_err(|_| "Ausgabebatch zu groß")?);
+        offsets.push(i32::try_from(names.len()).map_err(|_| "Output batch is too large")?);
     }
     let arrays: Vec<ArrayRef> = vec![
         Arc::new(StringArray::from(names)),
@@ -250,7 +250,7 @@ impl Writer {
             .write(true)
             .create_new(true)
             .open(path)
-            .map_err(|_| "Temporäre Ausgabe kann nicht angelegt werden")?;
+            .map_err(|_| "Cannot create temporary output")?;
         Self::from_file(file, parquet, rejected)
     }
     fn from_file(file: File, parquet: bool, rejected: bool) -> Result<Self, String> {
@@ -271,10 +271,8 @@ impl Writer {
                     } else {
                         serde_json::to_writer(&mut *writer, &record.values)
                     }
-                    .map_err(|_| "NDJSON-Schreibfehler")?;
-                    writer
-                        .write_all(b"\n")
-                        .map_err(|_| "NDJSON-Schreibfehler")?;
+                    .map_err(|_| "NDJSON write failed")?;
+                    writer.write_all(b"\n").map_err(|_| "NDJSON write failed")?;
                 }
             }
             Self::Parquet(writer) => {
@@ -289,14 +287,14 @@ impl Writer {
     fn finish(self) -> Result<File, String> {
         match self {
             Self::Json(mut writer, _) => {
-                writer.flush().map_err(|_| "Flush fehlgeschlagen")?;
-                let file = writer.into_inner().map_err(|_| "Flush fehlgeschlagen")?;
-                file.sync_all().map_err(|_| "fsync fehlgeschlagen")?;
+                writer.flush().map_err(|_| "Flush failed")?;
+                let file = writer.into_inner().map_err(|_| "Flush failed")?;
+                file.sync_all().map_err(|_| "fsync failed")?;
                 Ok(file)
             }
             Self::Parquet(writer) => {
                 let file = writer.into_inner().map_err(|e| e.to_string())?;
-                file.sync_all().map_err(|_| "fsync fehlgeschlagen")?;
+                file.sync_all().map_err(|_| "fsync failed")?;
                 Ok(file)
             }
         }
@@ -306,7 +304,7 @@ fn journal_path(output: &Path) -> Result<PathBuf, String> {
     let name = output
         .file_name()
         .and_then(|s| s.to_str())
-        .ok_or("Ungültiger Ausgabename")?;
+        .ok_or("Invalid output name")?;
     Ok(output.with_file_name(format!(".{name}.datasift-commit.json")))
 }
 fn absolute_output(path: &str) -> Result<PathBuf, String> {
@@ -317,10 +315,10 @@ fn absolute_output(path: &str) -> Result<PathBuf, String> {
         .unwrap_or(Path::new("."));
     let parent = parent
         .canonicalize()
-        .map_err(|_| "Ausgabeverzeichnis existiert nicht")?;
-    let result = parent.join(path.file_name().ok_or("Ausgabename fehlt")?);
+        .map_err(|_| "Output directory does not exist")?;
+    let result = parent.join(path.file_name().ok_or("Missing output name")?);
     if result.is_symlink() {
-        return Err("Ausgabe darf kein Symlink sein".into());
+        return Err("Output must not be a symlink".into());
     }
     Ok(result)
 }
@@ -349,7 +347,7 @@ fn export(
     batch_size: usize,
 ) -> Result<String, String> {
     if !(1..=65536).contains(&batch_size) {
-        return Err("Ungültige Batchgröße".into());
+        return Err("Invalid batch size".into());
     }
     let config = Config::parse(&filter_json)?;
     let output = absolute_output(&output)?;
@@ -363,7 +361,7 @@ fn export(
         .cloned()
         .collect();
     if destinations.len() == 2 && same_file(&destinations[0], &destinations[1]) {
-        return Err("Ausgaben sind Datei-Aliase".into());
+        return Err("Outputs refer to the same file".into());
     }
     let journal_file = journal_path(&output)?;
     let reserved: Vec<_> = destinations
@@ -377,26 +375,26 @@ fn export(
         .chain(std::iter::once(journal_file.clone()))
         .collect();
     if destinations.iter().any(|p| reserved.contains(p)) {
-        return Err("Ausgaben kollidieren mit Commit-/Lock-Metadaten".into());
+        return Err("Outputs conflict with commit/lock metadata".into());
     }
     let transaction = Transaction::new(&destinations)?;
     for destination in std::iter::once(&output).chain(rejected.iter()) {
         for input in &inputs {
             if same_file(input, destination) {
-                return Err("Ausgabe darf keine Eingabe überschreiben".into());
+                return Err("Output must not overwrite an input".into());
             }
         }
     }
     if rejected.as_ref() == Some(&output) {
-        return Err("Ausgabepfade müssen unterschiedlich sein".into());
+        return Err("Output paths must be different".into());
     }
     if journal_file.exists() {
-        return Err("Unabgeschlossener Commit; recover_export ausführen".into());
+        return Err("Incomplete commit; run recover_export".into());
     }
     let mut entries = Vec::new();
     let generation = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|_| "Systemzeit ungültig")?
+        .map_err(|_| "Invalid system time")?
         .as_nanos();
     for (index, destination) in std::iter::once(&output).chain(rejected.iter()).enumerate() {
         let stage = destination.with_file_name(format!(
@@ -404,7 +402,7 @@ fn export(
             destination
                 .file_name()
                 .and_then(|s| s.to_str())
-                .ok_or("Ungültiger Name")?,
+                .ok_or("Invalid name")?,
             std::process::id()
         ));
         entries.push(Entry {
@@ -453,7 +451,10 @@ fn export(
         let mut statistics = None;
         let scan = (|| {
             loop {
-                match receiver.recv().map_err(|_| "Worker unerwartet beendet")? {
+                match receiver
+                    .recv()
+                    .map_err(|_| "Worker terminated unexpectedly")?
+                {
                     Message::Ready(_) => (),
                     Message::Statistics(s) => statistics = Some(s),
                     Message::Records(records) => {
@@ -471,14 +472,14 @@ fn export(
                     }
                     Message::Done => break,
                     Message::Failure(e) => return Err(e),
-                    Message::Batch(_) => return Err("Unerwarteter Ergebnisstrom".into()),
+                    Message::Batch(_) => return Err("Unexpected result stream".into()),
                 }
             }
             Ok(())
         })();
         cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
         drop(receiver);
-        worker.join().map_err(|_| "Worker-Panik")?;
+        worker.join().map_err(|_| "Worker panic")?;
         scan?;
         let mut files = vec![matched.finish()?];
         if let Some(writer) = rejects {
@@ -488,13 +489,13 @@ fn export(
             entry.sha256 = crate::recovery::file_digest(file)?;
         }
         let journal_bytes =
-            serde_json::to_vec(&journal).map_err(|_| "Journal-Serialisierung fehlgeschlagen")?;
+            serde_json::to_vec(&journal).map_err(|_| "Journal serialization failed")?;
         let journal_sha256 = crate::recovery::digest(&journal_bytes);
         transaction.write_journal(&journal_file, &journal_bytes)?;
         transaction
             .commit(&journal, &journal_file, &journal_sha256)
             .map_err(|error| format!("{error}; recovery journal_sha256={journal_sha256}"))?;
-        statistics.ok_or("Statistik fehlt".into())
+        statistics.ok_or("Missing statistics".into())
     })();
     if !transaction.has_journal(&journal_file) {
         transaction.cleanup(&journal);

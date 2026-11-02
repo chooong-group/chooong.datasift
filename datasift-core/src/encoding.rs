@@ -32,7 +32,7 @@ impl<R: Read> Read for StrictDecoder<R> {
         if out.len() < 4 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "Decoder benötigt vier Ausgabebytes",
+                "Decoder requires four output bytes",
             ));
         }
         loop {
@@ -51,7 +51,7 @@ impl<R: Read> Read for StrictDecoder<R> {
                 DecoderResult::Malformed(_, _) => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
-                        "Ungültiges CSV-Encoding",
+                        "Invalid CSV encoding",
                     ))
                 }
                 DecoderResult::InputEmpty if self.eof => self.finished = true,

@@ -50,7 +50,7 @@ def test_journal_recovery_rolls_forward_and_refuses_replay(tmp_path: Path) -> No
     assert matched.read_text() == "new match"
     assert rejected.read_text() == "new reject"
     assert not journal.exists()
-    with pytest.raises(ValueError, match="fehlt"):
+    with pytest.raises(ValueError, match="missing"):
         recover_export(matched, journal_sha256=trusted, rejected_output=rejected)
 
 
@@ -61,7 +61,7 @@ def test_commit_metadata_paths_cannot_be_result_paths(csv_file: Path, tmp_path) 
         tmp_path / ".matched.ndjson.datasift-commit.json",
         tmp_path / ".matched.ndjson.datasift.lock",
     ):
-        with pytest.raises(RuntimeError, match="Metadaten"):
+        with pytest.raises(RuntimeError, match="metadata"):
             export(path, pipeline_mask(), output, rejected_output=rejected)
     assert not output.exists()
 
@@ -86,12 +86,12 @@ def test_recovery_detects_missing_uncommitted_stage_and_tampering(tmp_path) -> N
         )
     )
     trusted = sha256(journal.read_bytes()).hexdigest()
-    with pytest.raises(ValueError, match="überein"):
+    with pytest.raises(ValueError, match="match"):
         recover_export(output, journal_sha256=trusted)
     assert output.read_text() == "old result"
     assert journal.exists()
     stage.write_text("changed result")
-    with pytest.raises(ValueError, match="überein"):
+    with pytest.raises(ValueError, match="match"):
         recover_export(output, journal_sha256=trusted)
     assert output.read_text() == "old result"
     stage.write_text("new result")
@@ -106,9 +106,9 @@ def test_recovery_requires_trusted_digest_and_explicit_destinations(tmp_path: Pa
     payload = json.loads(journal.read_text())
     payload["entries"][0]["destination"] = str(victim)
     journal.write_text(json.dumps(payload))
-    with pytest.raises(ValueError, match="Prüfsumme"):
+    with pytest.raises(ValueError, match="checksum"):
         recover_export(output, journal_sha256=trusted)
-    with pytest.raises(ValueError, match="Zielpfad"):
+    with pytest.raises(ValueError, match="destination path"):
         recover_export(output, journal_sha256=sha256(journal.read_bytes()).hexdigest())
     assert victim.read_bytes() == b"do not overwrite"
     assert output.read_bytes() == b"old"
@@ -124,7 +124,7 @@ def test_recovery_rejects_hardlink_aliases(tmp_path: Path, path_kind: str) -> No
     alias = tmp_path / "alias"
     alias.hardlink_to(selected)
     previous = output.read_bytes()
-    with pytest.raises(ValueError, match="Hardlink"):
+    with pytest.raises(ValueError, match="hard link"):
         recover_export(output, journal_sha256=trusted)
     assert output.read_bytes() == previous
     assert alias.read_bytes() == selected.read_bytes()
@@ -140,7 +140,7 @@ def test_recovery_rejects_symlink_aliases(tmp_path: Path, path_kind: str) -> Non
     selected.replace(victim)
     selected.symlink_to(victim)
     previous = victim.read_bytes()
-    with pytest.raises(ValueError, match="sicherer regulärer Pfad|Symlink"):
+    with pytest.raises(ValueError, match="safe regular path|symlink"):
         recover_export(output, journal_sha256=trusted)
     assert victim.read_bytes() == previous
 
@@ -161,7 +161,7 @@ def test_recovery_requires_confirmation_of_second_destination(tmp_path: Path) ->
     )
     journal.write_text(json.dumps(payload))
     trusted = sha256(journal.read_bytes()).hexdigest()
-    with pytest.raises(ValueError, match="vollständig bestätigt"):
+    with pytest.raises(ValueError, match="fully confirmed"):
         recover_export(output, journal_sha256=trusted)
     assert output.read_bytes() == b"old"
     assert rejected.read_bytes() == b"old rejects"

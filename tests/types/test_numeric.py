@@ -16,16 +16,16 @@ from chooong.datasift import (
 
 def test_boolean_not_treated_as_numeric(xlsx: Path) -> None:
     mask = {
-        "sheet": "Daten",
+        "sheet": "Data",
         "where": {
             "all": [
-                {"column": "Kunde", "op": "eq", "value": "ABC Bool"},
-                {"column": "Umsatz", "op": "gte", "value": 1},
+                {"column": "Customer", "op": "eq", "value": "ABC Bool"},
+                {"column": "Revenue", "op": "gte", "value": 1},
             ]
         },
     }
     assert [dict(row) for row in iter_matching_rows(xlsx, mask)] == []
-    mask["where"]["all"][1] = {"column": "Umsatz", "op": "eq", "value": True}
+    mask["where"]["all"][1] = {"column": "Revenue", "op": "eq", "value": True}
     assert len(list(iter_matching_rows(xlsx, mask))) == 1
 
 

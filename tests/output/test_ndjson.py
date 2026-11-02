@@ -44,7 +44,7 @@ def test_export_preserves_mask_path_and_hardlink_alias(csv_file: Path, tmp_path)
     alias.hardlink_to(mask)
     original = mask.read_bytes()
     for destination in (mask, alias):
-        with pytest.raises(ValueError, match="Filterdatei"):
+        with pytest.raises(ValueError, match="filter file"):
             export(path, mask, destination)
     assert mask.read_bytes() == original
 

@@ -168,8 +168,8 @@ def test_offset_multiline_duplicate_headers_comments_and_neighbor_table(
     layout_workbook(path)
     original = path.read_bytes()
     expected = [
-        {"Kunde": "ABC One", "Umsatz": 120},
-        {"Kunde": "ABC Two", "Umsatz": 200},
+        {"Customer": "ABC One", "Revenue": 120},
+        {"Customer": "ABC Two", "Revenue": 200},
     ]
     assert [
         dict(row) for row in iter_matching_rows(path, source_mask(), batch_size=batch_size)
@@ -183,11 +183,11 @@ def test_neighbor_table_is_selected_independently(tmp_path: Path) -> None:
     path = tmp_path / "neighbor.xlsx"
     layout_workbook(path)
     mask = FilterMask(
-        sheet="Daten",
+        sheet="Data",
         source=TableSource(
             columns=(
-                ColumnBinding(name="Kunde", column="G"),
-                ColumnBinding(name="Umsatz", column="H"),
+                ColumnBinding(name="Customer", column="G"),
+                ColumnBinding(name="Revenue", column="H"),
             ),
             data_start_row=7,
             data_end_row=10,
@@ -196,8 +196,8 @@ def test_neighbor_table_is_selected_independently(tmp_path: Path) -> None:
         where=source_mask().where,
     )
     assert [dict(row) for row in iter_matching_rows(path, mask)] == [
-        {"Kunde": "ABC Right One", "Umsatz": 150},
-        {"Kunde": "ABC Right Two", "Umsatz": 250},
+        {"Customer": "ABC Right One", "Revenue": 150},
+        {"Customer": "ABC Right Two", "Revenue": 250},
     ]
 
 
@@ -205,24 +205,24 @@ def test_end_of_sheet_and_multiple_aliases_for_same_column(tmp_path: Path) -> No
     path = tmp_path / "aliases.xlsx"
     layout_workbook(path)
     mask = FilterMask(
-        sheet="Daten",
+        sheet="Data",
         source=TableSource(
             columns=(
-                ColumnBinding(name="Kunde", column="C"),
+                ColumnBinding(name="Customer", column="C"),
                 ColumnBinding(name="Copy", column="C"),
             ),
             data_start_row=10,
         ),
         where=AllOf(
             conditions=(
-                TextCondition(column="Kunde", op=Operator.STARTS_WITH, value="ABC"),
+                TextCondition(column="Customer", op=Operator.STARTS_WITH, value="ABC"),
                 EmptyCondition(column="Copy", op=Operator.NOT_EMPTY),
             )
         ),
     )
     assert [dict(row) for row in iter_matching_rows(path, mask)] == [
-        {"Kunde": "ABC Two", "Copy": "ABC Two"},
-        {"Kunde": "ABC Footer", "Copy": "ABC Footer"},
+        {"Customer": "ABC Two", "Copy": "ABC Two"},
+        {"Customer": "ABC Footer", "Copy": "ABC Footer"},
     ]
 
 
@@ -263,7 +263,7 @@ def test_source_rejects_conflicting_header_and_unknown_alias(tmp_path: Path) -> 
     path = tmp_path / "unknown.xlsx"
     layout_workbook(path)
     mask = FilterMask(
-        sheet="Daten",
+        sheet="Data",
         source=source_mask().source,
         where=ScalarCondition(column="Unknown", op=Operator.EQ, value="x"),
     )

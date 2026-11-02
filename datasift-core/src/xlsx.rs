@@ -30,11 +30,11 @@ fn validate_depth(event: &Event<'_>, depth: &mut usize) -> Result<(), String> {
         Event::Start(_) => {
             *depth += 1;
             if *depth > 128 {
-                return Err("XML ist zu tief verschachtelt".into());
+                return Err("XML is nested too deeply".into());
             }
         }
-        Event::End(_) => *depth = depth.checked_sub(1).ok_or("Unerwartetes XML-Ende")?,
-        Event::Eof if *depth != 0 => return Err("XML ist unvollständig".into()),
+        Event::End(_) => *depth = depth.checked_sub(1).ok_or("Unexpected XML end")?,
+        Event::Eof if *depth != 0 => return Err("XML is incomplete".into()),
         _ => (),
     }
     Ok(())
@@ -46,11 +46,11 @@ fn xml_tag(name: &[u8]) -> &[u8] {
 
 fn attribute(element: &BytesStart<'_>, wanted: &[u8]) -> Result<Option<String>, String> {
     for item in element.attributes() {
-        let item = item.map_err(|e| format!("Ungültiges XML-Attribut: {e}"))?;
+        let item = item.map_err(|e| format!("Invalid XML attribute: {e}"))?;
         if item.key.as_ref() == wanted {
             return Ok(Some(
                 item.unescape_value()
-                    .map_err(|e| format!("Ungültiger XML-Attributwert: {e}"))?
+                    .map_err(|e| format!("Invalid XML attribute value: {e}"))?
                     .into_owned(),
             ));
         }
@@ -60,7 +60,7 @@ fn attribute(element: &BytesStart<'_>, wanted: &[u8]) -> Result<Option<String>, 
 
 fn append_text(target: &mut String, content: &str) -> Result<(), String> {
     if target.len().saturating_add(content.len()) > MAX_CELL_TEXT_BYTES {
-        return Err("Eine Excel-Zelle enthält mehr als 2 MiB Text".into());
+        return Err("An Excel cell contains more than 2 MiB of text".into());
     }
     target.push_str(content);
     Ok(())
@@ -76,19 +76,19 @@ fn append_reference(target: &mut String, reference: &[u8]) -> Result<(), String>
         "apos" => '\'',
         name if name.starts_with("#x") || name.starts_with("#X") => {
             let value = u32::from_str_radix(&name[2..], 16)
-                .map_err(|_| format!("Ungültige XML-Referenz: {name}"))?;
-            char::from_u32(value).ok_or_else(|| format!("Ungültiger Codepoint: {name}"))?
+                .map_err(|_| format!("Invalid XML reference: {name}"))?;
+            char::from_u32(value).ok_or_else(|| format!("Invalid code point: {name}"))?
         }
         name if name.starts_with('#') => {
             let value = name[1..]
                 .parse::<u32>()
-                .map_err(|_| format!("Ungültige XML-Referenz: {name}"))?;
-            char::from_u32(value).ok_or_else(|| format!("Ungültiger Codepoint: {name}"))?
+                .map_err(|_| format!("Invalid XML reference: {name}"))?;
+            char::from_u32(value).ok_or_else(|| format!("Invalid code point: {name}"))?
         }
-        _ => return Err(format!("Nicht unterstützte XML-Entity: &{name};")),
+        _ => return Err(format!("Unsupported XML entity: &{name};")),
     };
     if target.len().saturating_add(replacement.len_utf8()) > MAX_CELL_TEXT_BYTES {
-        return Err("Eine Excel-Zelle enthält mehr als 2 MiB Text".into());
+        return Err("An Excel cell contains more than 2 MiB of text".into());
     }
     target.push(replacement);
     Ok(())
@@ -101,7 +101,7 @@ fn validate_declaration(event: &quick_xml::events::BytesDecl<'_>) -> Result<(), 
             && !encoding.as_ref().eq_ignore_ascii_case(b"utf8")
         {
             return Err(format!(
-                "XML-Encoding {:?} wird nicht unterstützt (nur UTF-8)",
+                "XML encoding {:?} is not supported (UTF-8 only)",
                 String::from_utf8_lossy(encoding.as_ref())
             ));
         }
@@ -112,29 +112,25 @@ fn validate_declaration(event: &quick_xml::events::BytesDecl<'_>) -> Result<(), 
 fn xml_part(archive: &mut ZipArchive<File>, name: &str, limit: u64) -> Result<Vec<u8>, String> {
     let mut member = archive
         .by_name(name)
-        .map_err(|e| format!("Fehlender XLSX-Bestandteil {name:?}: {e}"))?;
+        .map_err(|e| format!("Missing XLSX part {name:?}: {e}"))?;
     if member.size() > limit {
-        return Err(format!(
-            "XLSX-Bestandteil {name:?} überschreitet das Größenlimit"
-        ));
+        return Err(format!("XLSX part {name:?} exceeds the size limit"));
     }
     let mut bytes = Vec::new();
     member
         .by_ref()
         .take(limit + 1)
         .read_to_end(&mut bytes)
-        .map_err(|e| format!("Fehler beim Entpacken von {name:?}: {e}"))?;
+        .map_err(|e| format!("Error decompressing {name:?}: {e}"))?;
     if bytes.len() as u64 > limit {
-        return Err(format!(
-            "XLSX-Bestandteil {name:?} überschreitet das Größenlimit"
-        ));
+        return Err(format!("XLSX part {name:?} exceeds the size limit"));
     }
     Ok(bytes)
 }
 
 fn safe_target(base: &str, target: &str) -> Result<String, String> {
     if target.contains('\\') || target.contains(':') || target.contains('\0') {
-        return Err("Ungültiger oder externer XLSX-Zielpfad".into());
+        return Err("Invalid or external XLSX target path".into());
     }
     let unnormalized = if let Some(target) = target.strip_prefix('/') {
         target.to_string()
@@ -147,14 +143,14 @@ fn safe_target(base: &str, target: &str) -> Result<String, String> {
             "" | "." => (),
             ".." => {
                 if segments.pop().is_none() {
-                    return Err("XLSX-Pfad darf nicht aus dem Archiv ausbrechen".into());
+                    return Err("XLSX path must not escape the archive".into());
                 }
             }
             value => segments.push(value),
         }
     }
     if segments.is_empty() || segments.contains(&"..") {
-        return Err("Ungültiger XLSX-Pfad".into());
+        return Err("Invalid XLSX path".into());
     }
     Ok(segments.join("/"))
 }
@@ -191,7 +187,7 @@ fn workbook_paths(
                 if let Some(name) = attribute(e, b"name")? {
                     if sheet.is_none_or(|selected| name == selected) {
                         relationship_ids
-                            .push(attribute(e, b"r:id")?.ok_or("Arbeitsblatt ohne r:id")?);
+                            .push(attribute(e, b"r:id")?.ok_or("Worksheet without r:id")?);
                     }
                     if let Some(id) = attribute(e, b"r:id")? {
                         sheet_names.insert(id, name.clone());
@@ -206,7 +202,7 @@ fn workbook_paths(
                     attribute(e, b"date1904")?.is_some_and(|s| matches!(s.as_str(), "1" | "true"));
             }
             Event::Decl(ref e) => validate_declaration(e)?,
-            Event::DocType(_) => return Err("DTD ist in XLSX nicht erlaubt".into()),
+            Event::DocType(_) => return Err("DTD is not allowed in XLSX".into()),
             Event::Eof => break,
             _ => (),
         }
@@ -214,7 +210,7 @@ fn workbook_paths(
     }
     if sheet.is_some() && relationship_ids.is_empty() {
         return Err(format!(
-            "Arbeitsblatt {sheet:?} nicht vorhanden. Verfügbar: {available:?}"
+            "Worksheet {sheet:?} does not exist. Available: {available:?}"
         ));
     }
     let selected_ids: HashSet<&str> = relationship_ids.iter().map(String::as_str).collect();
@@ -246,7 +242,7 @@ fn workbook_paths(
                 let target_mode = attribute(e, b"TargetMode")?;
                 if target_mode.as_deref() == Some("External") {
                     if id.as_deref().is_some_and(|id| selected_ids.contains(id)) {
-                        return Err("Externes Arbeitsblatt wird nicht unterstützt".into());
+                        return Err("External worksheet is not supported".into());
                     }
                     continue;
                 }
@@ -254,12 +250,12 @@ fn workbook_paths(
                     let worksheet = if kind.ends_with("/worksheet") {
                         Some(safe_target("xl/", &target)?)
                     } else if sheet.is_some() {
-                        return Err("Die Tabellen-Relation ist kein worksheet".into());
+                        return Err("The sheet relationship is not a worksheet".into());
                     } else {
                         None // Chartsheets have no worksheet rows to search.
                     };
                     if by_id.insert(id, worksheet).is_some() {
-                        return Err("Doppelte Workbook-Relation".into());
+                        return Err("Duplicate workbook relationship".into());
                     }
                 }
                 if kind.ends_with("/styles") {
@@ -270,7 +266,7 @@ fn workbook_paths(
                 }
             }
             Event::Decl(ref e) => validate_declaration(e)?,
-            Event::DocType(_) => return Err("DTD ist in XLSX nicht erlaubt".into()),
+            Event::DocType(_) => return Err("DTD is not allowed in XLSX".into()),
             Event::Eof => break,
             _ => (),
         }
@@ -279,10 +275,7 @@ fn workbook_paths(
     let mut worksheets = Vec::new();
     let mut names = HashMap::new();
     for id in &relationship_ids {
-        if let Some(path) = by_id
-            .remove(id)
-            .ok_or("Worksheet-Relation nicht gefunden")?
-        {
+        if let Some(path) = by_id.remove(id).ok_or("Worksheet relationship not found")? {
             names.insert(
                 path.clone(),
                 sheet_names.get(id).cloned().unwrap_or_default(),
@@ -307,10 +300,10 @@ fn load_shared_strings(
     let member = match archive.by_name(name) {
         Ok(member) => member,
         Err(zip::result::ZipError::FileNotFound) if path.is_none() => return Ok(Vec::new()),
-        Err(err) => return Err(format!("sharedStrings.xml nicht lesbar: {err}")),
+        Err(err) => return Err(format!("Cannot read sharedStrings.xml: {err}")),
     };
     if member.size() > MAX_SHARED_STRINGS_BYTES {
-        return Err("sharedStrings.xml überschreitet 512 MiB (RAM-Schutz)".into());
+        return Err("sharedStrings.xml exceeds 512 MiB (memory limit)".into());
     }
     let mut reader = Reader::from_reader(BufReader::new(member));
     let mut buf = Vec::new();
@@ -323,7 +316,7 @@ fn load_shared_strings(
 
     loop {
         if reader.buffer_position() > MAX_SHARED_STRINGS_BYTES {
-            return Err("sharedStrings XML überschreitet 512 MiB (RAM-Schutz)".into());
+            return Err("sharedStrings XML exceeds 512 MiB (memory limit)".into());
         }
         let event = reader
             .read_event_into(&mut buf)
@@ -359,10 +352,10 @@ fn load_shared_strings(
             }
             Event::GeneralRef(ref e) if in_t => append_reference(&mut current, e.as_ref())?,
             Event::Decl(ref e) => validate_declaration(e)?,
-            Event::DocType(_) => return Err("DTD ist in XLSX nicht erlaubt".into()),
+            Event::DocType(_) => return Err("DTD is not allowed in XLSX".into()),
             Event::Eof => {
                 if in_si {
-                    return Err("sharedStrings.xml endet innerhalb eines <si>".into());
+                    return Err("sharedStrings.xml ends inside an <si>".into());
                 }
                 break;
             }
@@ -380,7 +373,7 @@ fn column_from_cell_reference(reference: &str) -> Result<usize, String> {
         .take_while(|byte| byte.is_ascii_alphabetic())
         .count();
     if letters == 0 || letters == bytes.len() || !bytes[letters..].iter().all(u8::is_ascii_digit) {
-        return Err(format!("Ungültige Zellreferenz: {reference:?}"));
+        return Err(format!("Invalid cell reference: {reference:?}"));
     }
     column_index(&reference[..letters].to_ascii_uppercase())
 }
@@ -460,12 +453,12 @@ pub(crate) fn finish_cell(
             if raw.is_empty() {
                 return Ok(CellValue::Empty);
             }
-            let idx: usize = raw.parse().map_err(|_| "Ungültiger Shared-String-Index")?;
+            let idx: usize = raw.parse().map_err(|_| "Invalid shared string index")?;
             strings
                 .get(idx)
                 .cloned()
                 .map(CellValue::Text)
-                .ok_or_else(|| format!("Shared-String-Index {idx} ist nicht vorhanden"))
+                .ok_or_else(|| format!("Shared string index {idx} does not exist"))
         }
         "d" => Ok(if value.is_empty() {
             CellValue::Empty
@@ -483,10 +476,10 @@ pub(crate) fn finish_cell(
             "1" | "true" => Ok(CellValue::Bool(true)),
             "0" | "false" => Ok(CellValue::Bool(false)),
             "" => Ok(CellValue::Empty),
-            _ => Err(format!("Ungültiger Bool-Wert {raw:?}")),
+            _ => Err(format!("Invalid boolean value {raw:?}")),
         },
         "" | "n" => CellValue::number(raw),
-        other => Err(format!("Nicht unterstützter Excel-Zelltyp {other:?}")),
+        other => Err(format!("Unsupported Excel cell type {other:?}")),
     }
 }
 
@@ -505,7 +498,7 @@ fn load_styles(archive: &mut ZipArchive<File>, path: Option<&str>) -> Result<Vec
     loop {
         let e = reader
             .read_event_into(&mut buf)
-            .map_err(|_| "Ungültiges styles.xml")?;
+            .map_err(|_| "Invalid styles.xml")?;
         validate_depth(&e, &mut depth)?;
         match e {
             Event::Start(ref e) if xml_tag(e.name().as_ref()) == b"cellXfs" => in_xfs = true,
@@ -537,7 +530,7 @@ fn load_styles(archive: &mut ZipArchive<File>, path: Option<&str>) -> Result<Vec
                         .unwrap_or_else(|| builtin.to_owned()),
                 );
             }
-            Event::DocType(_) => return Err("DTD nicht erlaubt".into()),
+            Event::DocType(_) => return Err("DTD is not allowed".into()),
             Event::Decl(ref e) => validate_declaration(e)?,
             Event::Eof => break,
             _ => (),
@@ -547,7 +540,9 @@ fn load_styles(archive: &mut ZipArchive<File>, path: Option<&str>) -> Result<Vec
     Ok(styles)
 }
 fn load_merges(archive: &mut ZipArchive<File>, worksheet: &str) -> Result<Vec<Merge>, String> {
-    let member = archive.by_name(worksheet).map_err(|_| "Worksheet fehlt")?;
+    let member = archive
+        .by_name(worksheet)
+        .map_err(|_| "Missing worksheet")?;
     let mut reader = Reader::from_reader(BufReader::new(member));
     let mut buf = Vec::new();
     let mut result = Vec::new();
@@ -555,21 +550,21 @@ fn load_merges(archive: &mut ZipArchive<File>, worksheet: &str) -> Result<Vec<Me
     loop {
         let e = reader
             .read_event_into(&mut buf)
-            .map_err(|_| "Ungültiges Tabellen-XML")?;
+            .map_err(|_| "Invalid worksheet XML")?;
         validate_depth(&e, &mut depth)?;
         match e {
             Event::Empty(ref e) | Event::Start(ref e)
                 if xml_tag(e.name().as_ref()) == b"mergeCell" =>
             {
                 if result.len() >= 16384 {
-                    return Err("Zu viele verbundene Bereiche".into());
+                    return Err("Too many merged ranges".into());
                 }
-                let reference = attribute(e, b"ref")?.ok_or("Merge ohne ref")?;
-                let (first, last) = reference.split_once(':').ok_or("Ungültiger Merge")?;
+                let reference = attribute(e, b"ref")?.ok_or("Merge without ref")?;
+                let (first, last) = reference.split_once(':').ok_or("Invalid merge")?;
                 fn row(s: &str) -> Result<u32, String> {
                     s.trim_start_matches(|c: char| c.is_ascii_uppercase())
                         .parse()
-                        .map_err(|_| "Ungültige Merge-Zeile".into())
+                        .map_err(|_| "Invalid merge row".into())
                 }
                 let m = Merge {
                     first_col: column_from_cell_reference(first)?,
@@ -578,12 +573,12 @@ fn load_merges(archive: &mut ZipArchive<File>, worksheet: &str) -> Result<Vec<Me
                     last_row: row(last)?,
                 };
                 if m.first_col > m.last_col || m.first_row > m.last_row || m.last_row > MAX_ROWS {
-                    return Err("Ungültiger Merge-Bereich".into());
+                    return Err("Invalid merged range".into());
                 }
                 result.push(m);
             }
             Event::Eof => break,
-            Event::DocType(_) => return Err("DTD nicht erlaubt".into()),
+            Event::DocType(_) => return Err("DTD is not allowed".into()),
             _ => (),
         }
         buf.clear();
@@ -604,15 +599,15 @@ pub fn scan(
     rejects: bool,
     stats: &mut Statistics,
 ) -> Result<(), String> {
-    let input = File::open(path).map_err(|e| format!("Kann XLSX nicht öffnen: {e}"))?;
-    let mut archive = ZipArchive::new(input).map_err(|e| format!("Ungültiges XLSX/ZIP: {e}"))?;
+    let input = File::open(path).map_err(|e| format!("Cannot open XLSX: {e}"))?;
+    let mut archive = ZipArchive::new(input).map_err(|e| format!("Invalid XLSX/ZIP: {e}"))?;
     let paths = workbook_paths(&mut archive, config.sheet.as_deref())?;
     let styles = load_styles(&mut archive, paths.styles.as_deref())?;
     let shared = load_shared_strings(&mut archive, paths.shared_strings.as_deref())?;
     if config.sheet.is_none() {
         sender
             .send(Message::Ready(Vec::new()))
-            .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
+            .map_err(|_| "The Python consumer was closed".to_string())?;
     }
     for worksheet in paths.worksheets {
         if cancelled.load(Ordering::Relaxed) {
@@ -664,7 +659,7 @@ fn scan_worksheet(
 ) -> Result<(), String> {
     let member = archive
         .by_name(worksheet)
-        .map_err(|e| format!("Arbeitsblatt-XML {worksheet:?} fehlt: {e}"))?;
+        .map_err(|e| format!("Missing worksheet XML {worksheet:?}: {e}"))?;
     let mut reader = Reader::from_reader(BufReader::with_capacity(128 * 1024, member));
     let mut buf = Vec::new();
     let mut depth = 0_usize;
@@ -691,7 +686,7 @@ fn scan_worksheet(
         }
         let event = reader.read_event_into(&mut buf).map_err(|e| {
             format!(
-                "Ungültiges Tabellen-XML (Byte {}): {e}",
+                "Invalid worksheet XML (Byte {}): {e}",
                 reader.error_position()
             )
         })?;
@@ -701,16 +696,16 @@ fn scan_worksheet(
                 b"sheetData" => in_sheet_data = true,
                 b"row" if in_sheet_data => {
                     if in_row {
-                        return Err("Verschachtelte <row>-Elemente".into());
+                        return Err("Nested <row> elements".into());
                     }
                     row_num = match attribute(e, b"r")? {
                         Some(value) => value
                             .parse::<u32>()
-                            .map_err(|_| "Ungültige Excel-Zeilennummer")?,
-                        None => last_row.checked_add(1).ok_or("Zu viele Excel-Zeilen")?,
+                            .map_err(|_| "Invalid Excel row number")?,
+                        None => last_row.checked_add(1).ok_or("Too many Excel rows")?,
                     };
                     if row_num <= last_row || row_num > MAX_ROWS {
-                        return Err(format!("Ungültige oder unsortierte Excel-Zeile {row_num}"));
+                        return Err(format!("Invalid or unsorted Excel row {row_num}"));
                     }
                     in_row = true;
                     row.clear();
@@ -718,15 +713,15 @@ fn scan_worksheet(
                 }
                 b"c" if in_row => {
                     if in_cell {
-                        return Err("Verschachtelte <c>-Elemente".into());
+                        return Err("Nested <c> elements".into());
                     }
                     start_cell(e, row_num, next_cell_col, &mut cell_col, &mut cell_kind)?;
                     if cell_col < next_cell_col {
-                        return Err("Doppelte oder unsortierte Zellen in einer Excel-Zeile".into());
+                        return Err("Duplicate or unsorted cells in an Excel row".into());
                     }
                     next_cell_col = cell_col + 1;
                     style = attribute(e, b"s")?
-                        .map(|s| s.parse::<usize>().map_err(|_| "Ungültiger Zellstil"))
+                        .map(|s| s.parse::<usize>().map_err(|_| "Invalid cell style"))
                         .transpose()?
                         .unwrap_or(0);
                     raw_value.clear();
@@ -744,11 +739,11 @@ fn scan_worksheet(
             Event::Empty(ref e) => match xml_tag(e.name().as_ref()) {
                 b"row" if in_sheet_data => {
                     let number: u32 = match attribute(e, b"r")? {
-                        Some(value) => value.parse().map_err(|_| "Ungültige Excel-Zeilennummer")?,
-                        None => last_row.checked_add(1).ok_or("Zu viele Excel-Zeilen")?,
+                        Some(value) => value.parse().map_err(|_| "Invalid Excel row number")?,
+                        None => last_row.checked_add(1).ok_or("Too many Excel rows")?,
                     };
                     if number <= last_row || number > MAX_ROWS {
-                        return Err("Ungültige leere Excel-Zeile".into());
+                        return Err("Invalid empty Excel row".into());
                     }
                     sink.on_row(number, Vec::new())?;
                     last_row = number;
@@ -756,7 +751,7 @@ fn scan_worksheet(
                 b"c" if in_row => {
                     start_cell(e, row_num, next_cell_col, &mut cell_col, &mut cell_kind)?;
                     if cell_col < next_cell_col {
-                        return Err("Unsortierte Excel-Zelle".into());
+                        return Err("Unsorted Excel cell".into());
                     }
                     next_cell_col = cell_col + 1;
                     if sink.selects_cell(row_num, cell_col) {
@@ -810,7 +805,7 @@ fn scan_worksheet(
                             shared,
                         )
                         .map_err(|error| {
-                            format!("Excel-Zeile {row_num}, Spalte {}: {error}", cell_col + 1)
+                            format!("Excel row {row_num}, column {}: {error}", cell_col + 1)
                         })?
                     {
                         put_cell(&mut row, cell_col, value)?;
@@ -820,7 +815,7 @@ fn scan_worksheet(
                 }
                 b"row" if in_row => {
                     if in_cell {
-                        return Err("Nicht geschlossene Excel-Zelle".into());
+                        return Err("Unclosed Excel cell".into());
                     }
                     sink.on_row(row_num, std::mem::take(&mut row))?;
                     last_row = row_num;
@@ -830,16 +825,15 @@ fn scan_worksheet(
                 _ => (),
             },
             Event::Decl(ref e) => validate_declaration(e)?,
-            Event::DocType(_) => return Err("DTD ist in XLSX nicht erlaubt".into()),
+            Event::DocType(_) => return Err("DTD is not allowed in XLSX".into()),
             Event::Eof => {
                 if in_row || in_cell {
-                    return Err("Tabellen-XML ist unvollständig".into());
+                    return Err("Worksheet XML is incomplete".into());
                 }
                 sink.finish()?;
                 if !sink.has_headers() && sink.config.sheet.is_some() && !sink.stats.schema_errors {
                     return Err(
-                        "Keine Kopfzeile mit allen Maskenspalten gefunden (Unbekannte Spalte)"
-                            .into(),
+                        "No header containing all mask columns found (Unknown column)".into(),
                     );
                 }
                 return Ok(());
@@ -874,10 +868,10 @@ fn start_cell(
                 .count();
             let cell_row = reference[digit_start..]
                 .parse::<u32>()
-                .map_err(|_| "Ungültige Zell-Zeilennummer")?;
+                .map_err(|_| "Invalid cell row number")?;
             if cell_row != expected_row {
                 return Err(format!(
-                    "Zellreferenz {reference:?} liegt nicht in Excel-Zeile {expected_row}"
+                    "Cell reference {reference:?} is not in Excel row {expected_row}"
                 ));
             }
             index
@@ -885,7 +879,7 @@ fn start_cell(
         None => next_col,
     };
     if *col >= MAX_COLS {
-        return Err("Mehr als 16384 Spalten in einer Excel-Zeile".into());
+        return Err("More than 16384 columns in an Excel row".into());
     }
     *kind = attribute(e, b"t")?.unwrap_or_else(|| "n".into());
     Ok(())
@@ -896,7 +890,7 @@ fn put_cell(row: &mut Vec<CellValue>, col: usize, value: CellValue) -> Result<()
         row.resize(col + 1, CellValue::Empty);
     }
     if row[col] != CellValue::Empty {
-        return Err("Doppelte Excel-Zelle".into());
+        return Err("Duplicate Excel cell".into());
     }
     row[col] = value;
     Ok(())

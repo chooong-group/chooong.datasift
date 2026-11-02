@@ -16,29 +16,29 @@ from tests.fixtures.excel import make_workbook
 @pytest.mark.parametrize(
     ("column", "op", "value", "expected"),
     [
-        ("Land", "eq", "AT", ["XYZ AG"]),
-        ("Land", "ne", "DE", ["XYZ AG"]),
-        ("Status", "in", ["Offen", "Inaktiv"], ["ABC Hamburg", "ABC & Söhne"]),
-        ("Umsatz", "gt", 3200, ["ABC GmbH", "XYZ AG"]),
-        ("Umsatz", "gte", 3200, ["ABC GmbH", "XYZ AG", "ABC München"]),
-        ("Umsatz", "lt", 2500, ["ABC Berlin", "ABC & Söhne"]),
-        ("Umsatz", "lte", 2500, ["ABC Berlin", "ABC Hamburg", "ABC & Söhne"]),
-        ("Kunde", "contains", "&", ["ABC & Söhne"]),
-        ("Kunde", "starts_with", "XYZ", ["XYZ AG"]),
-        ("Kunde", "ends_with", "AG", ["XYZ AG"]),
-        ("Kunde", "regex", "^XYZ.*", ["XYZ AG"]),
-        ("Umsatz", "is_empty", None, ["ABC Leer"]),
+        ("Country", "eq", "AT", ["XYZ Inc"]),
+        ("Country", "ne", "DE", ["XYZ Inc"]),
+        ("Status", "in", ["Open", "Inactive"], ["ABC Hamburg", "ABC & Sons"]),
+        ("Revenue", "gt", 3200, ["ABC Ltd", "XYZ Inc"]),
+        ("Revenue", "gte", 3200, ["ABC Ltd", "XYZ Inc", "ABC São Paulo"]),
+        ("Revenue", "lt", 2500, ["ABC Berlin", "ABC & Sons"]),
+        ("Revenue", "lte", 2500, ["ABC Berlin", "ABC Hamburg", "ABC & Sons"]),
+        ("Customer", "contains", "&", ["ABC & Sons"]),
+        ("Customer", "starts_with", "XYZ", ["XYZ Inc"]),
+        ("Customer", "ends_with", "Inc", ["XYZ Inc"]),
+        ("Customer", "regex", "^XYZ.*", ["XYZ Inc"]),
+        ("Revenue", "is_empty", None, ["ABC Empty"]),
         (
-            "Umsatz",
+            "Revenue",
             "not_empty",
             None,
             [
-                "ABC GmbH",
-                "XYZ AG",
+                "ABC Ltd",
+                "XYZ Inc",
                 "ABC Berlin",
-                "ABC München",
+                "ABC São Paulo",
                 "ABC Hamburg",
-                "ABC & Söhne",
+                "ABC & Sons",
                 "ABC Bool",
             ],
         ),
@@ -58,39 +58,39 @@ def test_operator_wire_contract_against_native_engine(
         condition["value"] = value
     rows = iter_matching_rows(
         path,
-        {"sheet": "Daten", "where": {"all": [condition, {"column": "Kunde", "op": "not_empty"}]}},
+        {"sheet": "Data", "where": {"all": [condition, {"column": "Customer", "op": "not_empty"}]}},
     )
-    assert [row["Kunde"] for row in rows] == expected
+    assert [row["Customer"] for row in rows] == expected
 
 
 def test_streamed_filter_with_nested_json(xlsx: Path, mask: dict) -> None:
     actual = list(iter_matching_rows(xlsx, mask, batch_size=1))
-    assert [row["Kunde"] for row in actual] == ["ABC GmbH", "ABC München", "ABC & Söhne"]
-    assert [row["Umsatz"] for row in actual] == [5000, 3200, 1800]
-    assert all(row["Land"] == "DE" for row in actual)
+    assert [row["Customer"] for row in actual] == ["ABC Ltd", "ABC São Paulo", "ABC & Sons"]
+    assert [row["Revenue"] for row in actual] == [5000, 3200, 1800]
+    assert all(row["Country"] == "DE" for row in actual)
 
 
 def test_regex_and_not_and_bool_types(xlsx: Path) -> None:
     mask = {
-        "sheet": "Daten",
+        "sheet": "Data",
         "where": {
             "all": [
-                {"column": "Kunde", "op": "regex", "value": "(?i)^abc.*"},
-                {"not": {"column": "Status", "op": "eq", "value": "Inaktiv"}},
-                {"column": "Umsatz", "op": "lt", "value": 2000},
+                {"column": "Customer", "op": "regex", "value": "(?i)^abc.*"},
+                {"not": {"column": "Status", "op": "eq", "value": "Inactive"}},
+                {"column": "Revenue", "op": "lt", "value": 2000},
             ]
         },
     }
-    assert [r["Kunde"] for r in iter_matching_rows(xlsx, mask)] == ["ABC Berlin", "ABC & Söhne"]
+    assert [r["Customer"] for r in iter_matching_rows(xlsx, mask)] == ["ABC Berlin", "ABC & Sons"]
 
 
 def test_in_and_missing_value(xlsx: Path) -> None:
     mask = {
-        "sheet": "Daten",
+        "sheet": "Data",
         "where": {
             "all": [
-                {"column": "Status", "op": "in", "value": ["Offen", "Inaktiv"]},
-                {"column": "Kunde", "op": "not_empty"},
+                {"column": "Status", "op": "in", "value": ["Open", "Inactive"]},
+                {"column": "Customer", "op": "not_empty"},
             ]
         },
     }
@@ -99,16 +99,16 @@ def test_in_and_missing_value(xlsx: Path) -> None:
 
 def test_sparse_empty_and_null_comparisons(xlsx: Path) -> None:
     mask = {
-        "sheet": "Daten",
+        "sheet": "Data",
         "where": {
             "all": [
-                {"column": "Kunde", "op": "eq", "value": "ABC Leer"},
-                {"column": "Umsatz", "op": "is_empty"},
+                {"column": "Customer", "op": "eq", "value": "ABC Empty"},
+                {"column": "Revenue", "op": "is_empty"},
             ]
         },
     }
     assert [dict(row) for row in iter_matching_rows(xlsx, mask)] == [
-        {"Kunde": "ABC Leer", "Umsatz": None}
+        {"Customer": "ABC Empty", "Revenue": None}
     ]
-    mask["where"]["all"][1] = {"column": "Umsatz", "op": "eq", "value": None}
+    mask["where"]["all"][1] = {"column": "Revenue", "op": "eq", "value": None}
     assert len(list(iter_matching_rows(xlsx, mask))) == 1

@@ -137,9 +137,9 @@ def scan_batches(
 
 def _validate_batch_size(batch_size: int) -> None:
     if isinstance(batch_size, bool) or not isinstance(batch_size, int):
-        raise ValueError("batch_size muss eine Ganzzahl sein")
+        raise ValueError("batch_size must be an integer")
     if not 1 <= batch_size <= MAX_BATCH_SIZE:
-        raise ValueError("batch_size muss zwischen 1 und 65536 liegen")
+        raise ValueError("batch_size must be between 1 and 65536")
 
 
 def export(
@@ -188,4 +188,4 @@ def _validate_mask_outputs(mask: MaskInput, destinations: tuple[str | Path | Non
         if path.resolve() == source.resolve() or (
             path.exists() and source.exists() and path.samefile(source)
         ):
-            raise ValueError("Ausgabe darf die Filterdatei nicht überschreiben")
+            raise ValueError("Output must not overwrite the filter file")

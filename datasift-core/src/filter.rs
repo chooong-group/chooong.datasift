@@ -115,7 +115,7 @@ impl TableSource {
             .transpose()?
             .unwrap_or(16383);
         if first > last {
-            return Err("first_column liegt hinter last_column".into());
+            return Err("first_column is after last_column".into());
         }
         Ok((first, last))
     }
@@ -133,9 +133,7 @@ impl TableSource {
             .iter()
             .map(|binding| {
                 if binding.name.trim().is_empty() || !names.insert(binding.name.clone()) {
-                    return Err(
-                        "Ausgabenamen in source.columns müssen nichtleer und eindeutig sein".into(),
-                    );
+                    return Err("Output names in source.columns must be nonempty and unique".into());
                 }
                 Ok((binding.name.clone(), column_index(&binding.column)?))
             })
@@ -161,7 +159,7 @@ impl TableSource {
                 .iter()
                 .any(|row| *row < self.data_start_row || *row > end)
         {
-            return Err("Ungültiger Datenbereich in source".into());
+            return Err("Invalid data range in source".into());
         }
         self.column_bounds()?;
         if self.explicit() {
@@ -173,14 +171,14 @@ impl TableSource {
 
 pub fn column_index(column: &str) -> Result<usize, String> {
     if column.is_empty() || column.len() > 3 || !column.bytes().all(|b| b.is_ascii_uppercase()) {
-        return Err("Excel-Spalte muss zwischen A und XFD liegen".into());
+        return Err("Excel column must be between A and XFD".into());
     }
     let mut number = 0_usize;
     for letter in column.bytes() {
         number = number * 26 + usize::from(letter - b'A' + 1);
     }
     if number > 16_384 {
-        return Err("Excel-Spalte muss zwischen A und XFD liegen".into());
+        return Err("Excel column must be between A and XFD".into());
     }
     Ok(number - 1)
 }
@@ -193,7 +191,7 @@ impl Config {
             .as_ref()
             .is_some_and(|sheet| sheet.trim().is_empty())
         {
-            return Err("'sheet' darf nicht leer sein".into());
+            return Err("'sheet' must not be empty".into());
         }
         if let Some(source) = &spec.source {
             source.validate()?;
@@ -206,21 +204,21 @@ impl Config {
             if source.header_start_row.is_some()
                 && source.header_rows(spec.rules.header.rows).end > source.data_start_row
             {
-                return Err("Header reicht in Datenbereich".into());
+                return Err("Header extends into the data range".into());
             }
         }
         if spec.source.is_some() && spec.sources.is_some() {
-            return Err("source und sources sind gegenseitig ausgeschlossen".into());
+            return Err("source and sources are mutually exclusive".into());
         }
         if let Some(sources) = &spec.sources {
             if sources.is_empty() {
-                return Err("sources darf nicht leer sein".into());
+                return Err("sources must not be empty".into());
             }
             let mut names = HashSet::new();
             for source in sources {
                 source.validate()?;
                 if source.name.as_ref().is_some_and(|n| !names.insert(n)) {
-                    return Err("Quellnamen müssen eindeutig sein".into());
+                    return Err("Source names must be unique".into());
                 }
                 if let Some(rules) = &source.rules {
                     rules.validate()?;
@@ -231,10 +229,10 @@ impl Config {
             || spec.csv.quote.len() != 1
             || spec.csv.delimiter == spec.csv.quote
         {
-            return Err("CSV delimiter/quote müssen unterschiedliche ASCII-Zeichen sein".into());
+            return Err("CSV delimiter/quote must be different ASCII characters".into());
         }
         if encoding_rs::Encoding::for_label(spec.csv.encoding.as_bytes()).is_none() {
-            return Err("Unbekanntes CSV-Encoding".into());
+            return Err("Unknown CSV encoding".into());
         }
         spec.required_columns = if spec.rules.header.anchors.is_empty() {
             spec.rules
@@ -259,12 +257,12 @@ impl Config {
 
 pub fn compile_regex(pattern: &str) -> Result<Regex, String> {
     if pattern.len() > 4096 {
-        return Err("Regex darf maximal 4096 Bytes lang sein".into());
+        return Err("Regex must not exceed 4096 bytes".into());
     }
     RegexBuilder::new(pattern)
         .size_limit(8 * 1024 * 1024)
         .build()
-        .map_err(|e| format!("Ungültiger Regex: {e}"))
+        .map_err(|e| format!("Invalid regex: {e}"))
 }
 
 pub(crate) fn referenced_columns(predicate: &Json) -> HashSet<String> {
@@ -326,28 +324,33 @@ fn numeric(json: &Json, op: &str) -> Result<Json, String> {
     if json.is_number() || exact_value(json).is_ok() {
         Ok(json.clone())
     } else {
-        Err(format!("'{op}' erwartet eine Zahl oder einen exakten Wert"))
+        Err(format!("'{op}' expects a number or an exact value"))
     }
 }
 
 pub(crate) fn exact_value(json: &Json) -> Result<CellValue, String> {
-    let obj = json.as_object().ok_or("Exaktes Objekt erwartet")?;
-    let tag = obj.get("type").and_then(Json::as_str).ok_or("type fehlt")?;
+    let obj = json.as_object().ok_or("Expected an exact object")?;
+    let tag = obj
+        .get("type")
+        .and_then(Json::as_str)
+        .ok_or("Missing type")?;
     match tag {
         "decimal" if keys_exact(obj, &["type", "value"]) => {
             Ok(CellValue::Decimal(crate::rules::decimal_text(
-                obj["value"].as_str().ok_or("value erwartet String")?,
+                obj["value"].as_str().ok_or("value must be a string")?,
                 None,
             )?))
         }
         "money" if keys_exact(obj, &["type", "amount", "currency"]) => {
-            let currency = obj["currency"].as_str().ok_or("Währung erwartet String")?;
+            let currency = obj["currency"]
+                .as_str()
+                .ok_or("currency must be a string")?;
             if iso_currency::Currency::from_code(currency).is_none() {
-                return Err("Unbekannter ISO-4217-Code".into());
+                return Err("Unknown ISO-4217 code".into());
             }
             Ok(CellValue::Money {
                 amount: crate::rules::decimal_text(
-                    obj["amount"].as_str().ok_or("amount erwartet String")?,
+                    obj["amount"].as_str().ok_or("amount must be a string")?,
                     None,
                 )?,
                 currency: currency.to_owned(),
@@ -357,7 +360,7 @@ pub(crate) fn exact_value(json: &Json) -> Result<CellValue, String> {
             &CellValue::Text(
                 obj["value"]
                     .as_str()
-                    .ok_or("value erwartet String")?
+                    .ok_or("value must be a string")?
                     .to_owned(),
             ),
             &crate::rules::TypeRule {
@@ -373,7 +376,7 @@ pub(crate) fn exact_value(json: &Json) -> Result<CellValue, String> {
             },
             false,
         ),
-        _ => Err("Ungültiges exaktes Vergleichsobjekt".into()),
+        _ => Err("Invalid exact comparison object".into()),
     }
 }
 fn compare(cell: &CellValue, expected: &Json) -> Option<std::cmp::Ordering> {
@@ -436,7 +439,7 @@ fn compare(cell: &CellValue, expected: &Json) -> Option<std::cmp::Ordering> {
 fn text(json: &Json, op: &str) -> Result<String, String> {
     json.as_str()
         .map(String::from)
-        .ok_or_else(|| format!("'{op}' erwartet einen JSON-String"))
+        .ok_or_else(|| format!("'{op}' expects a JSON string"))
 }
 
 fn scalar(value: &Json) -> bool {
@@ -458,22 +461,20 @@ impl Expr {
         depth: usize,
     ) -> Result<Self, String> {
         if depth >= 64 {
-            return Err("JSON-Filter ist zu tief verschachtelt (maximal 64 Ebenen)".into());
+            return Err("JSON filter is nested too deeply (maximum 64 levels)".into());
         }
-        let obj = json
-            .as_object()
-            .ok_or("Eine Regel muss ein JSON-Objekt sein")?;
+        let obj = json.as_object().ok_or("A rule must be a JSON object")?;
         for key in ["all", "any"] {
             if let Some(value) = obj.get(key) {
                 if !keys_exact(obj, &[key]) {
-                    return Err(format!("'{key}' darf keine weiteren Felder haben"));
+                    return Err(format!("'{key}' must not have additional fields"));
                 }
                 let items = value
                     .as_array()
                     .filter(|items| !items.is_empty())
-                    .ok_or_else(|| format!("'{key}' erwartet eine nichtleere Liste"))?;
+                    .ok_or_else(|| format!("'{key}' expects a nonempty list"))?;
                 if items.len() > 10_000 {
-                    return Err(format!("'{key}' darf höchstens 10000 Regeln enthalten"));
+                    return Err(format!("'{key}' must not contain more than 10000 rules"));
                 }
                 let compiled = items
                     .iter()
@@ -488,7 +489,7 @@ impl Expr {
         }
         if let Some(value) = obj.get("not") {
             if !keys_exact(obj, &["not"]) {
-                return Err("'not' darf keine weiteren Felder haben".into());
+                return Err("'not' must not have additional fields".into());
             }
             return Ok(Self::Not(Box::new(Self::compile_inner(
                 value,
@@ -500,14 +501,14 @@ impl Expr {
         let column_name = obj
             .get("column")
             .and_then(Json::as_str)
-            .ok_or("Ein Vergleich benötigt 'column' als String")?;
+            .ok_or("A comparison requires 'column' as a string")?;
         let column = *headers
             .get(column_name)
-            .ok_or_else(|| format!("Unbekannte Spalte: {column_name:?}"))?;
+            .ok_or_else(|| format!("Unknown column: {column_name:?}"))?;
         let operation = obj
             .get("op")
             .and_then(Json::as_str)
-            .ok_or("Ein Vergleich benötigt 'op' als String")?;
+            .ok_or("A comparison requires 'op' as a string")?;
         let no_value = matches!(operation, "is_empty" | "not_empty");
         let expect_keys: &[&str] = if no_value {
             &["column", "op"]
@@ -516,7 +517,7 @@ impl Expr {
         };
         if !keys_exact(obj, expect_keys) {
             return Err(format!(
-                "'{operation}' erwartet exakt die Felder {expect_keys:?}"
+                "'{operation}' expects exactly the fields {expect_keys:?}"
             ));
         }
         let op = if no_value {
@@ -535,17 +536,17 @@ impl Expr {
                         Op::Ne(value.clone())
                     }
                 }
-                "eq" | "ne" => return Err(format!("'{operation}' erwartet einen Skalar")),
+                "eq" | "ne" => return Err(format!("'{operation}' expects a scalar")),
                 "in" => {
-                    let values = value.as_array().ok_or("'in' erwartet eine Liste")?;
+                    let values = value.as_array().ok_or("'in' expects a list")?;
                     if values.is_empty() || values.iter().any(|v| !scalar(v)) {
-                        return Err("'in' erwartet eine nichtleere Liste aus Skalaren".into());
+                        return Err("'in' expects a nonempty list of scalars".into());
                     }
                     Op::In(values.clone())
                 }
                 "is_type" | "not_type" => {
-                    let target = serde_json::from_value(value.clone())
-                        .map_err(|_| "Unbekannter Datentyp")?;
+                    let target =
+                        serde_json::from_value(value.clone()).map_err(|_| "Unknown data type")?;
                     if operation == "is_type" {
                         Op::IsType(target)
                     } else {
@@ -562,15 +563,15 @@ impl Expr {
                 "regex" => {
                     let pattern = text(value, operation)?;
                     if pattern.len() > 4096 {
-                        return Err("Regex darf maximal 4096 Bytes lang sein".into());
+                        return Err("Regex must not exceed 4096 bytes".into());
                     }
                     let re = RegexBuilder::new(&pattern)
                         .size_limit(8 * 1024 * 1024)
                         .build()
-                        .map_err(|e| format!("Ungültiger Regex: {e}"))?;
+                        .map_err(|e| format!("Invalid regex: {e}"))?;
                     Op::Regex(re)
                 }
-                _ => return Err(format!("Unbekannter Operator: {operation:?}")),
+                _ => return Err(format!("Unknown operator: {operation:?}")),
             }
         };
         Ok(Self::Test { column, op })
@@ -670,7 +671,8 @@ pub fn headers_from_row(
         }
         if lookup.insert(name.clone(), *position).is_some() {
             return Err(
-                "Spaltennamen sind nach Indizierung nicht eindeutig; source.columns mit eindeutigen Namen verwenden".into(),
+                "Column names are not unique after indexing; use source.columns with unique names"
+                    .into(),
             );
         }
     }

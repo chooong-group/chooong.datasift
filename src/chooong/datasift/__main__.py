@@ -24,7 +24,7 @@ def _validate_outputs(args: _Arguments, parser: argparse.ArgumentParser) -> list
     destinations = [p for p in (args.output, args.rejected_output, args.explain) if p is not None]
     resolved = [p.resolve() for p in destinations]
     if len(set(resolved)) != len(resolved):
-        parser.error("Ausgabepfade müssen unterschiedlich sein")
+        parser.error("Output paths must be different")
     expanded = [Path(path) for path in rust.expand_inputs([str(path) for path in args.xlsx])]
     inputs = [args.mask, *expanded]
     reserved = {
@@ -35,28 +35,28 @@ def _validate_outputs(args: _Arguments, parser: argparse.ArgumentParser) -> list
     if args.output is not None:
         reserved.add(args.output.with_name(f".{args.output.name}.datasift-commit.json").resolve())
     if any(path in reserved for path in resolved):
-        parser.error("Ausgaben dürfen keine Commit-/Lock-Metadaten überschreiben")
+        parser.error("Outputs must not overwrite commit/lock metadata")
     for destination in destinations:
         if destination.is_symlink():
-            parser.error("Ausgabe darf kein Symlink sein")
+            parser.error("Output must not be a symlink")
         for source in inputs:
             if destination.resolve() == source.resolve() or (
                 destination.exists() and source.exists() and destination.samefile(source)
             ):
-                parser.error("Ausgaben dürfen weder Eingaben noch Filterdatei überschreiben")
+                parser.error("Outputs must not overwrite inputs or the filter file")
     if args.rejected_output is not None and args.output is None:
-        parser.error("--rejected-output benötigt --output")
+        parser.error("--rejected-output requires --output")
     return expanded
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Excel/CSV mit nativer Rust-Pipeline verarbeiten")
-    parser.add_argument("xlsx", nargs="+", help="XLSX/XLSM/CSV-Dateien oder Glob-Muster")
-    parser.add_argument("mask", help="JSON-Filterdatei")
+    parser = argparse.ArgumentParser(description="Process Excel/CSV with the native Rust pipeline")
+    parser.add_argument("xlsx", nargs="+", help="XLSX/XLSM/CSV files or glob patterns")
+    parser.add_argument("mask", help="JSON filter file")
     parser.add_argument("--batch-size", type=int, default=1024)
-    parser.add_argument("--output", type=Path, help="NDJSON oder .parquet")
-    parser.add_argument("--rejected-output", type=Path, help="Abgelehnte Originaldatensätze")
-    parser.add_argument("--explain", type=Path, help="Statistiken und Diagnosen als JSON")
+    parser.add_argument("--output", type=Path, help="NDJSON or .parquet")
+    parser.add_argument("--rejected-output", type=Path, help="Rejected original records")
+    parser.add_argument("--explain", type=Path, help="Statistics and diagnostics as JSON")
     args = _Arguments.model_validate(vars(parser.parse_args()))
     statistics: str | None
     try:
@@ -87,7 +87,7 @@ def main() -> None:
         if args.explain is not None and statistics is not None:
             args.explain.write_text(statistics + "\n", encoding="utf-8")
     except (ValueError, RuntimeError, OSError) as error:
-        sys.stderr.write(f"Filterfehler ({type(error).__name__}); Ausgabe unvollständig.\n")
+        sys.stderr.write(f"Filter error ({type(error).__name__}); output incomplete.\n")
         raise SystemExit(1) from None
 
 

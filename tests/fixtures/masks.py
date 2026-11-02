@@ -24,7 +24,7 @@ def sheet_mask(sheet: str | None = None) -> FilterMask:
         sheet=sheet,
         where=AllOf(
             conditions=(
-                ScalarCondition(column="Land", op=Operator.EQ, value="DE"),
+                ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
                 EmptyCondition(column="Value", op=Operator.NOT_EMPTY),
             )
         ),
@@ -33,12 +33,12 @@ def sheet_mask(sheet: str | None = None) -> FilterMask:
 
 def contract_mask() -> FilterMask:
     return FilterMask(
-        sheet="Daten",
+        sheet="Data",
         where=AllOf(
             conditions=(
-                ScalarCondition(column="Land", op=Operator.EQ, value="DE"),
-                MembershipCondition(column="Status", value=("Aktiv", "Offen")),
-                EmptyCondition(column="Kunde", op=Operator.NOT_EMPTY),
+                ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
+                MembershipCondition(column="Status", value=("Active", "Open")),
+                EmptyCondition(column="Customer", op=Operator.NOT_EMPTY),
             )
         ),
     )
@@ -46,11 +46,11 @@ def contract_mask() -> FilterMask:
 
 def indexed_mask() -> FilterMask:
     return FilterMask(
-        sheet="Daten",
+        sheet="Data",
         where=AllOf(
             conditions=(
-                NumericCondition(column="Umsatz_1", op=Operator.GTE, value=1000),
-                ScalarCondition(column="Umsatz_2", op=Operator.EQ, value="Aktiv"),
+                NumericCondition(column="Revenue_1", op=Operator.GTE, value=1000),
+                ScalarCondition(column="Revenue_2", op=Operator.EQ, value="Active"),
             )
         ),
     )
@@ -91,12 +91,12 @@ def pipeline_mask() -> dict[str, object]:
 
 def source_mask() -> FilterMask:
     return FilterMask(
-        sheet="Daten",
+        sheet="Data",
         source=TableSource(
             columns=(
-                ColumnBinding(name="Kunde", column="C"),
-                ColumnBinding(name="Umsatz", column="D"),
-                ColumnBinding(name="UmsatzVorjahr", column="E"),
+                ColumnBinding(name="Customer", column="C"),
+                ColumnBinding(name="Revenue", column="D"),
+                ColumnBinding(name="RevenuePreviousYear", column="E"),
             ),
             data_start_row=7,
             data_end_row=10,
@@ -104,8 +104,8 @@ def source_mask() -> FilterMask:
         ),
         where=AllOf(
             conditions=(
-                TextCondition(column="Kunde", op=Operator.STARTS_WITH, value="ABC"),
-                NumericCondition(column="Umsatz", op=Operator.GTE, value=100),
+                TextCondition(column="Customer", op=Operator.STARTS_WITH, value="ABC"),
+                NumericCondition(column="Revenue", op=Operator.GTE, value=100),
             )
         ),
     )

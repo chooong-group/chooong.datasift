@@ -31,6 +31,9 @@
 
 ### Changed
 
+- Translate CLI help, validation and runtime errors, test fixtures and historical
+  verification reports into English; error types and diagnostic codes are unchanged.
+
 - Rename the Rust source directory and Cargo package to `datasift-core`; update build and release tooling.
 
 - **Breaking change:** `recover_export` requires a separately trusted

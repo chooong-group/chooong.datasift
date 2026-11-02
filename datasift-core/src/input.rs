@@ -18,19 +18,19 @@ use std::{
 
 pub fn expand(inputs: &[String]) -> Result<Vec<PathBuf>, String> {
     if inputs.is_empty() {
-        return Err("Mindestens eine Eingabe erforderlich".into());
+        return Err("At least one input is required".into());
     }
     let mut files = BTreeSet::new();
     for input in inputs {
         if input.contains(['*', '?', '[']) {
             let mut found = false;
-            for path in glob::glob(input).map_err(|_| "Ungültiges Glob-Muster")? {
-                let path = path.map_err(|_| "Glob kann nicht gelesen werden")?;
+            for path in glob::glob(input).map_err(|_| "Invalid glob pattern")? {
+                let path = path.map_err(|_| "Cannot read glob")?;
                 files.insert(path);
                 found = true;
             }
             if !found {
-                return Err("Glob ohne Treffer".into());
+                return Err("Glob has no matches".into());
             }
         } else {
             files.insert(PathBuf::from(input));
@@ -59,7 +59,7 @@ pub fn scan(
     {
         sender
             .send(Message::Ready(vec![]))
-            .map_err(|_| "Verbraucher geschlossen")?;
+            .map_err(|_| "Consumer closed")?;
     }
     let mut failed = false;
     for path in files {
@@ -78,7 +78,7 @@ pub fn scan(
             Some("xlsx" | "xlsm") => crate::xlsx::scan(
                 &path, config, batch_size, sender, cancelled, events, rejects, &mut stats,
             ),
-            _ => Err("Dateiformat muss CSV, XLSX oder XLSM sein".into()),
+            _ => Err("File format must be CSV, XLSX or XLSM".into()),
         };
         if let Err(error) = result {
             if config.file_errors == FileErrors::Fail {
@@ -86,7 +86,7 @@ pub fn scan(
             }
             failed = true;
             if stats.diagnostics.len() >= 16384 {
-                return Err("Zu viele Dateifehler".into());
+                return Err("Too many file errors".into());
             }
             stats.diagnostics.push(serde_json::json!({"code":"FILE_ERROR","file":path.to_string_lossy(),"complete":false}));
         }
@@ -97,15 +97,14 @@ pub fn scan(
         .send(Message::Statistics(
             serde_json::to_string(&stats).map_err(|e| e.to_string())?,
         ))
-        .map_err(|_| "Verbraucher geschlossen")?;
+        .map_err(|_| "Consumer closed")?;
     if stats.schema_errors {
         return Err(
-            "Schemaabweichungen; unabhängige Tabellen wurden weiterverarbeitet (SCHEMA_MISMATCH)"
-                .into(),
+            "Schema mismatches; independent tables continued processing (SCHEMA_MISMATCH)".into(),
         );
     }
     if failed {
-        return Err("Mindestens eine Datei unvollständig verarbeitet; siehe Diagnosen".into());
+        return Err("At least one file was not fully processed; see diagnostics".into());
     }
     Ok(())
 }
@@ -120,9 +119,9 @@ fn csv_scan(
     rejects: bool,
     stats: &mut Statistics,
 ) -> Result<(), String> {
-    let file = File::open(path).map_err(|_| "CSV nicht lesbar")?;
+    let file = File::open(path).map_err(|_| "Cannot read CSV")?;
     let encoding = encoding_rs::Encoding::for_label(config.csv.encoding.as_bytes())
-        .ok_or("Unbekanntes CSV-Encoding")?;
+        .ok_or("Unknown CSV encoding")?;
     let decoder = crate::encoding::StrictDecoder::new(file, encoding);
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -143,19 +142,19 @@ fn csv_scan(
         stats,
     );
     if !config.csv.header && config.source.is_none() && config.sources.is_none() {
-        return Err("CSV ohne Header benötigt explizite source-Bindings".into());
+        return Err("CSV without headers requires explicit source bindings".into());
     }
     sink.initialize()?;
     for (index, result) in reader.records().enumerate() {
         if cancelled.load(Ordering::Relaxed) {
             return Ok(());
         }
-        let record = result.map_err(|_| "Beschädigter CSV-Datensatz")?;
+        let record = result.map_err(|_| "Corrupt CSV record")?;
         if record.len() > 16384 {
-            return Err("CSV überschreitet 16384 Spalten".into());
+            return Err("CSV exceeds 16384 columns".into());
         }
         if record.iter().any(|s| s.len() > 2 * 1024 * 1024) {
-            return Err("CSV-Zelle zu groß oder ungültiges Encoding".into());
+            return Err("CSV cell is too large or has invalid encoding".into());
         }
         let row = record
             .iter()
@@ -168,7 +167,7 @@ fn csv_scan(
             })
             .collect();
         sink.on_row(
-            u32::try_from(index + 1).map_err(|_| "Zu viele CSV-Zeilen")?,
+            u32::try_from(index + 1).map_err(|_| "Too many CSV rows")?,
             row,
         )?;
     }

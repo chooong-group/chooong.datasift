@@ -32,7 +32,7 @@ def test_concurrent_scans_do_not_share_state(tmp_path: Path) -> None:
     make_workbook(path)
 
     def scan(_: int) -> list[str | bool | int | float | None]:
-        return [row["Kunde"] for row in iter_matching_rows(path, contract_mask(), batch_size=1)]
+        return [row["Customer"] for row in iter_matching_rows(path, contract_mask(), batch_size=1)]
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(scan, range(8)))
@@ -46,12 +46,12 @@ def test_iterator_can_move_between_threads(tmp_path: Path) -> None:
     with iter_matching_batches(path, contract_mask(), batch_size=1) as batches:
         with ThreadPoolExecutor(max_workers=1) as pool:
             first = pool.submit(next, batches).result(timeout=10)
-        assert first[0]["Kunde"] == "ABC GmbH"
+        assert first[0]["Customer"] == "ABC Ltd"
         assert len([row for batch in batches for row in batch]) == 5
 
 
 def test_close_stops_worker(xlsx: Path) -> None:
-    mask = {"sheet": "Daten", "where": {"column": "Land", "op": "eq", "value": "DE"}}
+    mask = {"sheet": "Data", "where": {"column": "Country", "op": "eq", "value": "DE"}}
     batches = iter_matching_batches(xlsx, mask)
     batches.close()
     assert list(batches) == []

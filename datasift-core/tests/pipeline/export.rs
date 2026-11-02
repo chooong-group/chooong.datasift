@@ -195,12 +195,12 @@ fn truncated_xml_and_dtds_fail_without_replacing_previous_output() {
         (
             WORKSHEET.trim_end_matches("</worksheet>"),
             SHARED_STRINGS,
-            "unvollständig",
+            "incomplete",
         ),
         (
             WORKSHEET,
             SHARED_STRINGS.trim_end_matches("</sst>"),
-            "unvollständig",
+            "incomplete",
         ),
         (
             "<!DOCTYPE worksheet [<!ENTITY x 'value'>]><worksheet/>",

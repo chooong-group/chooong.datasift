@@ -275,12 +275,12 @@ impl<'a> Sink<'a> {
             .iter()
             .map(|(_, i)| *i)
             .min()
-            .ok_or("Leeres Tabellenschema")?;
+            .ok_or("Empty table schema")?;
         let last = names
             .iter()
             .map(|(_, i)| *i)
             .max()
-            .ok_or("Leeres Tabellenschema")?;
+            .ok_or("Empty table schema")?;
         let repeated = self.tables.iter().any(|t| t.names == names);
         if source.is_none() {
             self.tables.retain(|t| t.last < first || t.first > last);
@@ -291,7 +291,7 @@ impl<'a> Sink<'a> {
             .unwrap_or_else(|| format!("table-{}-{}", number, index + 1));
         // Explain metadata is bounded independently of input length.
         if self.stats.tables.len() >= 16384 {
-            return Err("Zu viele Tabellen (maximal 16384)".into());
+            return Err("Too many tables (maximum 16384)".into());
         }
         let explanation = self.stats.tables.len();
         self.stats.tables.push(TableExplanation {
@@ -380,7 +380,7 @@ impl<'a> Sink<'a> {
     }
     pub fn diagnostic(&mut self, code: &str, table: Option<String>) -> Result<(), String> {
         if self.stats.diagnostics.len() >= 16384 {
-            return Err("Zu viele Diagnosen".into());
+            return Err("Too many diagnostics".into());
         }
         self.stats
             .diagnostics
@@ -392,7 +392,7 @@ impl<'a> Sink<'a> {
             self.flush()?;
             self.sender
                 .send(Message::Ready(headers.clone()))
-                .map_err(|_| "Verbraucher geschlossen")?;
+                .map_err(|_| "Consumer closed")?;
             self.headers = Some(headers);
         }
         Ok(())
@@ -1035,12 +1035,12 @@ impl<'a> Sink<'a> {
         if !self.buffer.is_empty() {
             self.sender
                 .send(Message::Batch(std::mem::take(&mut self.buffer)))
-                .map_err(|_| "Verbraucher geschlossen")?;
+                .map_err(|_| "Consumer closed")?;
         }
         if !self.records.is_empty() {
             self.sender
                 .send(Message::Records(std::mem::take(&mut self.records)))
-                .map_err(|_| "Verbraucher geschlossen")?;
+                .map_err(|_| "Consumer closed")?;
         }
         Ok(())
     }
@@ -1071,7 +1071,7 @@ fn all_headers(row: &[CellValue]) -> Result<HeaderLookup, String> {
                 s.clone()
             };
             if lookup.insert(name.clone(), i).is_some() {
-                return Err("Header nach Indizierung nicht eindeutig".into());
+                return Err("Header is not unique after indexing".into());
             }
             names.push((name, i));
         }

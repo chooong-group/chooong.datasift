@@ -20,16 +20,16 @@ def xlsx(tmp_path: Path) -> Path:
 @pytest.fixture
 def mask() -> dict[str, object]:
     return {
-        "sheet": "Daten",
+        "sheet": "Data",
         "where": {
             "all": [
-                {"column": "Kunde", "op": "starts_with", "value": "ABC"},
-                {"column": "Land", "op": "eq", "value": "DE"},
-                {"column": "Umsatz", "op": "gte", "value": 1000},
+                {"column": "Customer", "op": "starts_with", "value": "ABC"},
+                {"column": "Country", "op": "eq", "value": "DE"},
+                {"column": "Revenue", "op": "gte", "value": 1000},
                 {
                     "any": [
-                        {"column": "Status", "op": "eq", "value": "Aktiv"},
-                        {"column": "Status", "op": "eq", "value": "Offen"},
+                        {"column": "Status", "op": "eq", "value": "Active"},
+                        {"column": "Status", "op": "eq", "value": "Open"},
                     ]
                 },
             ]

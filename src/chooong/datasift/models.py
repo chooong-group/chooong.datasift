@@ -216,7 +216,7 @@ class RowRule(_Model):
     @model_validator(mode="after")
     def validate_selector(self) -> Self:
         if not self.rows and self.where is None:
-            raise ValueError("Zeilenregel benötigt rows oder where")
+            raise ValueError("Row rule requires rows or where")
         return self
 
 
@@ -262,21 +262,21 @@ class TableSource(_Model):
     @model_validator(mode="after")
     def validate_scope(self) -> Self:
         if not self.columns and self.header_start_row is None:
-            raise ValueError("source benötigt columns oder header_start_row")
+            raise ValueError("source requires columns or header_start_row")
         if self.columns and self.header_start_row is not None:
-            raise ValueError("columns und header_start_row sind gegenseitig ausgeschlossen")
+            raise ValueError("columns and header_start_row are mutually exclusive")
         if self.header_start_row is not None and self.header_start_row >= self.data_start_row:
-            raise ValueError("Header muss vor dem Datenstart liegen")
+            raise ValueError("Header must precede the data start")
         if self.data_end_row is not None and self.data_end_row < self.data_start_row:
-            raise ValueError("data_end_row muss mindestens data_start_row sein")
+            raise ValueError("data_end_row must be at least data_start_row")
         names = [binding.name for binding in self.columns]
         if len(names) != len(set(names)):
-            raise ValueError("Ausgabenamen in source.columns müssen eindeutig sein")
+            raise ValueError("Output names in source.columns must be unique")
         if any(
             row < self.data_start_row or (self.data_end_row is not None and row > self.data_end_row)
             for row in self.skip_rows
         ):
-            raise ValueError("skip_rows müssen innerhalb des Datenbereichs liegen")
+            raise ValueError("skip_rows must be within the data range")
         return self
 
 
@@ -291,10 +291,10 @@ class FilterMask(Rules):
     @model_validator(mode="after")
     def validate_sources(self) -> Self:
         if self.source is not None and self.sources is not None:
-            raise ValueError("source und sources sind gegenseitig ausgeschlossen")
+            raise ValueError("source and sources are mutually exclusive")
         names = [source.name for source in self.sources or () if source.name is not None]
         if len(names) != len(set(names)):
-            raise ValueError("Quellnamen müssen eindeutig sein")
+            raise ValueError("Source names must be unique")
         return self
 
 

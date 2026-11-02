@@ -33,15 +33,15 @@ fn multibyte_characters_and_boms_survive_input_boundaries() {
     for (encoding, bytes, expected) in [
         (
             UTF_8,
-            b"\xef\xbb\xbfGr\xc3\xbc\xc3\x9fe \xf0\x9f\x8c\x8d".as_slice(),
-            "Grüße 🌍",
+            b"\xef\xbb\xbfCaf\xc3\xa9 \xc2\xa3 \xf0\x9f\x8c\x8d".as_slice(),
+            "Café £ 🌍",
         ),
         (
             UTF_16LE,
             b"\xff\xfeA\0\xac\x20\x3c\xd8\x0d\xdf".as_slice(),
             "A€🌍",
         ),
-        (WINDOWS_1252, b"Gr\xfc\xdfe \x80".as_slice(), "Grüße €"),
+        (WINDOWS_1252, b"Caf\xe9 \xa3 \x80".as_slice(), "Café £ €"),
     ] {
         for size in [1, 2, 3, 8192] {
             let mut decoder = StrictDecoder::new(Chunked { bytes, size }, encoding);

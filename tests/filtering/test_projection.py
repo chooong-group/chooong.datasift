@@ -24,13 +24,13 @@ def test_unbound_data_is_not_extracted(tmp_path: Path) -> None:
     make_workbook(path)
     rewrite(path, "xl/sharedStrings.xml", "<t>Status</t>", "<t></t>")
     mask = FilterMask(
-        sheet="Daten", where=ScalarCondition(column="Land", op=Operator.EQ, value="DE")
+        sheet="Data", where=ScalarCondition(column="Country", op=Operator.EQ, value="DE")
     )
     rows = list(iter_matching_rows(path, mask))
     assert len(rows) == 7
-    assert set(rows[0]) == {"Land"}
+    assert set(rows[0]) == {"Country"}
     assert "Status" not in rows[0]
-    assert rows[0]["Land"] == "DE"
+    assert rows[0]["Country"] == "DE"
 
 
 @pytest.mark.parametrize("batch_size", [1, 3, 1024])
@@ -42,7 +42,7 @@ def test_sparse_unbound_columns_are_ignored_with_replay(tmp_path: Path, batch_si
         '<c r="A10" t="inlineStr"><is><t>ABC Extra</t></is></c>'
         '<c r="B10" t="inlineStr"><is><t>DE</t></is></c>'
         '<c r="C10"><v>5000</v></c>'
-        '<c r="D10" t="inlineStr"><is><t>Aktiv</t></is></c>'
+        '<c r="D10" t="inlineStr"><is><t>Active</t></is></c>'
         '<c r="M10" t="s"><v>4</v></c>'
         '<c r="U10"><v>12.5</v></c>'
         '<c r="V10" t="b"><v>0</v></c>'
@@ -58,9 +58,9 @@ def test_sparse_unbound_columns_are_ignored_with_replay(tmp_path: Path, batch_si
     assert actual == expected
     assert len(actual) == 7
     assert actual[-1] == {
-        "Kunde": "ABC Extra",
-        "Land": "DE",
-        "Status": "Aktiv",
+        "Customer": "ABC Extra",
+        "Country": "DE",
+        "Status": "Active",
     }
     assert "__column_M" not in actual[0]
 
@@ -68,7 +68,7 @@ def test_sparse_unbound_columns_are_ignored_with_replay(tmp_path: Path, batch_si
 def test_unbound_cells_do_not_overwrite_named_columns(tmp_path: Path) -> None:
     path = tmp_path / "collision.xlsx"
     make_workbook(path)
-    rewrite(path, "xl/sharedStrings.xml", "<t>Kunde</t>", "<t>__column_M</t>")
+    rewrite(path, "xl/sharedStrings.xml", "<t>Customer</t>", "<t>__column_M</t>")
     rewrite(path, "xl/sharedStrings.xml", "<t>Status</t>", "<t>__column_M_</t>")
     before = '<c r="D2" t="s"><v>6</v></c></row>'
     after = (
@@ -77,10 +77,10 @@ def test_unbound_cells_do_not_overwrite_named_columns(tmp_path: Path) -> None:
     )
     rewrite(path, "xl/worksheets/data42.xml", before, after)
     mask = FilterMask(
-        sheet="Daten", where=ScalarCondition(column="Land", op=Operator.EQ, value="DE")
+        sheet="Data", where=ScalarCondition(column="Country", op=Operator.EQ, value="DE")
     )
     rows = list(iter_matching_rows(path, mask))
-    assert dict(rows[0]) == {"Land": "DE"}
+    assert dict(rows[0]) == {"Country": "DE"}
     assert "__column_M__" not in rows[0]
 
 

@@ -57,9 +57,9 @@ def test_all_sheets_preserve_order_and_resolve_headers_per_sheet(
     )
     original = path.read_bytes()
     expected = [
-        {"Land": "DE", "Value": 101},
-        {"Value": 202, "Land": "DE"},
-        {"Value": 203, "Land": "DE"},
+        {"Country": "DE", "Value": 101},
+        {"Value": 202, "Country": "DE"},
+        {"Value": 203, "Country": "DE"},
     ]
     assert [
         dict(row) for row in iter_matching_rows(path, sheet_mask(), batch_size=batch_size)
@@ -182,9 +182,9 @@ def test_unbound_columns_are_not_filter_headers(tmp_path: Path) -> None:
     path = tmp_path / "unknown-header.xlsx"
     make_workbook(path)
     mask = FilterMask(
-        sheet="Daten", where=ScalarCondition(column="__column_M", op=Operator.EQ, value="x")
+        sheet="Data", where=ScalarCondition(column="__column_M", op=Operator.EQ, value="x")
     )
-    with pytest.raises(ValueError, match="Unbekannte Spalte"):
+    with pytest.raises(ValueError, match="Unknown column"):
         iter_matching_batches(path, mask)
 
 
@@ -192,8 +192,8 @@ def test_header_row_offset(tmp_path: Path) -> None:
     xlsx = tmp_path / "header-row-two.xlsx"
     make_workbook(xlsx, header_row=2)
     mask = {
-        "sheet": "Daten",
-        "where": {"column": "Status", "op": "eq", "value": "Aktiv"},
+        "sheet": "Data",
+        "where": {"column": "Status", "op": "eq", "value": "Active"},
     }
     assert len(list(iter_matching_rows(xlsx, mask))) == 6
 
@@ -209,9 +209,9 @@ def test_duplicate_headers_are_indexed_for_filters_and_output(
     indexed_workbook(path, header_row=header_row)
     original = path.read_bytes()
     expected = [
-        {"Umsatz_1": 5000, "Umsatz_2": "Aktiv"},
-        {"Umsatz_1": 8000, "Umsatz_2": "Aktiv"},
-        {"Umsatz_1": 3200, "Umsatz_2": "Aktiv"},
+        {"Revenue_1": 5000, "Revenue_2": "Active"},
+        {"Revenue_1": 8000, "Revenue_2": "Active"},
+        {"Revenue_1": 3200, "Revenue_2": "Active"},
     ]
     assert [
         dict(row) for row in iter_matching_rows(path, indexed_mask(), batch_size=batch_size)
@@ -223,28 +223,28 @@ def test_duplicate_headers_are_indexed_for_filters_and_output(
 
 def test_three_occurrences_retain_physical_order_and_values(tmp_path: Path) -> None:
     path = tmp_path / "three.xlsx"
-    indexed_workbook(path, headers=("Kunde", "Umsatz", "Umsatz", "Umsatz"))
+    indexed_workbook(path, headers=("Customer", "Revenue", "Revenue", "Revenue"))
     mask = FilterMask(
-        sheet="Daten",
+        sheet="Data",
         where=AllOf(
             conditions=(
-                ScalarCondition(column="Umsatz_1", op=Operator.EQ, value="DE"),
-                NumericCondition(column="Umsatz_2", op=Operator.GTE, value=1000),
-                ScalarCondition(column="Umsatz_3", op=Operator.EQ, value="Aktiv"),
+                ScalarCondition(column="Revenue_1", op=Operator.EQ, value="DE"),
+                NumericCondition(column="Revenue_2", op=Operator.GTE, value=1000),
+                ScalarCondition(column="Revenue_3", op=Operator.EQ, value="Active"),
             )
         ),
     )
     assert [dict(row) for row in iter_matching_rows(path, mask)] == [
-        {"Umsatz_1": "DE", "Umsatz_2": 5000, "Umsatz_3": "Aktiv"},
-        {"Umsatz_1": "DE", "Umsatz_2": 3200, "Umsatz_3": "Aktiv"},
+        {"Revenue_1": "DE", "Revenue_2": 5000, "Revenue_3": "Active"},
+        {"Revenue_1": "DE", "Revenue_2": 3200, "Revenue_3": "Active"},
     ]
 
 
 @pytest.mark.parametrize(
     "headers",
     [
-        ("Umsatz_1", "Land", "Umsatz", "Umsatz"),
-        ("Kunde", "Umsatz", "Umsatz", "Umsatz_1"),
+        ("Revenue_1", "Country", "Revenue", "Revenue"),
+        ("Customer", "Revenue", "Revenue", "Revenue_1"),
     ],
 )
 def test_index_collision_fails_at_scan_end(
@@ -262,8 +262,8 @@ def test_index_collision_fails_at_scan_end(
 
 def test_missing_text_header_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "numeric-header.xlsx"
-    indexed_workbook(path, headers=("Kunde", "Land", 123, "Status"))
-    with pytest.raises(ValueError, match="Keine Kopfzeile"):
+    indexed_workbook(path, headers=("Customer", "Country", 123, "Status"))
+    with pytest.raises(ValueError, match="No header"):
         iter_matching_batches(path, indexed_mask())
 
 

@@ -2,8 +2,8 @@ use super::*;
 
 fn heads() -> HashMap<String, usize> {
     [
-        ("Kunde".into(), 0),
-        ("Umsatz".into(), 1),
+        ("Customer".into(), 0),
+        ("Revenue".into(), 1),
         ("Status".into(), 2),
     ]
     .into_iter()
@@ -13,13 +13,13 @@ fn heads() -> HashMap<String, usize> {
 #[test]
 fn header_indices_are_one_based_and_ignore_empty_columns() {
     let mut row = vec![CellValue::Empty];
-    row.extend((0..12).map(|_| CellValue::Text("Umsatz".into())));
+    row.extend((0..12).map(|_| CellValue::Text("Revenue".into())));
     let (names, lookup) =
-        headers_from_row(&row, &(1..=12).map(|i| format!("Umsatz_{i}")).collect()).unwrap();
-    assert_eq!(names[0], ("Umsatz_1".into(), 1));
-    assert_eq!(names[11], ("Umsatz_12".into(), 12));
-    assert_eq!(lookup["Umsatz_10"], 10);
-    assert!(!lookup.contains_key("Umsatz"));
+        headers_from_row(&row, &(1..=12).map(|i| format!("Revenue_{i}")).collect()).unwrap();
+    assert_eq!(names[0], ("Revenue_1".into(), 1));
+    assert_eq!(names[11], ("Revenue_12".into(), 12));
+    assert_eq!(lookup["Revenue_10"], 10);
+    assert!(!lookup.contains_key("Revenue"));
 }
 
 #[test]
@@ -34,26 +34,26 @@ fn sheet_null_is_explicit_and_missing_sheet_is_rejected() {
 #[test]
 fn nested_logic() {
     let json = serde_json::json!({"all": [
-        {"column":"Kunde", "op":"starts_with", "value":"ABC"},
-        {"column":"Umsatz", "op":"gte", "value":1000},
-        {"not": {"column":"Status", "op":"eq", "value":"Inaktiv"}}
+        {"column":"Customer", "op":"starts_with", "value":"ABC"},
+        {"column":"Revenue", "op":"gte", "value":1000},
+        {"not": {"column":"Status", "op":"eq", "value":"Inactive"}}
     ]});
     let compiled = Expr::compile(&json, &heads()).unwrap();
     assert!(compiled.matches(&[
-        CellValue::Text("ABC GmbH".into()),
+        CellValue::Text("ABC Ltd".into()),
         CellValue::Integer(1000),
-        CellValue::Text("Aktiv".into())
+        CellValue::Text("Active".into())
     ]));
     assert!(!compiled.matches(&[
-        CellValue::Text("ABC GmbH".into()),
+        CellValue::Text("ABC Ltd".into()),
         CellValue::Integer(999),
-        CellValue::Text("Aktiv".into())
+        CellValue::Text("Active".into())
     ]));
 }
 
 #[test]
 fn no_implicit_number_conversion() {
-    let rule = serde_json::json!({"column":"Umsatz", "op":"eq", "value":1});
+    let rule = serde_json::json!({"column":"Revenue", "op":"eq", "value":1});
     let expr = Expr::compile(&rule, &heads()).unwrap();
     assert!(!expr.matches(&[CellValue::Empty, CellValue::Bool(true)]));
     assert!(!expr.matches(&[CellValue::Empty, CellValue::Text("1".into())]));
@@ -69,12 +69,12 @@ fn invalid_json_is_rejected() {
     )
     .is_err());
     assert!(Expr::compile(
-        &serde_json::json!({"column":"Kunde", "op":"regex", "value":"("}),
+        &serde_json::json!({"column":"Customer", "op":"regex", "value":"("}),
         &heads()
     )
     .is_err());
     assert!(Expr::compile(
-        &serde_json::json!({"column":"Umsatz", "op":"gte", "value":"1000"}),
+        &serde_json::json!({"column":"Revenue", "op":"gte", "value":"1000"}),
         &heads()
     )
     .is_err());

@@ -58,9 +58,9 @@ impl BatchIterator {
             let receiver = self
                 .receiver
                 .get_mut()
-                .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
+                .map_err(|_| PyRuntimeError::new_err("Iterator lock poisoned"))?
                 .take()
-                .ok_or_else(|| PyRuntimeError::new_err("Iterator geschlossen"))?;
+                .ok_or_else(|| PyRuntimeError::new_err("Iterator closed"))?;
             // Receiver is Send (but not Sync); move ownership into/out of the GIL-free closure.
             let (receiver, message) = py.detach(move || {
                 let message = receiver.recv();
@@ -69,11 +69,11 @@ impl BatchIterator {
             *self
                 .receiver
                 .get_mut()
-                .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))? = Some(receiver);
+                .map_err(|_| PyRuntimeError::new_err("Iterator lock poisoned"))? = Some(receiver);
 
             let message = message.map_err(|_| {
                 self.finished = true;
-                PyRuntimeError::new_err("Rust-Worker wurde unerwartet beendet")
+                PyRuntimeError::new_err("Rust worker terminated unexpectedly")
             })?;
             match message {
                 Message::Batch(rows) => {
@@ -93,13 +93,13 @@ impl BatchIterator {
                 }
                 Message::Statistics(stats) => self.statistics = Some(stats),
                 Message::Records(_) => {
-                    return Err(PyRuntimeError::new_err("Unerwarteter Ergebnisstrom"))
+                    return Err(PyRuntimeError::new_err("Unexpected result stream"))
                 }
                 Message::Done => {
                     self.finished = true;
                     self.receiver
                         .get_mut()
-                        .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
+                        .map_err(|_| PyRuntimeError::new_err("Iterator lock poisoned"))?
                         .take();
                     return Ok(None);
                 }
@@ -107,7 +107,7 @@ impl BatchIterator {
                     self.finished = true;
                     self.receiver
                         .get_mut()
-                        .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
+                        .map_err(|_| PyRuntimeError::new_err("Iterator lock poisoned"))?
                         .take();
                     return Err(PyRuntimeError::new_err(message));
                 }
@@ -124,7 +124,7 @@ impl BatchIterator {
         self.cancelled.store(true, Ordering::Relaxed);
         self.receiver
             .get_mut()
-            .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
+            .map_err(|_| PyRuntimeError::new_err("Iterator lock poisoned"))?
             .take();
         self.finished = true;
         Ok(())
@@ -236,7 +236,7 @@ fn iter_batches_native(
 ) -> PyResult<BatchIterator> {
     if !(1..=65_536).contains(&batch_size) {
         return Err(PyValueError::new_err(
-            "batch_size muss zwischen 1 und 65536 liegen",
+            "batch_size must be between 1 and 65536",
         ));
     }
     make_iterator(py, vec![xlsx_path], filter_json, batch_size, false, false)
@@ -252,7 +252,7 @@ fn make_iterator(
 ) -> PyResult<BatchIterator> {
     if !(1..=65536).contains(&batch_size) {
         return Err(PyValueError::new_err(
-            "batch_size muss zwischen 1 und 65536 liegen",
+            "batch_size must be between 1 and 65536",
         ));
     }
     // Validate structural JSON immediately, before creating a worker.
@@ -285,9 +285,7 @@ fn make_iterator(
                 }
             }
         })
-        .map_err(|e| {
-            PyRuntimeError::new_err(format!("Rust-Worker konnte nicht gestartet werden: {e}"))
-        })?;
+        .map_err(|e| PyRuntimeError::new_err(format!("Could not start Rust worker: {e}")))?;
 
     // Eager readiness barrier: workbook metadata and filter validation. A named
     // sheet also resolves its headers here; all-sheet scans resolve each schema
@@ -306,11 +304,9 @@ fn make_iterator(
         }),
         Ok(Message::Failure(error)) => Err(PyValueError::new_err(error)),
         Ok(_) => Err(PyRuntimeError::new_err(
-            "Rust-Worker meldete keine Kopfzeile",
+            "Rust worker did not report a header",
         )),
-        Err(_) => Err(PyRuntimeError::new_err(
-            "Rust-Worker konnte nicht initialisieren",
-        )),
+        Err(_) => Err(PyRuntimeError::new_err("Rust worker could not initialize")),
     }
 }
 
@@ -333,9 +329,9 @@ impl EventIterator {
                 .inner
                 .receiver
                 .get_mut()
-                .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))?
+                .map_err(|_| PyRuntimeError::new_err("Iterator lock poisoned"))?
                 .take()
-                .ok_or_else(|| PyRuntimeError::new_err("Iterator geschlossen"))?;
+                .ok_or_else(|| PyRuntimeError::new_err("Iterator closed"))?;
             let (receiver, message) = py.detach(move || {
                 let result = receiver.recv();
                 (receiver, result)
@@ -344,7 +340,7 @@ impl EventIterator {
                 .inner
                 .receiver
                 .get_mut()
-                .map_err(|_| PyRuntimeError::new_err("Iterator-Lock beschädigt"))? = Some(receiver);
+                .map_err(|_| PyRuntimeError::new_err("Iterator lock poisoned"))? = Some(receiver);
             match message {
                 Ok(Message::Records(records)) => {
                     return records
@@ -355,7 +351,7 @@ impl EventIterator {
                             } else {
                                 serde_json::to_string(r)
                             })
-                            .map_err(|_| PyRuntimeError::new_err("Serialisierung fehlgeschlagen"))
+                            .map_err(|_| PyRuntimeError::new_err("Serialization failed"))
                         })
                         .collect::<PyResult<Vec<_>>>()
                         .map(Some)
@@ -372,7 +368,7 @@ impl EventIterator {
                 }
                 _ => {
                     self.inner.close()?;
-                    return Err(PyRuntimeError::new_err("Worker unerwartet beendet"));
+                    return Err(PyRuntimeError::new_err("Worker terminated unexpectedly"));
                 }
             }
         }
