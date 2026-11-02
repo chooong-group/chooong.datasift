@@ -80,6 +80,7 @@ Python runtime dependency; no external service is needed.
 - Preserve original values and detailed rejection reasons for invalid records.
 
 ### Row processing and streaming
+
 - Classify rows as data, headers, repeated headers, empty rows, comments, totals or separators.
 - Include or exclude row classes using configurable rules.
 - Stream results in bounded batches with backpressure.
@@ -107,7 +108,6 @@ Python runtime dependency; no external service is needed.
 - Inspect discovered tables, column bindings and diagnostics.
 - Use CLI output files, stdout streaming and JSON execution reports.
 - Support CPython **3.12, 3.13 and 3.14** with a native Rust extension.
-
 
 ## Example
 
