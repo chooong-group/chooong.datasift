@@ -70,7 +70,7 @@ def test_explicit_type_mismatch_is_row_local(csv_file: Path, tmp_path) -> None:
 
 def test_null_and_unicode_normalization(tmp_path) -> None:
     path = tmp_path / "unicode.csv"
-    path.write_text("Cafe\u0301,Value\na,\n")
+    path.write_text("Cafe\u0301,Value\na,\n", encoding="utf-8")
     mask = {
         "sheet": None,
         "header": {"unicode": "NFC"},

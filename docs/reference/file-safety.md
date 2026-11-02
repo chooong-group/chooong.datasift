@@ -34,7 +34,10 @@ recovery is refused: restore/re-export from the trusted input after inspecting
 the incomplete output set. The old `recover_export(output)` call is incompatible.
 
 Recovery checks manifest size/fields, exact destination bindings, reserved stage
-names and byte hashes before committing. Regular files with exactly one link are
+names and byte hashes before committing. Journal destination/stage paths must
+be absolute. Parent directories are canonicalized for comparison, including normal
+and verbatim Windows path forms; final filenames must match exactly. Leaf paths
+are not canonicalized or followed to authorize recovery. Regular files with exactly one link are
 required for stages, journal, targets and locks. Symlinks, hardlinks and special
 files are refused. Open directory capabilities pin the output directories;
 private snapshots are hashed while copying from held file descriptors. Only

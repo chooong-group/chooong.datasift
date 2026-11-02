@@ -14,3 +14,7 @@
 - Native NDJSON/Parquet export and CLI, with staged output, journaled commit and
   recovery bound to caller destinations and an independently trusted journal hash.
 - CPython 3.12–3.14 support using a native Python 3.12 stable ABI extension.
+
+### Fixed
+
+- Accept equivalent absolute Windows parent paths when validating recovery journals.

@@ -180,6 +180,15 @@ impl Destination {
 fn valid_hash(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
+fn canonical_parent(path: &Path) -> Result<PathBuf, String> {
+    if !path.is_absolute() {
+        return Err("Unsafe journal or unconfirmed destination path".into());
+    }
+    path.parent()
+        .ok_or("Unsafe journal or unconfirmed destination path")?
+        .canonicalize()
+        .map_err(|_| "Unsafe journal or unconfirmed destination path".into())
+}
 fn validate_manifest(journal: &Journal, targets: &[PathBuf]) -> Result<(), String> {
     if journal.version != 1
         || targets.is_empty()
@@ -189,9 +198,13 @@ fn validate_manifest(journal: &Journal, targets: &[PathBuf]) -> Result<(), Strin
         return Err("Journal destinations must be fully confirmed by the caller".into());
     }
     for (i, (entry, target)) in journal.entries.iter().zip(targets).enumerate() {
-        if &entry.destination != target
+        // Resolve only parent directories: Windows canonical paths can have a
+        // verbatim prefix. Keep leaf names exact and validate files via held dirs.
+        let parent = canonical_parent(target)?;
+        if entry.destination.file_name() != target.file_name()
+            || canonical_parent(&entry.destination)? != parent
             || targets[..i].contains(target)
-            || entry.stage.parent() != target.parent()
+            || canonical_parent(&entry.stage)? != parent
             || !valid_hash(&entry.sha256)
         {
             return Err("Unsafe journal or unconfirmed destination path".into());

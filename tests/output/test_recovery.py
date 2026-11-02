@@ -168,3 +168,50 @@ def test_recovery_requires_confirmation_of_second_destination(tmp_path: Path) ->
     recover_export(output, journal_sha256=trusted, rejected_output=rejected)
     assert output.read_bytes() == b"new"
     assert rejected.read_bytes() == b"new rejects"
+
+
+@pytest.mark.parametrize("field", ["destination", "stage"])
+def test_recovery_accepts_equivalent_absolute_parent_paths(tmp_path: Path, field: str) -> None:
+    output, _, journal, _ = recovery_journal(tmp_path)
+    spelling = tmp_path / "spelling"
+    spelling.mkdir()
+    payload = json.loads(journal.read_text(encoding="utf-8"))
+    entry = payload["entries"][0]
+    entry[field] = str(spelling / ".." / Path(entry[field]).name)
+    journal.write_text(json.dumps(payload), encoding="utf-8")
+    recover_export(output, journal_sha256=sha256(journal.read_bytes()).hexdigest())
+    assert output.read_bytes() == b"new"
+    assert not journal.exists()
+
+
+@pytest.mark.parametrize("field", ["destination", "stage"])
+def test_recovery_rejects_other_parent_with_the_same_filename(tmp_path: Path, field: str) -> None:
+    output, stage, journal, _ = recovery_journal(tmp_path)
+    other = tmp_path / "other"
+    other.mkdir()
+    payload = json.loads(journal.read_text(encoding="utf-8"))
+    entry = payload["entries"][0]
+    victim = other / Path(entry[field]).name
+    victim.write_bytes(b"do not overwrite")
+    entry[field] = str(victim)
+    journal.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="destination path"):
+        recover_export(output, journal_sha256=sha256(journal.read_bytes()).hexdigest())
+    assert output.read_bytes() == b"old"
+    assert stage.read_bytes() == b"new"
+    assert victim.read_bytes() == b"do not overwrite"
+    assert journal.exists()
+
+
+@pytest.mark.parametrize("field", ["destination", "stage"])
+def test_recovery_rejects_relative_manifest_paths(tmp_path: Path, field: str) -> None:
+    output, stage, journal, _ = recovery_journal(tmp_path)
+    payload = json.loads(journal.read_text(encoding="utf-8"))
+    entry = payload["entries"][0]
+    entry[field] = Path(entry[field]).name
+    journal.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="destination path"):
+        recover_export(output, journal_sha256=sha256(journal.read_bytes()).hexdigest())
+    assert output.read_bytes() == b"old"
+    assert stage.read_bytes() == b"new"
+    assert journal.exists()
