@@ -1,13 +1,30 @@
 # Installation
 
-DataSift 0.1.0 is unreleased. There is no published package to install from PyPI.
-Use a checkout or a wheel supplied by a maintainer. The distribution and public
-Python import are both named `chooong.datasift`; the CLI is `chooong-datasift`.
+Requires CPython 3.12–3.14. The distribution and public Python import are both
+named `chooong.datasift`; the CLI is `chooong-datasift`.
 
-## From source
+## Install with pip
 
-Use CPython 3.12, 3.13 or 3.14, Rust 1.95.0, Cargo and a native linker.
-Windows source builds need MSVC build tools. From the repository root:
+<!-- check: syntax -->
+
+```bash
+python -m pip install chooong.datasift
+```
+
+Compatible prebuilt wheels do not require a Rust compiler. If no compatible wheel
+is available, pip may build from a source distribution and needs the source-build
+toolchain described below. Wheel compatibility depends on the interpreter,
+operating system and architecture.
+
+Pydantic 2.12 or later, below 3, is the only direct Python runtime dependency.
+No server, database, Excel installation or Python DataFrame library is needed.
+
+## Build from source
+
+Install Rust using the toolchain specified in
+[`rust-toolchain.toml`](https://github.com/chooong-group/chooong.datasift/blob/main/rust-toolchain.toml),
+Cargo and a native linker. Windows source builds need MSVC build tools.
+From a source checkout or an extracted source distribution:
 
 <!-- check: syntax -->
 
@@ -15,33 +32,16 @@ Windows source builds need MSVC build tools. From the repository root:
 python -m pip install .
 ```
 
-For development, use the locked [contributor setup](development/contributing.md).
-Maturin builds the native `datasift-core` extension. The only direct Python
-runtime dependency is Pydantic 2.12 or later, below 3.
+Maturin builds the native `datasift-core` extension. For development, use the
+locked [contributor setup](development/contributing.md).
 
-## From a wheel
+## Compatibility and upgrades
 
-A wheel matching your operating system and architecture needs no Rust compiler.
-The build targets CPython's 3.12 stable ABI; supported interpreters remain
-CPython 3.12–3.14. From a directory containing exactly the intended wheel:
+Pin the package version in applications and validate masks and representative
+inputs before upgrading. Consult the
+[changelog](https://github.com/chooong-group/chooong.datasift/blob/main/CHANGELOG.md)
+for compatibility changes. Internal modules and human-readable error messages
+are not stable interfaces. CPython 3.12–3.14 is supported; PyPy and free-threaded
+builds are not declared supported.
 
-<!-- check: syntax -->
-
-```bash
-python -m pip install ./chooong_datasift-0.1.0-cp312-abi3-macosx_11_0_arm64.whl
-```
-
-This filename is for Apple Silicon macOS; use the actual artifact for your machine.
-The release configuration targets Linux x86_64/ARM64, macOS x86_64/ARM64 and
-Windows x86_64. A configured target is not evidence of a published or tested wheel.
-
-## Compatibility
-
-This is an alpha API. Until 1.0, minor releases may change Python APIs or mask
-semantics; changes are recorded in the changelog. Pin the package version and
-validate masks and representative inputs before upgrading. Internal modules and
-human-readable error messages are not stable interfaces. CPython 3.12–3.14 is
-supported; PyPy and free-threaded builds are not declared supported.
-
-Continue with the [quickstart](quickstart.md). No server, database, Excel
-installation or Python DataFrame library is needed.
+Continue with the [quickstart](quickstart.md).

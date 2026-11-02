@@ -1,5 +1,6 @@
 """Documentation checks execute real examples and reject broken contracts/links."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -7,7 +8,7 @@ from packaging.version import Version
 
 from chooong.datasift import DataType, FilterMask, Operator, RowClass
 from release.prepare import apply, plan
-from release.shared import release_notes, verify_prepared
+from release.shared import RELEASE_FILES, git, release_notes, verify_prepared
 from scripts.docs import (
     ROOT,
     Directive,
@@ -150,3 +151,53 @@ def test_external_link_check_accepts_contact_links_without_sending_mail() -> Non
     check_external(("mailto:github@chooong.com",))
     with pytest.raises(ValueError, match="Unsupported external link"):
         check_external(("file:///not-an-external-link",))
+
+
+def test_installation_docs_are_release_independent() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    installation = (ROOT / "docs/installation.md").read_text(encoding="utf-8")
+    for text in (readme, installation):
+        commands = [block.code.strip() for block in fences(text) if block.language == "bash"]
+        assert commands[0] == "python -m pip install chooong.datasift"
+        assert "unreleased" not in text.casefold()
+        assert re.search(r"\b\d+\.\d+\.\d+\b", text) is None
+    assert "https://img.shields.io/pypi/v/chooong.datasift.svg" in readme
+    assert "https://pypi.org/project/chooong.datasift/" in readme
+    assert "coverage" not in readme.casefold()
+    assert "python -m pip install ." not in readme
+    assert "python -m pip install ." in installation
+
+
+def test_first_release_and_upgrade_preserve_readme_bytes(release_repo: Path) -> None:
+    readme = release_repo / "README.md"
+    before = (ROOT / "README.md").read_bytes()
+    readme.write_bytes(before)
+    git(release_repo, "config", "user.name", "Synthetic fixture")
+    git(release_repo, "config", "user.email", "synthetic@example.invalid")
+    git(release_repo, "add", "README.md")
+    git(release_repo, "commit", "--quiet", "-m", "Include actual README")
+    assert "README.md" not in RELEASE_FILES
+    for version in ("0.1.0", "0.2.0"):
+        changelog = release_repo / "CHANGELOG.md"
+        if version == "0.2.0":
+            changelog.write_text(
+                changelog.read_text(encoding="utf-8").replace(
+                    "## Unreleased\n", "## Unreleased\n\n### Fixed\n\n- Synthetic fix.\n", 1
+                ),
+                encoding="utf-8",
+            )
+            git(release_repo, "add", "CHANGELOG.md")
+            git(release_repo, "commit", "--quiet", "-m", "Synthetic next-release notes")
+        prepared = plan(release_repo, version, frozenset[Version]())
+        assert {str(change.path.relative_to(release_repo)) for change in prepared.changes} <= set(
+            RELEASE_FILES
+        )
+        apply(prepared)
+        verify_prepared(release_repo, version)
+        assert readme.read_bytes() == before
+        apply(plan(release_repo, version, frozenset[Version]()))
+        assert readme.read_bytes() == before
+        git(release_repo, "add", "--", *RELEASE_FILES)
+        git(release_repo, "commit", "--quiet", "-m", f"Synthetic release {version}")
+        assert readme.read_bytes() == before
+    assert git(release_repo, "tag", "--list") == ""

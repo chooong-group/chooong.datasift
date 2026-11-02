@@ -124,6 +124,9 @@ history or delete records as an automatic preparation step.
 Keep the changelog as the release-note source. Prepare the versioned section only
 under a separate release authorization; review its text before the publisher
 creates the GitHub Release. Do not add CI logs, process ledgers or local paths to
-user-facing release notes. Update unreleased installation instructions and badges
-only after verifying actual availability. Keep README/package links on repository
-documentation until the Pages site is deployed and checked anonymously.
+user-facing release notes. README installation instructions are version-independent
+and its PyPI badge reads the version dynamically. Release preparation changes only
+package metadata, lockfiles and CHANGELOG.md; README.md must remain byte-identical
+through preparation and subsequent releases. Keep documentation hosting changes
+separate from release version updates; check Pages anonymously before changing
+repository documentation links.

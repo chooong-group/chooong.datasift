@@ -1,15 +1,14 @@
 # chooong.datasift
 
 [![CI][ci-badge]][ci]
-[![Coverage: not published][coverage-badge]][ci]
-[![PyPI: unreleased][pypi-badge]][installation]
+[![PyPI version][pypi-badge]][pypi]
 [![Python versions][python-badge]][installation]
 [![License: Apache-2.0][license-badge]][license]
 
 [ci-badge]: https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml/badge.svg
 [ci]: https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml
-[coverage-badge]: https://img.shields.io/badge/coverage-not%20published-lightgrey
-[pypi-badge]: https://img.shields.io/badge/PyPI-unreleased-lightgrey
+[pypi-badge]: https://img.shields.io/pypi/v/chooong.datasift.svg
+[pypi]: https://pypi.org/project/chooong.datasift/
 [python-badge]: https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue
 [license-badge]: https://img.shields.io/badge/license-Apache--2.0-blue
 [installation]: https://github.com/chooong-group/chooong.datasift/blob/main/docs/installation.md
@@ -21,17 +20,19 @@ results. Tables may start away from A1 or sit beside other tables.
 
 ## Installation
 
-Version 0.1.0 is unreleased. Use CPython 3.12–3.14 and install from a checkout
-with Rust 1.95.0, Cargo and a native linker:
+Requires CPython 3.12–3.14.
 
 <!-- check: syntax -->
 
 ```bash
-python -m pip install .
+python -m pip install chooong.datasift
 ```
 
-Compatible maintainer-built wheels need no compiler. Pydantic is the only direct
-Python runtime dependency; no external service is needed.
+Compatible prebuilt wheels do not require a Rust compiler.
+Building from source requires Rust, Cargo and a native linker.
+
+See the [installation guide][installation] for details.
+Pydantic is the only direct Python runtime dependency; no external service is needed.
 
 ## Features
 
