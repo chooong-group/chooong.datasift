@@ -1,0 +1,71 @@
+/* Chooong tokens from chooong.frontend/src/styles.css.
+   Original logos from public/brand; light/dark mapping from src/lib/brand-logo.ts. */
+:root,
+[data-md-color-scheme="default"] {
+  color-scheme: light;
+  --canvas: #f4f7fb;
+  --surface: #ffffff;
+  --surface-raised: #f8fafd;
+  --foreground: #102033;
+  --muted: #4c6077;
+  --border: #d7e0ec;
+  --border-strong: #aab9cd;
+  --brand-blue: #087fbe;
+  --brand-orange: #d97706;
+  --on-brand: #ffffff;
+  /* Original blue is 4.08:1 on canvas; darken text links for normal-size text. */
+  --link-color: color-mix(in srgb, var(--brand-blue) 85%, var(--foreground));
+}
+[data-md-color-scheme="slate"] {
+  color-scheme: dark;
+  --canvas: #07111f;
+  --surface: #0b1627;
+  --surface-raised: #101d31;
+  --foreground: #f5f7fa;
+  --muted: #aab6c5;
+  --border: #1f314a;
+  --border-strong: #324661;
+  --brand-blue: #08a7f5;
+  --brand-orange: #ff9500;
+  --on-brand: #031423;
+  --link-color: var(--brand-blue);
+}
+[data-md-color-scheme] {
+  --md-default-bg-color: var(--canvas);
+  --md-default-fg-color: var(--foreground);
+  --md-default-fg-color--light: var(--muted);
+  --md-default-fg-color--lighter: var(--border-strong);
+  --md-default-fg-color--lightest: var(--border);
+  --md-primary-fg-color: var(--surface);
+  --md-primary-fg-color--light: var(--surface-raised);
+  --md-primary-fg-color--dark: var(--surface);
+  --md-primary-bg-color: var(--foreground);
+  --md-primary-bg-color--light: var(--muted);
+  --md-accent-fg-color: var(--link-color);
+  --md-accent-bg-color: var(--on-brand);
+  --md-typeset-color: var(--foreground);
+  --md-typeset-a-color: var(--link-color);
+  --md-code-bg-color: var(--surface-raised);
+  --md-code-fg-color: var(--foreground);
+  --md-footer-bg-color: var(--surface);
+  --md-footer-bg-color--dark: var(--surface);
+  --md-footer-fg-color: var(--foreground);
+  --md-footer-fg-color--light: var(--muted);
+  --md-footer-fg-color--lighter: var(--muted);
+}
+body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.md-header { border-bottom: 1px solid var(--border); box-shadow: none; }
+.md-header__button.md-logo img,
+.md-nav__title .md-logo img { height: 2rem; width: auto; border-radius: .25rem; }
+[data-md-color-scheme="slate"] .md-logo img { content: url("../assets/brand/logo.jpeg"); }
+.md-nav__link--active { font-weight: 600; }
+.md-typeset pre > code { border: 1px solid var(--border); border-radius: .4rem; }
+.md-typeset :not(pre) > code { border-radius: .2rem; }
+.md-typeset table:not([class]) { background: var(--surface); border-color: var(--border); }
+.md-search__form { background: var(--surface-raised); border: 1px solid var(--border-strong); }
+.md-search__input::placeholder { color: var(--muted); }
+.md-typeset a:hover { text-decoration: underline; }
+:focus-visible { outline: 3px solid var(--brand-blue); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}

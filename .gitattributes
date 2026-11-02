@@ -1,0 +1,2 @@
+# Keep packaged license bytes identical across native build hosts.
+LICENSE text eol=lf

@@ -1,0 +1,25 @@
+
+cff-version: 1.2.0
+message: "If you use chooong.datasift in your work, please cite this software."
+type: software
+title: chooong.datasift
+authors:
+  - family-names: Steinbach
+    given-names: Marcus
+repository-code: https://github.com/chooong-group/chooong.datasift
+url: https://github.com/chooong-group/chooong.datasift
+abstract: >-
+  chooong.datasift is a Python library with a Rust engine for discovering,
+  validating, filtering and streaming tabular data from XLSX, XLSM and CSV
+  files. It supports JSON-defined filters, column selection, type conversion,
+  required fields, and NDJSON and Parquet export.
+keywords:
+  - python
+  - rust
+  - xlsx
+  - csv
+  - streaming
+  - filtering
+  - data-validation
+  - parquet
+license: Apache-2.0

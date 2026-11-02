@@ -1,0 +1,6 @@
+changelog:
+  exclude:
+    labels: ["release-notes-ignore"]
+  categories:
+    - title: Changes
+      labels: ["*"]

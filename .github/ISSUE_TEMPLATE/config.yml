@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Confidential vulnerability report
+    url: mailto:github@chooong.com
+    about: Email sensitive security reports; do not disclose exploit details in public issues.

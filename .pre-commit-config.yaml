@@ -1,0 +1,40 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format check
+        entry: uv run ruff format --check
+        language: system
+        types_or: [python, pyi]
+      - id: mypy
+        name: mypy
+        entry: uv run mypy src scripts release tests/benchmarks
+        language: system
+        pass_filenames: false
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+      - id: tooling-tests
+        name: release tooling tests
+        entry: uv run pytest tooling/tests/
+        language: system
+        pass_filenames: false
+      - id: rust-format
+        name: cargo fmt check
+        entry: cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
+        language: system
+        pass_filenames: false
+        types: [rust]
+      - id: documentation
+        name: Markdown, links and documentation examples
+        entry: uv run --frozen python scripts/docs.py
+        language: system
+        pass_filenames: false
+        files: '(\.md$|mkdocs\.yml$|scripts/docs\.py$|^src/|^datasift-core/src/)'

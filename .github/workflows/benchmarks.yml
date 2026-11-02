@@ -1,0 +1,67 @@
+name: Performance measurements
+on:
+  workflow_dispatch:
+    inputs:
+      baseline-tag:
+        description: Optional previously released vX.Y.Z tag; empty creates an initial baseline
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/tooling
+      - name: Build and install the exact release-profile candidate
+        shell: bash
+        run: |
+          uv build --wheel --out-dir candidate-dist
+          uv export --frozen --no-dev --no-emit-project --output-file candidate-dist/runtime-requirements.txt
+          uv venv --python 3.13 candidate-env
+          uv pip install --python candidate-env/bin/python --require-hashes -r candidate-dist/runtime-requirements.txt
+          uv pip install --python candidate-env/bin/python --no-deps candidate-dist/*.whl
+          uv pip check --python candidate-env/bin/python
+      - name: Prepare an optional released baseline on the same runner
+        env:
+          BASELINE_TAG: ${{ inputs.baseline-tag }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if [ -n "$BASELINE_TAG" ]; then
+            [[ "$BASELINE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            gh release view "$BASELINE_TAG" --json isDraft,isPrerelease --jq 'select(.isDraft == false and .isPrerelease == false)' | grep -q .
+            git worktree add --detach "$RUNNER_TEMP/baseline" "$BASELINE_TAG"
+            uv build --wheel --directory "$RUNNER_TEMP/baseline" --out-dir "$RUNNER_TEMP/baseline-dist"
+            uv venv --python 3.13 baseline-env
+            uv pip install --python baseline-env/bin/python --require-hashes -r candidate-dist/runtime-requirements.txt
+            uv pip install --python baseline-env/bin/python --no-deps "$RUNNER_TEMP"/baseline-dist/*.whl
+            uv pip check --python baseline-env/bin/python
+          fi
+      - name: Alternate baseline and candidate measurements
+        env:
+          BASELINE_TAG: ${{ inputs.baseline-tag }}
+        shell: bash
+        run: |
+          args=()
+          if [ -n "$BASELINE_TAG" ]; then
+            args+=(--benchmark-baseline-python "$GITHUB_WORKSPACE/baseline-env/bin/python" --benchmark-baseline-ref "$BASELINE_TAG")
+          fi
+          uv run --frozen --no-sync pytest tests/benchmarks/ -m benchmark --benchmark-python "$GITHUB_WORKSPACE/candidate-env/bin/python" --benchmark-output "$RUNNER_TEMP/measurements" --benchmark-build-profile release "${args[@]}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: performance-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/measurements/results.json
+            ${{ runner.temp }}/measurements/results.md
+          if-no-files-found: error
+          retention-days: 30

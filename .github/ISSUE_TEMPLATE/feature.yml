@@ -1,0 +1,16 @@
+name: Feature request
+description: Explain a concrete extraction or integration problem
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and current workaround
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and contract impact
+      description: Use synthetic examples. Explain how existing masks and API callers should behave.
+    validations:
+      required: true

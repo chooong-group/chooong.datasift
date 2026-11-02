@@ -1,0 +1,55 @@
+# Python bytecode and native extensions
+__pycache__/
+*.py[cod]
+*.so
+
+# Python and Rust build output
+/build/
+/dist/
+*.egg-info/
+target/
+
+# Local environments and credentials
+.venv/
+.env
+.env.*
+!.env.example
+.envrc
+.pypirc
+
+# Development caches
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# Coverage reports
+.coverage
+.coverage.*
+/coverage.xml
+/htmlcov/
+
+# MkDocs output
+/site/
+
+# Local input data and exports
+.data/
+*.xlsx
+*.xlsm
+*.xls
+*.ndjson
+*.parquet
+
+# Benchmarks and isolated artifact validation
+/benchmark-results/
+/candidate-dist/
+/candidate-env/
+/baseline-env/
+/bundle/
+/sdist-bundle/
+/verified/
+
+# macOS metadata
+.DS_Store

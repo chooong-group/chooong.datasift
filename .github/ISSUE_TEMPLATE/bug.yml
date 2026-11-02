@@ -1,0 +1,31 @@
+name: Bug report
+description: A reproducible package, CLI or documentation defect
+body:
+  - type: markdown
+    attributes:
+      value: Use synthetic inputs only. Do not attach personal workbooks, credentials or sensitive logs.
+  - type: input
+    id: version
+    attributes:
+      label: Package version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Python version, operating system and architecture
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal synthetic reproducer
+      description: Include the mask, relevant cell layout, exact command and installation method.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual results
+    validations:
+      required: true

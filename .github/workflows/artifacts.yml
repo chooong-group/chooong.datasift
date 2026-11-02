@@ -1,0 +1,138 @@
+name: Build and test distributions
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+        default: ""
+    outputs:
+      artifact-id:
+        value: ${{ jobs.gate.outputs.artifact-id }}
+        description: Immutable artifact containing the verified distribution set
+      checksums-sha256:
+        value: ${{ jobs.gate.outputs.checksums-sha256 }}
+        description: Authenticated checksum manifest for the publishing job
+concurrency:
+  group: artifacts-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      maturin: ${{ steps.plan.outputs.maturin }}
+      rust: ${{ steps.plan.outputs.rust }}
+      python: ${{ steps.plan.outputs.python }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - id: plan
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          args=()
+          if [ -n "$RELEASE_VERSION" ]; then args+=(--version "$RELEASE_VERSION"); fi
+          uv run --frozen --no-sync python scripts/artifacts.py plan --commit "$GITHUB_SHA" --github-output "$GITHUB_OUTPUT" "${args[@]}"
+  wheel:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - run: mkdir -p bundle/dist bundle/evidence
+      - name: Build the native ABI3 wheel with pinned Maturin
+        env:
+          MATURIN_VERSION: ${{ needs.plan.outputs.maturin }}
+          RUSTUP_TOOLCHAIN: ${{ needs.plan.outputs.rust }}
+          BUILD_PYTHON: ${{ needs.plan.outputs.python }}
+          RUST_TARGET: ${{ matrix.rust_target }}
+          MANYLINUX: ${{ matrix.manylinux }}
+        run: |
+          uv python install "$BUILD_PYTHON"
+          build_python=$(uv python find "$BUILD_PYTHON")
+          rustup target add "$RUST_TARGET" --toolchain "$RUSTUP_TOOLCHAIN"
+          rustc --version
+          tools=()
+          args=()
+          if [ -n "$MANYLINUX" ]; then
+            # Zig supplies the older glibc baseline on the native Ubuntu runners.
+            tools+=(--with ziglang==0.15.2)
+            args+=(--zig --compatibility "manylinux_$MANYLINUX" --auditwheel check)
+          fi
+          uvx --python "$BUILD_PYTHON" --from "maturin==$MATURIN_VERSION" "${tools[@]}" maturin build \
+            --release --locked --target "$RUST_TARGET" --out bundle/dist \
+            --interpreter "$build_python" "${args[@]}"
+      - name: Install the exact wheel and test all supported Python versions natively
+        env:
+          TARGET_ID: ${{ matrix.id }}
+        run: uv run --frozen --no-sync python scripts/artifacts.py test --kind wheel --target "$TARGET_ID" --commit "$GITHUB_SHA"
+      - run: uv run --frozen --no-sync twine check bundle/dist/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: candidate-${{ matrix.id }}
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 7
+  sdist:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - run: uv build --sdist --out-dir bundle/dist
+      - name: Build and install the exact sdist in clean Python 3.12, 3.13 and 3.14 environments
+        run: uv run --frozen --no-sync python scripts/artifacts.py test --kind sdist --target sdist --commit "$GITHUB_SHA"
+      - run: uv run --frozen --no-sync twine check bundle/dist/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: candidate-sdist
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 7
+  gate:
+    needs: [plan, wheel, sdist]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      checksums-sha256: ${{ steps.gate.outputs.checksums-sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: candidate-*
+          merge-multiple: true
+          path: bundle
+      - id: gate
+        run: uv run --frozen --no-sync python scripts/artifacts.py gate --commit "$GITHUB_SHA" --github-output "$GITHUB_OUTPUT"
+      - run: uv run --frozen --no-sync twine check verified/dist/*
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verified-candidate
+          path: verified/
+          if-no-files-found: error
+          retention-days: 7
