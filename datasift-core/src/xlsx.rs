@@ -40,16 +40,17 @@ fn validate_depth(event: &Event<'_>, depth: &mut usize) -> Result<(), String> {
     Ok(())
 }
 
-fn xml_tag(name: &[u8]) -> &[u8] {
-    name.rsplit(|byte| *byte == b':').next().unwrap_or(name)
+fn xml_tag(name: &str) -> &str {
+    name.rsplit(':').next().unwrap_or(name)
 }
 
-fn attribute(element: &BytesStart<'_>, wanted: &[u8]) -> Result<Option<String>, String> {
+fn attribute(element: &BytesStart<'_>, wanted: &str) -> Result<Option<String>, String> {
     for item in element.attributes() {
         let item = item.map_err(|e| format!("Invalid XML attribute: {e}"))?;
         if item.key.as_ref() == wanted {
+            // Preserve attribute whitespace while resolving references, as before 0.42.
             return Ok(Some(
-                item.unescape_value()
+                quick_xml::escape::unescape(&item.value)
                     .map_err(|e| format!("Invalid XML attribute value: {e}"))?
                     .into_owned(),
             ));
@@ -66,8 +67,7 @@ fn append_text(target: &mut String, content: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn append_reference(target: &mut String, reference: &[u8]) -> Result<(), String> {
-    let name = std::str::from_utf8(reference).map_err(|e| e.to_string())?;
+fn append_reference(target: &mut String, name: &str) -> Result<(), String> {
     let replacement = match name {
         "amp" => '&',
         "lt" => '<',
@@ -97,12 +97,12 @@ fn append_reference(target: &mut String, reference: &[u8]) -> Result<(), String>
 fn validate_declaration(event: &quick_xml::events::BytesDecl<'_>) -> Result<(), String> {
     if let Some(encoding) = event.encoding() {
         let encoding = encoding.map_err(|e| e.to_string())?;
-        if !encoding.as_ref().eq_ignore_ascii_case(b"utf-8")
-            && !encoding.as_ref().eq_ignore_ascii_case(b"utf8")
+        if !encoding.as_ref().eq_ignore_ascii_case("utf-8")
+            && !encoding.as_ref().eq_ignore_ascii_case("utf8")
         {
             return Err(format!(
                 "XML encoding {:?} is not supported (UTF-8 only)",
-                String::from_utf8_lossy(encoding.as_ref())
+                encoding
             ));
         }
     }
@@ -183,23 +183,23 @@ fn workbook_paths(
             .map_err(|e| e.to_string())?;
         validate_depth(&event, &mut depth)?;
         match event {
-            Event::Start(ref e) | Event::Empty(ref e) if xml_tag(e.name().as_ref()) == b"sheet" => {
-                if let Some(name) = attribute(e, b"name")? {
+            Event::Start(ref e) | Event::Empty(ref e) if xml_tag(e.name().as_ref()) == "sheet" => {
+                if let Some(name) = attribute(e, "name")? {
                     if sheet.is_none_or(|selected| name == selected) {
                         relationship_ids
-                            .push(attribute(e, b"r:id")?.ok_or("Worksheet without r:id")?);
+                            .push(attribute(e, "r:id")?.ok_or("Worksheet without r:id")?);
                     }
-                    if let Some(id) = attribute(e, b"r:id")? {
+                    if let Some(id) = attribute(e, "r:id")? {
                         sheet_names.insert(id, name.clone());
                     }
                     available.push(name);
                 }
             }
             Event::Start(ref e) | Event::Empty(ref e)
-                if xml_tag(e.name().as_ref()) == b"workbookPr" =>
+                if xml_tag(e.name().as_ref()) == "workbookPr" =>
             {
                 date1904 =
-                    attribute(e, b"date1904")?.is_some_and(|s| matches!(s.as_str(), "1" | "true"));
+                    attribute(e, "date1904")?.is_some_and(|s| matches!(s.as_str(), "1" | "true"));
             }
             Event::Decl(ref e) => validate_declaration(e)?,
             Event::DocType(_) => return Err("DTD is not allowed in XLSX".into()),
@@ -234,12 +234,12 @@ fn workbook_paths(
         validate_depth(&event, &mut depth)?;
         match event {
             Event::Start(ref e) | Event::Empty(ref e)
-                if xml_tag(e.name().as_ref()) == b"Relationship" =>
+                if xml_tag(e.name().as_ref()) == "Relationship" =>
             {
-                let id = attribute(e, b"Id")?;
-                let kind = attribute(e, b"Type")?.unwrap_or_default();
-                let target = attribute(e, b"Target")?.unwrap_or_default();
-                let target_mode = attribute(e, b"TargetMode")?;
+                let id = attribute(e, "Id")?;
+                let kind = attribute(e, "Type")?.unwrap_or_default();
+                let target = attribute(e, "Target")?.unwrap_or_default();
+                let target_mode = attribute(e, "TargetMode")?;
                 if target_mode.as_deref() == Some("External") {
                     if id.as_deref().is_some_and(|id| selected_ids.contains(id)) {
                         return Err("External worksheet is not supported".into());
@@ -324,32 +324,28 @@ fn load_shared_strings(
         validate_depth(&event, &mut depth)?;
         match event {
             Event::Start(ref e) => match xml_tag(e.name().as_ref()) {
-                b"si" => {
+                "si" => {
                     in_si = true;
                     current.clear();
                 }
-                b"rPh" if in_si => in_phonetic = true,
-                b"t" if in_si && !in_phonetic => in_t = true,
+                "rPh" if in_si => in_phonetic = true,
+                "t" if in_si && !in_phonetic => in_t = true,
                 _ => (),
             },
-            Event::Empty(ref e) if xml_tag(e.name().as_ref()) == b"si" => {
+            Event::Empty(ref e) if xml_tag(e.name().as_ref()) == "si" => {
                 strings.push(String::new())
             }
             Event::End(ref e) => match xml_tag(e.name().as_ref()) {
-                b"t" => in_t = false,
-                b"rPh" => in_phonetic = false,
-                b"si" => {
+                "t" => in_t = false,
+                "rPh" => in_phonetic = false,
+                "si" => {
                     strings.push(std::mem::take(&mut current));
                     in_si = false;
                 }
                 _ => (),
             },
-            Event::Text(ref e) if in_t => {
-                append_text(&mut current, &e.xml10_content().map_err(|e| e.to_string())?)?
-            }
-            Event::CData(ref e) if in_t => {
-                append_text(&mut current, &e.xml10_content().map_err(|e| e.to_string())?)?
-            }
+            Event::Text(ref e) if in_t => append_text(&mut current, &e.xml10_content())?,
+            Event::CData(ref e) if in_t => append_text(&mut current, &e.xml10_content())?,
             Event::GeneralRef(ref e) if in_t => append_reference(&mut current, e.as_ref())?,
             Event::Decl(ref e) => validate_declaration(e)?,
             Event::DocType(_) => return Err("DTD is not allowed in XLSX".into()),
@@ -501,21 +497,19 @@ fn load_styles(archive: &mut ZipArchive<File>, path: Option<&str>) -> Result<Vec
             .map_err(|_| "Invalid styles.xml")?;
         validate_depth(&e, &mut depth)?;
         match e {
-            Event::Start(ref e) if xml_tag(e.name().as_ref()) == b"cellXfs" => in_xfs = true,
-            Event::End(ref e) if xml_tag(e.name().as_ref()) == b"cellXfs" => in_xfs = false,
-            Event::Empty(ref e) | Event::Start(ref e)
-                if xml_tag(e.name().as_ref()) == b"numFmt" =>
-            {
+            Event::Start(ref e) if xml_tag(e.name().as_ref()) == "cellXfs" => in_xfs = true,
+            Event::End(ref e) if xml_tag(e.name().as_ref()) == "cellXfs" => in_xfs = false,
+            Event::Empty(ref e) | Event::Start(ref e) if xml_tag(e.name().as_ref()) == "numFmt" => {
                 if let (Some(id), Some(code)) =
-                    (attribute(e, b"numFmtId")?, attribute(e, b"formatCode")?)
+                    (attribute(e, "numFmtId")?, attribute(e, "formatCode")?)
                 {
                     formats.insert(id, code);
                 }
             }
             Event::Empty(ref e) | Event::Start(ref e)
-                if in_xfs && xml_tag(e.name().as_ref()) == b"xf" =>
+                if in_xfs && xml_tag(e.name().as_ref()) == "xf" =>
             {
-                let id = attribute(e, b"numFmtId")?.unwrap_or_default();
+                let id = attribute(e, "numFmtId")?.unwrap_or_default();
                 let builtin = match id.as_str() {
                     "14" | "15" | "16" | "17" => "yyyy-mm-dd",
                     "18" | "19" | "20" | "21" | "22" => "yyyy-mm-dd hh:mm:ss",
@@ -554,12 +548,12 @@ fn load_merges(archive: &mut ZipArchive<File>, worksheet: &str) -> Result<Vec<Me
         validate_depth(&e, &mut depth)?;
         match e {
             Event::Empty(ref e) | Event::Start(ref e)
-                if xml_tag(e.name().as_ref()) == b"mergeCell" =>
+                if xml_tag(e.name().as_ref()) == "mergeCell" =>
             {
                 if result.len() >= 16384 {
                     return Err("Too many merged ranges".into());
                 }
-                let reference = attribute(e, b"ref")?.ok_or("Merge without ref")?;
+                let reference = attribute(e, "ref")?.ok_or("Merge without ref")?;
                 let (first, last) = reference.split_once(':').ok_or("Invalid merge")?;
                 fn row(s: &str) -> Result<u32, String> {
                     s.trim_start_matches(|c: char| c.is_ascii_uppercase())
@@ -693,12 +687,12 @@ fn scan_worksheet(
         validate_depth(&event, &mut depth)?;
         match event {
             Event::Start(ref e) => match xml_tag(e.name().as_ref()) {
-                b"sheetData" => in_sheet_data = true,
-                b"row" if in_sheet_data => {
+                "sheetData" => in_sheet_data = true,
+                "row" if in_sheet_data => {
                     if in_row {
                         return Err("Nested <row> elements".into());
                     }
-                    row_num = match attribute(e, b"r")? {
+                    row_num = match attribute(e, "r")? {
                         Some(value) => value
                             .parse::<u32>()
                             .map_err(|_| "Invalid Excel row number")?,
@@ -711,7 +705,7 @@ fn scan_worksheet(
                     row.clear();
                     next_cell_col = 0;
                 }
-                b"c" if in_row => {
+                "c" if in_row => {
                     if in_cell {
                         return Err("Nested <c> elements".into());
                     }
@@ -720,7 +714,7 @@ fn scan_worksheet(
                         return Err("Duplicate or unsorted cells in an Excel row".into());
                     }
                     next_cell_col = cell_col + 1;
-                    style = attribute(e, b"s")?
+                    style = attribute(e, "s")?
                         .map(|s| s.parse::<usize>().map_err(|_| "Invalid cell style"))
                         .transpose()?
                         .unwrap_or(0);
@@ -730,15 +724,15 @@ fn scan_worksheet(
                     in_inline = false;
                     field = Field::None;
                 }
-                b"is" if in_cell => in_inline = true,
-                b"rPh" if in_inline => in_phonetic = true,
-                b"v" if in_cell => field = Field::Value,
-                b"t" if in_inline && !in_phonetic => field = Field::Inline,
+                "is" if in_cell => in_inline = true,
+                "rPh" if in_inline => in_phonetic = true,
+                "v" if in_cell => field = Field::Value,
+                "t" if in_inline && !in_phonetic => field = Field::Inline,
                 _ => (),
             },
             Event::Empty(ref e) => match xml_tag(e.name().as_ref()) {
-                b"row" if in_sheet_data => {
-                    let number: u32 = match attribute(e, b"r")? {
+                "row" if in_sheet_data => {
+                    let number: u32 = match attribute(e, "r")? {
                         Some(value) => value.parse().map_err(|_| "Invalid Excel row number")?,
                         None => last_row.checked_add(1).ok_or("Too many Excel rows")?,
                     };
@@ -748,7 +742,7 @@ fn scan_worksheet(
                     sink.on_row(number, Vec::new())?;
                     last_row = number;
                 }
-                b"c" if in_row => {
+                "c" if in_row => {
                     start_cell(e, row_num, next_cell_col, &mut cell_col, &mut cell_kind)?;
                     if cell_col < next_cell_col {
                         return Err("Unsorted Excel cell".into());
@@ -761,25 +755,13 @@ fn scan_worksheet(
                 _ => (),
             },
             Event::Text(ref text) => match field {
-                Field::Value => append_text(
-                    &mut raw_value,
-                    &text.xml10_content().map_err(|e| e.to_string())?,
-                )?,
-                Field::Inline => append_text(
-                    &mut inline_value,
-                    &text.xml10_content().map_err(|e| e.to_string())?,
-                )?,
+                Field::Value => append_text(&mut raw_value, &text.xml10_content())?,
+                Field::Inline => append_text(&mut inline_value, &text.xml10_content())?,
                 Field::None => (),
             },
             Event::CData(ref text) => match field {
-                Field::Value => append_text(
-                    &mut raw_value,
-                    &text.xml10_content().map_err(|e| e.to_string())?,
-                )?,
-                Field::Inline => append_text(
-                    &mut inline_value,
-                    &text.xml10_content().map_err(|e| e.to_string())?,
-                )?,
+                Field::Value => append_text(&mut raw_value, &text.xml10_content())?,
+                Field::Inline => append_text(&mut inline_value, &text.xml10_content())?,
                 Field::None => (),
             },
             Event::GeneralRef(ref reference) => match field {
@@ -788,10 +770,10 @@ fn scan_worksheet(
                 Field::None => (),
             },
             Event::End(ref e) => match xml_tag(e.name().as_ref()) {
-                b"v" | b"t" => field = Field::None,
-                b"rPh" => in_phonetic = false,
-                b"is" => in_inline = false,
-                b"c" if in_cell => {
+                "v" | "t" => field = Field::None,
+                "rPh" => in_phonetic = false,
+                "is" => in_inline = false,
+                "c" if in_cell => {
                     if let Some(value) = sink
                         .read_cell(
                             row_num,
@@ -813,7 +795,7 @@ fn scan_worksheet(
                     in_cell = false;
                     field = Field::None;
                 }
-                b"row" if in_row => {
+                "row" if in_row => {
                     if in_cell {
                         return Err("Unclosed Excel cell".into());
                     }
@@ -821,7 +803,7 @@ fn scan_worksheet(
                     last_row = row_num;
                     in_row = false;
                 }
-                b"sheetData" => in_sheet_data = false,
+                "sheetData" => in_sheet_data = false,
                 _ => (),
             },
             Event::Decl(ref e) => validate_declaration(e)?,
@@ -858,7 +840,7 @@ fn start_cell(
     col: &mut usize,
     kind: &mut String,
 ) -> Result<(), String> {
-    *col = match attribute(e, b"r")? {
+    *col = match attribute(e, "r")? {
         Some(reference) => {
             let index = column_from_cell_reference(&reference)?;
             let digit_start = reference
@@ -881,7 +863,7 @@ fn start_cell(
     if *col >= MAX_COLS {
         return Err("More than 16384 columns in an Excel row".into());
     }
-    *kind = attribute(e, b"t")?.unwrap_or_else(|| "n".into());
+    *kind = attribute(e, "t")?.unwrap_or_else(|| "n".into());
     Ok(())
 }
 

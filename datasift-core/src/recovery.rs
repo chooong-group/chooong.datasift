@@ -23,8 +23,11 @@ pub(crate) struct Journal {
     pub version: u8,
     pub entries: Vec<Entry>,
 }
+fn hex_digest(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
 pub(crate) fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex_digest(&Sha256::digest(bytes))
 }
 fn descriptor_metadata(file: &File) -> Result<cap_std::fs::Metadata, String> {
     cap_std::fs::File::from_std(file.try_clone().map_err(|_| "Cannot clone file handle")?)
@@ -49,7 +52,7 @@ pub(crate) fn file_digest(file: &mut File) -> Result<String, String> {
         }
         hash.update(&buffer[..count]);
     }
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(hex_digest(&hash.finalize()))
 }
 #[derive(PartialEq, Eq)]
 enum TargetState {
@@ -268,7 +271,7 @@ fn snapshot(source: &mut File, private: &Dir, expected: &str) -> Result<(), Stri
         || before.modified().ok() != after.modified().ok()
         || before.nlink() != 1
         || after.nlink() != 1
-        || format!("{:x}", hash.finalize()) != expected
+        || hex_digest(&hash.finalize()) != expected
     {
         return Err("Recovery file does not match journal".into());
     }
