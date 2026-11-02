@@ -78,10 +78,67 @@ listed in [errors](../reference/errors.md). Rejected values are original; matche
 values are converted/projected. Event `values` use validated tagged literal models
 for exact types. `source_types` describes originals; `row` is a physical Excel row
 or a logical CSV record. Table bindings use zero-based physical column indices.
-`rows_read` counts input rows, including structural rows; matches/rejections count
-per eligible table/source. Overlapping sources can therefore count a physical row
-more than once as matched/rejected. `seconds` includes worker
-processing and channel backpressure, not an isolated CPU measurement.
+
+### Statistics counters
+
+Counters accumulate across input files, worksheets and tables in one scan.
+They describe processing, including rejected records, rather than just exported
+matches. Missing keys in `reasons` and `row_classes` mean zero occurrences.
+
+| Counter | Counting unit and scope |
+| --- | --- |
+| `rows_read` | Input rows delivered by the parser, including structural rows; missing Excel rows are not synthesized |
+| `matched`, `rejected` | Records per eligible table/source; overlapping sources can count one physical row more than once |
+| `defaults` | Default assignments to empty cells, before conversion and filtering; includes later rejected records |
+| `conversions` | Successful type-rule applications that change a cell value/type; failures and already-compatible unchanged values do not increment it |
+| `reasons` | Occurrences of each rejection code; several columns can contribute the same code to one rejected record |
+| `row_classes` | Classified table/source rows before include/exclude filtering; structural header counts also depend on discovery mode |
+| `seconds` | Worker processing time including channel backpressure, rather than isolated CPU time |
+
+Defaults and conversions count cells, not rows, and are not limited to projected
+columns. A default followed by a successful conversion increments both counters.
+Summed reason counts can exceed `rejected`; they are not counts of distinct rows.
+`rejected=False` suppresses rejected events, without changing these counters.
+
+`row_classes` includes excluded classifications. Its sum need not equal
+`rows_read`: overlapping sources count independently, discovery can consume rows
+before classification, and quarantined regions emit schema rejects outside the
+normal classification path. Header accounting varies between automatic discovery
+and explicit sources; these counters are not a partition of physical input rows.
+
+For example, the first row below receives a default and converts it before
+another column fails. The second row performs two successful conversions; the
+third fails in two columns with the same rejection code:
+
+```python
+from pathlib import Path
+
+from chooong.datasift import RejectCode, scan_batches
+
+Path("counters.csv").write_text("ID,A,B\na,,bad\nb,0,1\nc,bad,bad\n", encoding="utf-8")
+mask = {
+    "sheet": None,
+    "header": {"anchors": ["ID", "A", "B"]},
+    "defaults": {"A": "2"},
+    "types": {
+        "A": {"type": "integer", "convert": True},
+        "B": {"type": "integer", "convert": True},
+    },
+}
+with scan_batches("counters.csv", mask, rejected=False) as scan:
+    matches = [record for batch in scan for record in batch]
+    statistics = scan.statistics
+assert len(matches) == 1
+assert statistics is not None and statistics.complete
+assert (statistics.matched, statistics.rejected) == (1, 2)
+assert (statistics.defaults, statistics.conversions) == (1, 3)
+assert statistics.reasons[RejectCode.CONVERSION_FAILED] == 3
+```
+
+Statistics availability and incomplete scans follow the
+[streaming contract](../concepts/streaming.md#completion-and-cancellation).
+
+### Value types
 
 `CellValue` is `str | bool | int | float | None | Decimal | Money | date | datetime |
 PreciseDateTime`. `Expression` and `MaskInput` are also public type aliases.

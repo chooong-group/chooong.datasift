@@ -94,7 +94,8 @@ Python runtime dependency; no external service is needed.
 
 - Export matching and rejected records to **NDJSON or Parquet**.
 - Write output directly from Rust without Python-side row serialization.
-- Preserve source metadata and rejection details in exported records.
+- Preserve source metadata in rejected NDJSON and both Parquet outputs; matched NDJSON contains
+  projected values only. Rejected outputs also retain rejection details.
 - Preserve existing output files when scanning or serialization fails.
 - Use journaled commits and verified recovery for interrupted file replacements.
 - Continue processing independent tables after schema errors.
