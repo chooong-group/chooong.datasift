@@ -69,9 +69,9 @@ def environment(
         digest.update(name.encode())
         digest.update(content)
     return Environment(
-        system=platform.system(),
+        system=probe.system.value,
         os_version=platform.platform(),
-        machine=platform.machine(),
+        machine=probe.machine.value,
         processor=processor(),
         cpu_count=os.cpu_count(),
         python=probe.python,
