@@ -81,6 +81,10 @@ rechecks bytes without rebuilding, refuses `skip-existing`, and verifies the exa
 published file set and downloaded PyPI bytes. GitHub Release creation follows only
 after that verification. A partial upload needs investigation before recovery.
 
+The publishing job directly requires both `release-identity` and `distributions`
+to succeed. Keep this explicit identity gate even when distribution builds also
+depend on it.
+
 ## Documentation deployment
 
 Pages deployment remains hard-disabled. The prepared workflow builds the site,

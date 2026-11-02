@@ -18,6 +18,7 @@ def test_workflows_are_read_only_for_forks_and_publication_is_hard_disabled() ->
     release = yaml.load((workflows / "release.yml").read_text(), Loader=yaml.BaseLoader)
     assert set(release["on"]) == {"workflow_dispatch"}
     publish = release["jobs"]["publish"]
+    assert set(publish["needs"]) == {"release-identity", "distributions"}
     assert publish["if"].startswith("${{ false &&")
     assert publish["environment"]["name"] == "pypi"
     assert publish["permissions"]["id-token"] == "write"
