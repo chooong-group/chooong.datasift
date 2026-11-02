@@ -63,3 +63,7 @@ impl<R: Read> Read for StrictDecoder<R> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/encoding.rs"]
+mod tests;

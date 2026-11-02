@@ -20,12 +20,8 @@ no service or database is required.
 
 ## Create the workbook
 
-```bash
-python examples/create_sample.py sample.xlsx --dirty
-```
-
-The generator refuses to overwrite an existing file. Its `Data` sheet contains
-a title at A1 and the following cells; all data is synthetic:
+Create `sample.xlsx` in a spreadsheet editor. Name its sheet `Data` and enter
+the following synthetic values at the indicated positions, leaving blank cells empty:
 
 | Excel row | C | D | E | H | I | J |
 | --- | --- | --- | --- | --- | --- | --- |

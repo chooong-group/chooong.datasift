@@ -166,3 +166,7 @@ pub enum RecordKind {
     Matched,
     Rejected,
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/value.rs"]
+mod tests;

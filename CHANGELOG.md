@@ -4,6 +4,8 @@
 
 ### Added
 
+- A core README and structured Rust tests for input decoding, discovery, validation,
+  exact values and real-file export failures, with isolated temporary fixtures.
 - Native CSV input, deterministic multi-file scanning, optional predicates,
   independent discovery anchors and ordered literal/regex/wildcard projection.
 - Required/default/type rules, exact Decimal/Money and temporal conversions,
@@ -12,16 +14,9 @@
   native NDJSON/Parquet exports and journaled two-file commit/recovery.
 
 - English README and MkDocs documentation, contribution guide and issue/PR templates.
-- Native five-platform ABI3 wheel matrix, source-distribution installation checks,
-  checksum-bound fixture evidence and a complete-set release gate. Remote platform
-  validation remains a release blocker until actually executed.
-- A shared dry-run/release build path and an OIDC publishing job that is hard-disabled
-  pending independent review, owner approval and external PyPI/GitHub configuration.
 - Strict documentation checks and a disabled, manually activated Pages workflow.
-- A synthetic quickstart workbook generator with adjacent offset tables and comment rows; existing files are never overwritten.
 - Automatic discovery of multiple complete table schemas per worksheet, including
   adjacent and vertically offset areas, with independent predicates and row-ordered output.
-- Example masks for explicit layouts and multiline cell labels.
 - `sheet: null` scans all worksheets in workbook order, with whole-scan atomic CLI output.
 - Repeated headers receive indices such as `Amount_1` and `Amount_2`;
   unique names stay unchanged and selected collisions fail.
@@ -30,6 +25,9 @@
   and the `chooong-datasift` NDJSON CLI.
 
 ### Changed
+
+- CI runs source tests and wheel/sdist build checks without repository scripts.
+- Rename the Rust source directory and Cargo package to `datasift-core`; update build and release tooling.
 
 - **Breaking change:** `recover_export` requires a separately trusted
   `journal_sha256` and an explicit `rejected_output` for two-file recovery.
@@ -44,12 +42,9 @@
 - Consolidated user documentation into six guides; moved release instructions to
   `.github/RELEASING.md` and validation reports to the PR.
 
-- Benchmark defaults to 2,000,000 rows across Excel-compliant worksheets.
-- Local example workbooks live under `examples/` and remain excluded from Git and distributions; the large-workbook JSON mask is retained.
 - CI uses read-only GitHub-hosted standard runners; private-repository compute is
   blocked rather than silently permitting charges. Actions, uv, Rust and Maturin
   are pinned; Python/Cargo dependencies are locked.
-- Public metadata, project URLs and distribution inventories are checked.
 - Implementation modules are `models`, `reader` and `rust`; imports are absolute.
 - **Breaking change:** automatic header discovery removed
   `header_row`. Masks must omit it; output/conversion include only names referenced
@@ -75,10 +70,12 @@
 
 ### Removed
 
+- Repository scripts, example files, dependent release automation and script-specific tests.
+
 - Automatic tag-triggered GitLab publishing and its CI-run polling. No replacement
   upload or deployment is enabled by this preparation.
 - Historical `rust_xlsx_filter/` PoC; implementation lives in `src/chooong/datasift`
-  and `native`, with earlier code retained in Git history.
+  and `datasift-core`, with earlier code retained in Git history.
 
 ### Security
 

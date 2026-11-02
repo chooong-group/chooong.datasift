@@ -43,17 +43,17 @@ oder Rekonstruktion verbundener/mehrzeiliger Header ist nicht implementiert.
 | --- | --- |
 | src/chooong/datasift/_models.py | GEPRÜFT, kanonische Pydantic-Modelle und Bereichs-/Aliasvalidierung |
 | src/chooong/datasift/__init__.py | GEPRÜFT, öffentliche Exporte TableSource/ColumnBinding |
-| native/src/filter.rs | GEPRÜFT, Source-Contract, Positionsauflösung, unveränderte Filteroperatoren |
-| native/src/xlsx.rs | GEPRÜFT, Streaming-Selektion vor Zellwert-Konvertierung, gesamte XML-Struktur weiterhin validiert |
-| native/src/lib.rs | GEPRÜFT, Ausgabe nur gebundener Felder, Lebenszyklus unverändert |
-| native/src/value.rs, src/chooong/datasift/_reader.py, __main__.py | GEPRÜFT, direkte Consumer/Zelltypen unverändert |
+| datasift-core/src/filter.rs | GEPRÜFT, Source-Contract, Positionsauflösung, unveränderte Filteroperatoren |
+| datasift-core/src/xlsx.rs | GEPRÜFT, Streaming-Selektion vor Zellwert-Konvertierung, gesamte XML-Struktur weiterhin validiert |
+| datasift-core/src/lib.rs | GEPRÜFT, Ausgabe nur gebundener Felder, Lebenszyklus unverändert |
+| datasift-core/src/value.rs, src/chooong/datasift/_reader.py, __main__.py | GEPRÜFT, direkte Consumer/Zelltypen unverändert |
 | tests/test_sources.py | GEPRÜFT, echte OOXML-Tabellenlayouts und Fehlerpfade, keine internen Mocks |
 | tests/test_contract.py | GEPRÜFT, Korrektur der früheren Zusatzfeld-Erwartung |
 | tests/test_engine.py, test_cli.py | GEPRÜFT, bestehende Filter-, Atomicity- und Lifecycle-Pfade |
 | examples/filter.json, examples/layout-filter.json | GEPRÜFT, tatsächliche Benutzerdatei bzw. synthetischer Layout-Test |
 | README.md, docs/contract.md, CHANGELOG.md | GEPRÜFT, Quellmodell, Grenzen und Contract-Korrektur dokumentiert |
 | docs/verification.md, unnamed-columns-verification.md | GEPRÜFT, alte Prüfstände als historisch markiert |
-| pyproject.toml, native/Cargo.toml, Lockfiles, beide Workflows, Pre-Commit | GEPRÜFT, unverändert |
+| pyproject.toml, datasift-core/Cargo.toml, Lockfiles, beide Workflows, Pre-Commit | GEPRÜFT, unverändert |
 | scripts/bench.py | GEPRÜFT, direkter Consumer des unveränderten einfachen Header-Modus |
 | Externe Consumer | Keine Cross-Repo-Änderung oder Integrationszusage |
 
@@ -65,9 +65,9 @@ Erfolgreiche abschließende Befehle (Exit 0):
 - `.venv/bin/mypy src`: 5 Quelldateien ohne Fehler.
 - `.venv/bin/pytest --cov --cov-report=term-missing`: 88 bestanden,
   99,55 % Python-Coverage; keine Behauptung einer Rust-Coverage.
-- `cargo fmt --manifest-path native/Cargo.toml -- --check`.
-- `cargo clippy --manifest-path native/Cargo.toml --locked --offline --all-targets -- -D warnings`.
-- `cargo test --manifest-path native/Cargo.toml --locked --offline`: 6 bestanden.
+- `cargo fmt --manifest-path datasift-core/Cargo.toml -- --check`.
+- `cargo clippy --manifest-path datasift-core/Cargo.toml --locked --offline --all-targets -- -D warnings`.
+- `cargo test --manifest-path datasift-core/Cargo.toml --locked --offline`: 6 bestanden.
 - Deklarierter Maturin-Backend, lokal vorhandene Version 1.16.0:
   `maturin build --release --offline --locked -i .venv/bin/python --out dist`
   und `maturin sdist --out dist`; `.venv/bin/twine check dist/*`.
@@ -108,8 +108,8 @@ Eindeutige Namen bleiben unverändert. Namen nach Indizierung müssen eindeutig
 sein; Kollisionen mit bestehenden Suffix-Namen sind ein kontrollierter Fehler.
 `source.columns.name` sind explizite Aliase und bleiben von dieser Automatik getrennt.
 
-GEPRÜFT: native/src/filter.rs (Ursache und Namensbildung), direkter Consumer
-native/src/xlsx.rs (Headerauflösung), native/src/lib.rs (Ready-/Ausgabevertrag),
+GEPRÜFT: datasift-core/src/filter.rs (Ursache und Namensbildung), direkter Consumer
+datasift-core/src/xlsx.rs (Headerauflösung), datasift-core/src/lib.rs (Ready-/Ausgabevertrag),
 tests/test_contract.py, tests/test_header_indexing.py, README.md, docs/contract.md
 und CHANGELOG.md. CLI, Python-Reader, Modelle und Workflows sind unverändert;
 bestehende Contract-/Quellen-/Atomicity-Tests bleiben relevant und bestanden.
@@ -151,8 +151,8 @@ Schemas übersprungen; mit `source` gelten die Bindungen auf jedem Blatt.
 Strukturelle Fehler bleiben Fehler, auch nach ersten Treffern und in übersprungenen
 Blättern. Die CLI ersetzt das Ziel erst nach erfolgreichem Gesamtscan.
 
-GEPRÜFT, vollständig: `_models.py`, `_reader.py`, `native/src/filter.rs`,
-`native/src/xlsx.rs`, `native/src/lib.rs`, `tests/test_all_sheets.py`,
+GEPRÜFT, vollständig: `_models.py`, `_reader.py`, `datasift-core/src/filter.rs`,
+`datasift-core/src/xlsx.rs`, `datasift-core/src/lib.rs`, `tests/test_all_sheets.py`,
 `examples/filter.json`, README.md, CHANGELOG.md und docs/contract.md.
 Direkte Consumer: Python-Reader und CLI sowie bestehende Contract-, Engine-,
 Quellen- und Header-Tests; unveränderte Pfade durch die gesamte Testsuite geprüft.
@@ -223,12 +223,12 @@ mehrere physische Zeilen verteilte Header werden nicht geraten. Wiederholte
 Headertexte in gewählten Spalten werden übersprungen. Für echte Daten mit exakt
 diesen Texten oder abweichende Layouts bleiben explizite `source`-Bindungen.
 
-GEPRÜFT, vollständig und geändert: `_models.py`, `native/src/filter.rs`,
-`native/src/xlsx.rs`, `tests/test_auto_headers.py`, `tests/test_all_sheets.py`,
+GEPRÜFT, vollständig und geändert: `_models.py`, `datasift-core/src/filter.rs`,
+`datasift-core/src/xlsx.rs`, `tests/test_auto_headers.py`, `tests/test_all_sheets.py`,
 `tests/test_contract.py`, `tests/test_header_indexing.py`, `tests/test_engine.py`,
 `tests/test_cli.py`, `tests/test_sources.py`, README.md, CHANGELOG.md, docs/contract.md
 und dieses Protokoll. GEPRÜFT, direkte Consumer unverändert: `_reader.py`,
-`__main__.py`, `native/src/lib.rs`, `native/src/value.rs`, `scripts/bench.py`.
+`__main__.py`, `datasift-core/src/lib.rs`, `datasift-core/src/value.rs`, `scripts/bench.py`.
 GEPRÜFT, unverändert: Build-Konfiguration, Lockfiles, Workflows, öffentliche Exporte
 und versionierte Beispiele. Keine Cross-Repo-Consumer geändert. Benutzerdateien
 bleiben unversioniert und werden nicht als Fixtures oder Artefakte hochgeladen.
@@ -282,10 +282,10 @@ Lösungsleiter: vorhandene Bibliotheksfunktion, keine eigene Ersetzungsheuristik
 oder zusätzliche Abhängigkeit. Explizite Zeichenreferenzen werden separat
 aufgelöst und behalten das referenzierte Zeichen. Kein pauschales Trimmen.
 
-GEPRÜFT, vollständig und geändert: native/src/xlsx.rs, tests/test_xml_line_endings.py,
+GEPRÜFT, vollständig und geändert: datasift-core/src/xlsx.rs, tests/test_xml_line_endings.py,
 README.md, CHANGELOG.md, docs/contract.md und dieses Protokoll. Direkte Consumer:
-Shared Strings sowie Worksheet-Text/CDATA, Headerauflösung in native/src/filter.rs
-und Python-/CLI-Ausgabe; bestehende Tests bleiben relevant. Modelle, native/src/lib.rs,
+Shared Strings sowie Worksheet-Text/CDATA, Headerauflösung in datasift-core/src/filter.rs
+und Python-/CLI-Ausgabe; bestehende Tests bleiben relevant. Modelle, datasift-core/src/lib.rs,
 Workflows, Lockfiles und Build-Konfiguration unverändert. Keine externen Consumer
 geändert. Die vorhandenen lokalen Löschungen unter rust_xlsx_filter stammen vom
 Nutzer und sind kein Bestandteil dieses Commits. Excel, lokale Maske und NDJSON
@@ -341,7 +341,7 @@ Implementierungsnamen und den passenden nativen Initialisierer, keinen alten
 zugesicherter Contract und erhalten keine Weiterleitungen.
 
 GEPRÜFT, vollständig und geändert: `src/chooong/datasift/models.py`, `reader.py`,
-`rust.pyi`, `__init__.py`, `__main__.py`, `native/src/lib.rs`, `native/Cargo.toml`,
+`rust.pyi`, `__init__.py`, `__main__.py`, `datasift-core/src/lib.rs`, `datasift-core/Cargo.toml`,
 `pyproject.toml`, README.md, CHANGELOG.md, docs/contract.md und dieses Protokoll.
 GEPRÜFT, direkte Consumer: sämtliche bestehenden Python-Tests, `scripts/bench.py`
 und CLI-Entry-Point; keine Umstellung außerhalb der Package-Verdrahtung nötig.
@@ -458,11 +458,11 @@ Außerhalb aktiver Spalten werden nur gültige Text-Headerkandidaten betrachtet;
 ungültige unselektierte Werte werden weiterhin nicht extrahiert. Keine Änderung
 am Maskenformat, keine neue Version oder Veröffentlichung.
 
-GEPRÜFT, vollständig und geändert: native/src/filter.rs (Schemaauflösung und aus
-der Maske abgeleitete Headerkandidaten), native/src/xlsx.rs (aktive Tabellen,
+GEPRÜFT, vollständig und geändert: datasift-core/src/filter.rs (Schemaauflösung und aus
+der Maske abgeleitete Headerkandidaten), datasift-core/src/xlsx.rs (aktive Tabellen,
 Zellselektion, Projektion, Batchgrenzen), tests/test_multiple_tables.py, README.md,
 CHANGELOG.md, docs/contract.md und dieses Protokoll. GEPRÜFT, direkte Consumer
-unverändert: native/src/lib.rs (Ready/Batch), Python-Reader, CLI und Benchmark;
+unverändert: datasift-core/src/lib.rs (Ready/Batch), Python-Reader, CLI und Benchmark;
 bestehende Contract-/Header-/Quellen-/Zeilenenden-Tests bleiben relevant.
 Modelle, Workflows und Lockfiles bleiben unverändert. Die gleichzeitig vom Nutzer
 geänderte Kommentarübersetzung in pyproject.toml bleibt ungestagt; keine Ruff-Regel

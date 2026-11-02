@@ -12,7 +12,3 @@ jobs:
   checks:
     if: github.event.repository.private == false
     uses: ./.github/workflows/checks.yml
-  distributions:
-    needs: checks
-    if: github.event.repository.private == false
-    uses: ./.github/workflows/artifacts.yml

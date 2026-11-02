@@ -92,8 +92,32 @@ structured JSON in UTF-8 fields. Data is written in bounded batches/row groups.
 
 ## Runnable validation example
 
+Create `transactions.csv`:
+
+```csv
+CustomerID,Amount,Country
+C1,"1.234,56",DE
+,invalid,AT
+C3,,
+```
+
+Create `validation-filter.json`:
+
+```json
+{
+  "sheet": null,
+  "header": {"anchors": ["CustomerID", "Amount", "Country"]},
+  "select": ["CustomerID", "Amount", "Country"],
+  "required": ["CustomerID", "Amount"],
+  "defaults": {"Amount": "0,00", "Country": "UNKNOWN"},
+  "types": {
+    "Amount": {"type": "money", "convert": true, "currency": "EUR", "locale": "de-DE"}
+  }
+}
+```
+
 ```bash
-chooong-datasift examples/transactions.csv examples/validation-filter.json \
+chooong-datasift transactions.csv validation-filter.json \
   --output matched.ndjson --rejected-output rejected.ndjson --explain statistics.json
 ```
 

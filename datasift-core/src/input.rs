@@ -178,3 +178,7 @@ fn csv_scan(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/input.rs"]
+mod tests;

@@ -54,8 +54,8 @@ aller Befunde bleibt dem Re-Review vorbehalten.
 | --- | --- | --- | --- |
 | D01 | P1 | Implementation lokal belegt | pyproject.toml:1 — Ungültiges Packaging: Root-pyproject mit genau einem Maturin-Backend, Namespace-Package, nativer abi3-Erweiterung, Stubs und py.typed; Wheel/sdist installieren und testen |
 | D02 | P1 | Implementation lokal belegt | src/chooong/datasift/_models.py:93 — Unvalidierte Python-Masken und Any-API: Pydantic-Modelle, Operator-Enum, unveränderliche Row; test_contract.py plus mypy |
-| D03 | P1 | Implementation lokal belegt | native/src/lib.rs:26 — Receiver war nicht Sync: Mutex schützt die native Empfängerverwaltung; Build, Clippy und Threadwechsel-Test |
-| D04 | P1 | Implementation lokal belegt | native/src/xlsx.rs:25 — EOF konnte unvollständiges XML akzeptieren: gemeinsame XML-Tiefenprüfung für alle Parts; Truncation-Tests für Worksheet/Shared Strings |
+| D03 | P1 | Implementation lokal belegt | datasift-core/src/lib.rs:26 — Receiver war nicht Sync: Mutex schützt die native Empfängerverwaltung; Build, Clippy und Threadwechsel-Test |
+| D04 | P1 | Implementation lokal belegt | datasift-core/src/xlsx.rs:25 — EOF konnte unvollständiges XML akzeptieren: gemeinsame XML-Tiefenprüfung für alle Parts; Truncation-Tests für Worksheet/Shared Strings |
 | D05 | P1 | Implementation lokal belegt | src/chooong/datasift/__main__.py:38 — Ausgabe konnte Filter überschreiben: Eingabe-/Masken-Aliasprüfung, temporäre Ausgabe und Rename; echte CLI-Fehler-/Symlink-Tests |
 | D06 | P1 | UNVERIFIED | .github/workflows/ci.yml:15 — Projektfremde CI ersetzt; Ausführung auf Linux-Runner und Release-Broker noch nicht nachgewiesen |
 | D07 | P1 | UNVERIFIED | Unabhängiges Contract-/Datenintegritäts-Re-Review ausstehend |
@@ -73,11 +73,11 @@ keine Behauptung über noch nicht ausgeführte CI.
 | README.md, CHANGELOG.md | GEPRÜFT, Einstieg und Änderungen aktualisiert |
 | docs/contract.md, docs/verification.md | GEPRÜFT, Contract, Grenzen und Evidenz |
 | pyproject.toml, uv.lock | GEPRÜFT, Python-Abhängigkeiten und Qualitätsbefehle |
-| native/Cargo.toml, native/Cargo.lock | GEPRÜFT, PyO3/abi3 und fixierte Rust-Abhängigkeiten |
-| native/src/value.rs | GEPRÜFT, I/O-unabhängige Zellwerte |
-| native/src/filter.rs | GEPRÜFT, alle Operatoren, Headerauflösung und Fehlerpfade |
-| native/src/xlsx.rs | GEPRÜFT, Archiv/XML-Reader und Ressourcen-/Formatgrenzen |
-| native/src/lib.rs | GEPRÜFT, Worker, Channel, GIL-Freigabe und Iterator-Lebenszyklus |
+| datasift-core/Cargo.toml, datasift-core/Cargo.lock | GEPRÜFT, PyO3/abi3 und fixierte Rust-Abhängigkeiten |
+| datasift-core/src/value.rs | GEPRÜFT, I/O-unabhängige Zellwerte |
+| datasift-core/src/filter.rs | GEPRÜFT, alle Operatoren, Headerauflösung und Fehlerpfade |
+| datasift-core/src/xlsx.rs | GEPRÜFT, Archiv/XML-Reader und Ressourcen-/Formatgrenzen |
+| datasift-core/src/lib.rs | GEPRÜFT, Worker, Channel, GIL-Freigabe und Iterator-Lebenszyklus |
 | src/chooong/datasift/__init__.py | GEPRÜFT, dokumentierte öffentliche Exporte |
 | src/chooong/datasift/_models.py | GEPRÜFT, Modelle/Enums/Row |
 | src/chooong/datasift/_reader.py | GEPRÜFT, direkte Engine-Aufrufer und Dateiadapter |
@@ -91,7 +91,7 @@ keine Behauptung über noch nicht ausgeführte CI.
 | .github/workflows/ci.yml | GEPRÜFT, Python-3.13/3.14-Matrix, Rust und installierte Artefakte; CI UNVERIFIED |
 | .github/workflows/release-gitlab-pypi.yml | GEPRÜFT, vorhandener CI-Artefakt-/Hash-/OIDC-Pfad beibehalten, Package-Tests ersetzt; Veröffentlichung UNVERIFIED |
 | rust_xlsx_filter/README.md, pyproject.toml, Cargo.toml | GEPRÜFT, historische unveränderte Entwurfsgrundlage |
-| rust_xlsx_filter/src/lib.rs, filter.rs, xlsx.rs | GEPRÜFT, Ausgangsengine; neuer produktiver Code unter native/ |
+| rust_xlsx_filter/src/lib.rs, filter.rs, xlsx.rs | GEPRÜFT, Ausgangsengine; neuer produktiver Code unter datasift-core/ |
 | rust_xlsx_filter/python/rust_xlsx_filter/__init__.py, __main__.py | GEPRÜFT, alte API/CLI; kein zugesicherter Consumer-Contract |
 | rust_xlsx_filter/filter_excel.py, filter.json | GEPRÜFT, historischer Wrapper und Beispiel |
 | rust_xlsx_filter/tests/test_engine.py, benchmarks/bench.py | GEPRÜFT, Grundlage der übernommenen Nachweise |
@@ -111,9 +111,9 @@ Python-Coverage gilt ausschließlich für Python, nicht für die Rust-Engine.
 | .venv/bin/ruff format --check src tests scripts | 9 Dateien formatiert; 0 |
 | .venv/bin/mypy src | 5 Quelldateien ohne Fehler; 0 |
 | .venv/bin/pytest --cov --cov-report=term-missing | 60 passed, 99.47 % Python-Coverage; 0 |
-| cargo fmt --manifest-path native/Cargo.toml -- --check | erfolgreich; 0 |
-| cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings | erfolgreich; 0 |
-| cargo test --manifest-path native/Cargo.toml --locked | 6 passed; 0 |
+| cargo fmt --manifest-path datasift-core/Cargo.toml -- --check | erfolgreich; 0 |
+| cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings | erfolgreich; 0 |
+| cargo test --manifest-path datasift-core/Cargo.toml --locked | 6 passed; 0 |
 | uv build | Wheel und sdist, Wheel aus sdist gebaut; 0 |
 | .venv/bin/twine check dist/* | Wheel und sdist PASSED; 0 |
 | Isoliertes Wheel, Python 3.13, pytest -o addopts= tests | 60 passed; 0 |
@@ -136,7 +136,7 @@ Bytecode-Caches. Kein Zugriff auf externe APIs, bestehende Dienste oder Datenban
 - Basis: 97d4f59614c5294ab50253213a920390da44323d; auf dem finalen PR-HEAD prüfen.
 - Soll: vollständige CI auf dem vorhandenen Linux-x64-Runner besteht, ohne
   Orchestrator-, PostgreSQL- oder RabbitMQ-Abhängigkeiten.
-- Dateien: beide .github/workflows/*.yml, pyproject.toml, native/Cargo.toml.
+- Dateien: beide .github/workflows/*.yml, pyproject.toml, datasift-core/Cargo.toml.
 - Schritte: Nutzer prüft den automatisch gestarteten PR-Lauf; Actionlint auf
   beiden Workflows ausführen. Kein manuelles Starten oder Polling durch den Agenten.
 - Negativ-/Replay-Belege: bestehende 60 Tests, einschließlich Fehlermasken,

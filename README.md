@@ -19,12 +19,8 @@ uv pip install .
 
 ## Example
 
-Generate synthetic data with a title, two tables at C4 and H4, and comments
-between the headers and records:
-
-```bash
-python examples/create_sample.py sample.xlsx --dirty
-```
+Use a workbook named `sample.xlsx` with `Country` and `Amount` columns.
+Headers may start away from A1, and matching tables may be adjacent.
 
 ```python
 from pathlib import Path
@@ -67,6 +63,7 @@ anchors or explicit sources. Comments/totals/separators use explicit rules.
 Recovery requires caller-confirmed destinations and a trusted journal hash;
 see the [commit and recovery contract](docs/cli.md#file-output).
 
+The [Rust core](datasift-core/README.md) lives in `datasift-core/`; Python sources are in `src/chooong/datasift/`.
 For development, run `uv sync --frozen`; checks and build commands are in
 [Contributing](CONTRIBUTING.md).
 [Changelog](CHANGELOG.md) · [License](LICENSE)

@@ -16,6 +16,7 @@ from chooong.datasift import (
     ColumnBinding,
     EmptyCondition,
     FilterMask,
+    NumericCondition,
     Operator,
     ScalarCondition,
     TableSource,
@@ -91,8 +92,24 @@ def _layout_workbook(path: Path) -> None:
 
 
 def _source_mask() -> FilterMask:
-    return FilterMask.model_validate_json(
-        (Path(__file__).resolve().parents[1] / "examples/layout-filter.json").read_text()
+    return FilterMask(
+        sheet="Daten",
+        source=TableSource(
+            columns=(
+                ColumnBinding(name="Kunde", column="C"),
+                ColumnBinding(name="Umsatz", column="D"),
+                ColumnBinding(name="UmsatzVorjahr", column="E"),
+            ),
+            data_start_row=7,
+            data_end_row=10,
+            skip_rows=(8,),
+        ),
+        where=AllOf(
+            conditions=(
+                TextCondition(column="Kunde", op=Operator.STARTS_WITH, value="ABC"),
+                NumericCondition(column="Umsatz", op=Operator.GTE, value=100),
+            )
+        ),
     )
 
 

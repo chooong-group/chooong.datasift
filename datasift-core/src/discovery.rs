@@ -196,3 +196,7 @@ impl Discovery {
         events
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/discovery.rs"]
+mod tests;
