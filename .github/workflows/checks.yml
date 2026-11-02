@@ -14,13 +14,15 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/tooling
       - run: uv lock --check
-      - run: uv run --frozen --no-sync ruff check src tests scripts examples
-      - run: uv run --frozen --no-sync ruff format --check src tests scripts examples
+      - run: uv sync --frozen
+      - run: uv run --frozen --no-sync pytest --cov --cov-report=term-missing
+      - run: uv run --frozen --no-sync ruff check src tests
+      - run: uv run --frozen --no-sync ruff format --check src tests
       - run: uv run --frozen --no-sync mypy src
-      - run: uv run --frozen --no-sync mypy --strict scripts/artifacts.py scripts/verify_publish.py scripts/bench.py examples/create_sample.py
-      - run: uv run --frozen --no-sync python scripts/artifacts.py plan
       - run: cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
       - run: cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings
       - run: cargo test --manifest-path datasift-core/Cargo.toml --locked
       - run: uv run --frozen --no-sync mkdocs build --strict
+      - run: uv build
+      - run: uv run --frozen --no-sync twine check dist/*
       - run: git diff --check

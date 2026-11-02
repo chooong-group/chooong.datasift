@@ -19,12 +19,8 @@ uv pip install .
 
 ## Example
 
-Generate synthetic data with a title, two tables at C4 and H4, and comments
-between the headers and records:
-
-```bash
-python examples/create_sample.py sample.xlsx --dirty
-```
+Use a workbook named `sample.xlsx` with `Country` and `Amount` columns.
+Headers may start away from A1, and matching tables may be adjacent.
 
 ```python
 from pathlib import Path

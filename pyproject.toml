@@ -40,17 +40,7 @@ python-source = "src"
 features = ["pyo3/extension-module"]
 include = [
     {path = "tests/**/*.py", format = "sdist"},
-    {path = "scripts/**/*.py", format = "sdist"},
     {path = "docs/**/*.md", format = "sdist"},
-    {path = "examples/quickstart-filter.json", format = "sdist"},
-    {path = "examples/create_sample.py", format = "sdist"},
-    {path = "examples/filter.json", format = "sdist"},
-    {path = "examples/filter_2000000.json", format = "sdist"},
-    {path = "examples/layout-filter.json", format = "sdist"},
-    {path = "examples/filter_schmutzig.json", format = "sdist"},
-    {path = "examples/validation-filter.json", format = "sdist"},
-    {path = "examples/transactions.csv", format = "sdist"},
-    {path = ".github/release-targets.json", format = "sdist"},
     {path = ".github/workflows/*.yml", format = "sdist"},
     {path = ".github/actions/**/*.yml", format = "sdist"},
     {path = "mkdocs.yml", format = "sdist"},
@@ -124,19 +114,6 @@ max-returns = 6
 max-statements = 50
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/**/*.py" = [
-    "ANN",
-    "C901",
-    "E501",
-    "PERF401",
-    "PLR0912",
-    "PLR0913",
-    "PLR0915",
-    "PLR2004",
-    "SLF001",
-    "T201",
-    "DTZ",
-]
 "tests/**/*.py" = [
     "ANN",
     "DTZ",
@@ -163,7 +140,7 @@ strict = true
 warn_unreachable = true
 mypy_path = "src"
 explicit_package_bases = true
-exclude = "^(tests|scripts)/"
+exclude = "^tests/"
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --strict-config"
