@@ -1,19 +1,20 @@
-## Problem and resulting behavior
+# Pull request
 
-Describe the concrete trigger, before/after behavior and public-contract impact.
+## Problem and behavior
+
+Describe the trigger, resulting behavior and any public-contract impact.
 
 ## Validation
 
-List exact commands, exit status, tested artifacts and native platforms. Mark
-unexecuted checks UNVERIFIED; synthetic release-gate fixtures are not native
-platform evidence.
+List commands, results and the actual platforms/artifacts tested. Mark missing
+checks UNVERIFIED; synthetic release fixtures do not qualify native platforms.
 
-- [ ] Relevant negative cases, replay and data-integrity behavior checked
-- [ ] README, contract and Unreleased changelog reviewed
-- [ ] Ruff rules, type checks and build constraints preserved
-- [ ] No local workbooks, credentials, `.data/` content or generated output included
+- [ ] Relevant failures, replay and data integrity checked
+- [ ] Documentation/examples and user-relevant changelog reviewed
+- [ ] Lint/type/build constraints and private-repository cost guards preserved
+- [ ] No secrets, local workbooks, generated output or `.data/` contents included
 
-## Release blockers and manual steps
+## Remaining requirements
 
-State remaining platform/review/configuration blockers and any required owner
-actions. No publication, tag, merge or visibility change is authorized by a PR.
+State concrete review or external permission/platform requirements. A PR does
+not authorize a merge, tag, release, publication or repository visibility change.

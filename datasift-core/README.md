@@ -4,50 +4,23 @@ The Rust engine behind [chooong.datasift](../README.md). It reads XLSX/XLSM and
 CSV, discovers tables, validates and converts values, filters rows and writes
 NDJSON or Parquet. PyO3 exposes it as `chooong.datasift.rust`.
 
-Applications should use the typed [Python API](../docs/python-api.md). The core
+Applications should use the typed [Python API](../docs/api/python.md). The core
 module is an internal interface shipped with `chooong.datasift`, built from the
 repository's root `pyproject.toml`.
 
-## Direct usage
+## Internal boundary
 
-Given a UTF-8 file named `data.csv`:
-
-```csv
-ID,Amount
-a,1500
-b,900
-```
-
-```python
-import json
-
-from chooong.datasift import rust
-
-mask = {
-    "sheet": None,
-    "header": {"anchors": ["ID", "Amount"]},
-    "select": ["ID", "Amount"],
-    "types": {"Amount": {"type": "integer", "convert": True}},
-    "where": {"column": "Amount", "op": "gte", "value": 1000},
-}
-scan = rust.iter_json(["data.csv"], json.dumps(mask), batch_size=128)
-try:
-    rows = [json.loads(row) for batch in scan for row in batch]
-    assert rows == [{"ID": "a", "Amount": 1500}]
-finally:
-    scan.close()
-```
-
-`iter_json` yields batches of serialized matching rows. Use `iter_events` for
-matched/rejected records and their source metadata. Invalid configuration raises
-`ValueError`; file and schema failures can raise `RuntimeError` during iteration.
-Close iterators when stopping early. See the [filter contract](../docs/contract.md)
-and [export/recovery contract](../docs/cli.md#file-output) for the full behavior.
+Applications use the stable [Python API](../docs/api/python.md). Native PyO3
+functions are implementation interfaces, not a standalone supported Rust/Python
+consumer API. [Architecture](../docs/development/architecture.md) maps the modules
+and worker ownership. The root Maturin configuration controls packaging.
 
 ## Development
 
 Install Rust 1.95.0 (pinned in [`rust-toolchain.toml`](../rust-toolchain.toml)),
 CPython 3.12, 3.13 or 3.14, uv and a native linker. Run from the repository root:
+
+<!-- check: syntax -->
 
 ```bash
 uv sync --frozen
@@ -58,6 +31,8 @@ uv run --frozen pytest
 ```
 
 Run a focused Rust suite by module name:
+
+<!-- check: syntax -->
 
 ```bash
 cargo test --manifest-path datasift-core/Cargo.toml --locked encoding::tests
@@ -91,7 +66,7 @@ archives; they need no external data or services. The repository-level
 
 The core does not calculate Excel formulas; it reads cached results. It supports
 XLSX/XLSM and CSV, with bounded row streaming; workbook metadata and shared strings
-are retained in memory. See [Limits & Errors](../docs/limits.md) for format and
+are retained in memory. See [Limits & Errors](../docs/reference/limits.md) for format and
 resource limits.
 
 Licensed under [Apache-2.0](../LICENSE).

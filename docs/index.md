@@ -1,90 +1,37 @@
-# Getting Started
+# DataSift
 
-DataSift extracts matching values from XLSX/XLSM worksheets using a JSON mask.
-This example reads two adjacent tables that start away from A1, with comments
-between their headers and data.
+Extract, validate and filter tables from XLSX, XLSM and CSV using a JSON mask.
+Rust reads rows and writes exports; Python validates masks and exposes typed results.
+No database or external service is required.
 
-## Install
+Start with [installation](installation.md) and the [quickstart](quickstart.md).
+Then choose a guide for [Excel](guides/excel.md), [CSV](guides/csv.md),
+[complex layouts](guides/complex-layouts.md), [validation](guides/validation.md)
+or [exporting](guides/exporting.md).
 
-Use CPython 3.12, 3.13 or 3.14. From a checkout:
+## How a scan works
 
-```bash
-python -m pip install .
-# or, in an active environment:
-uv pip install .
-```
+A scan discovers or binds columns, classifies rows, applies defaults and explicit
+type conversions, validates values, evaluates the filter, then projects matches.
+[Filters](concepts/filters.md) explains that order. Use matching iterators for
+values, or an event iterator for both matches and rejected original records.
 
-Source builds require Rust 1.95.0, Cargo and a native linker (MSVC build tools on
-Windows). Compatible wheels need no compiler. Pydantic is the runtime dependency;
-no service or database is required.
+Tables may start away from A1 and appear beside or below other tables.
+Automatic discovery needs structural evidence; text-only or ambiguous layouts
+need [anchors or explicit sources](concepts/table-discovery.md).
 
-## Create the workbook
+## Reference
 
-Create `sample.xlsx` in a spreadsheet editor. Name its sheet `Data` and enter
-the following synthetic values at the indicated positions, leaving blank cells empty:
+- [Python API](api/python.md): supported imports, signatures and result models.
+- [Filter models](api/filters.md): mask fields and every operator.
+- [JSON Schema](api/json-schema.md): generate schemas from the canonical models.
+- [CLI](api/cli.md): arguments, output and exit behavior.
+- [Limits](reference/limits.md), [errors](reference/errors.md) and
+  [file safety](reference/file-safety.md): constraints and failure handling.
 
-| Excel row | C | D | E | H | I | J |
-| --- | --- | --- | --- | --- | --- | --- |
-| 4 | Country | Amount | Note | Country | Amount | Note |
-| 5 | Amounts pending review | | | Includes estimates | | |
-| 6 | DE | 1500 | Provisional | DE | 2400 | Approved |
-| 7 | AT | 2000 | | DE | 900 | |
+DataSift does not read XLS/XLSB or encrypted workbooks, calculate formulas or write
+Excel files. It reads cached formula results. Rows stream, but shared strings,
+metadata and batches still require memory. See [streaming](concepts/streaming.md).
 
-## Filter from Python
-
-```python
-from pathlib import Path
-
-from chooong.datasift import (
-    AllOf, FilterMask, NumericCondition, Operator, ScalarCondition, iter_matching_rows,
-)
-
-mask = FilterMask(
-    sheet=None,
-    where=AllOf(conditions=(
-        ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
-        NumericCondition(column="Amount", op=Operator.GTE, value=1000),
-    )),
-)
-rows = [dict(row) for row in iter_matching_rows("sample.xlsx", mask)]
-assert rows == [
-    {"Country": "DE", "Amount": 1500},
-    {"Country": "DE", "Amount": 2400},
-]
-Path("sample-filter.json").write_text(mask.model_dump_json(by_alias=True), encoding="utf-8")
-```
-
-The complete `Country`/`Amount` groups identify both tables. The comment rows and
-nonmatching records fail the predicate; `Note` is outside the selected columns.
-No row number or table coordinates are needed in this mask. See
-[Excel Layouts](layouts.md) for discovery rules and ambiguous layouts.
-
-## Use the same mask from the CLI
-
-The generated `sample-filter.json` contains these filter rules:
-
-```json
-{
-  "sheet": null,
-  "where": {
-    "all": [
-      {"column": "Country", "op": "eq", "value": "DE"},
-      {"column": "Amount", "op": "gte", "value": 1000}
-    ]
-  }
-}
-```
-
-```bash
-chooong-datasift sample.xlsx sample-filter.json --output matches.ndjson
-```
-
-`matches.ndjson` contains:
-
-```json
-{"Country":"DE","Amount":1500}
-{"Country":"DE","Amount":2400}
-```
-
-Next: [JSON Filters](contract.md), [Python API](python-api.md),
-[CLI output and failures](cli.md), [Limits & Errors](limits.md).
+Developers can start with [architecture](development/architecture.md),
+[contributing](development/contributing.md) and [benchmarks](development/benchmarks.md).

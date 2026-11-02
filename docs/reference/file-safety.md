@@ -1,24 +1,11 @@
-# CLI
+# File safety and recovery
 
-```bash
-chooong-datasift 'input/*.xlsx' other.csv mask.json --output matched.ndjson \
-  --rejected-output rejected.ndjson --batch-size 1024 --explain statistics.json
-```
+Inputs, mask and output destinations must be distinct. The CLI checks resolved
+paths and same-file aliases, including `--explain`, and rejects symlinks and
+commit/lock metadata destinations. Python `export` protects mask-file aliases;
+native export protects input aliases. `--explain` is an independent write.
 
-Inputs may be CSV/XLSX/XLSM paths or glob patterns, sorted lexically. The final
-positional argument is the JSON mask. With no `--output`, native serialized
-matching NDJSON is written to stdout. Stdout can contain partial results after
-a late failure. `--rejected-output` requires `--output`. Both accept `.parquet`
-for native Parquet. No Python DataFrame or serializer processes records.
-
-`--explain` writes actual-run JSON statistics, table bindings, classifications,
-conversion/default counts, reject frequencies and schema/file diagnostics.
-It performs no second data scan. Diagnostics contain no record values.
-Exit 0 means complete success; technical scan, validation or write errors return
-nonzero and stderr omits cell values. Schema errors also return nonzero after
-processing independent tables; neither result file is committed. No file errors are silently skipped.
-
-## File output
+## Commit protocol
 
 Scan and serialization finish into staged files, then each is flushed/fsynced.
 Until that succeeds, prior destinations remain intact. A durable
@@ -29,7 +16,7 @@ Readers requiring both outputs must check that the commit journal is absent.
 An interrupted commit can expose one new and one old destination; the journal
 makes that state explicit. Preserve the journal and staged files, then run:
 
-```python
+```text
 from chooong.datasift import recover_export
 recover_export(
     "matched.ndjson",
@@ -74,54 +61,13 @@ be distinct; input aliases are refused.
 `--explain` is a separate diagnostic write after result commit; it is not part
 of the two-result commit protocol.
 
-## Parquet schema
+## Recovery call
 
-Parquet has a fixed heterogeneous-record envelope: `kind`, `file`, `sheet`,
-`table`, `row`, `values`, `reasons` and `source_types`. `values` is a list of named typed cells
-with nullable `text`, `integer`, `float`, `boolean`, `decimal`, `currency`,
-`date`, `datetime`, `nanosecond_remainder`, `utc_offset_seconds` fields. Null has no populated payload.
-Decimal/money use native Decimal256(76,28), dates Date32, civil datetimes timestamp
-microseconds with the remaining nanoseconds in a separate integer. For offset
-datetimes the timestamp is UTC and the original offset is retained separately;
-null offset means civil local time. Money pairs
-the exact decimal with its currency. This fixed schema preserves independently
-shaped tables without inference, coercion or a full input scan. Input decimal
-scale is canonicalized to 28; its numeric value remains exact. Reasons and source types are
-structured JSON in UTF-8 fields. Data is written in bounded batches/row groups.
+The call above is a signature illustration: `trusted_sha256` must come from a
+separately trusted record, not from the possibly modified journal. Python
+`export` exposes commit errors containing this digest. The CLI redacts the
+underlying error and does not expose it. Do not claim automatic recovery after a
+crash that lost the independently preserved digest.
 
-
-## Runnable validation example
-
-Create `transactions.csv`:
-
-```csv
-CustomerID,Amount,Country
-C1,"1.234,56",DE
-,invalid,AT
-C3,,
-```
-
-Create `validation-filter.json`:
-
-```json
-{
-  "sheet": null,
-  "header": {"anchors": ["CustomerID", "Amount", "Country"]},
-  "select": ["CustomerID", "Amount", "Country"],
-  "required": ["CustomerID", "Amount"],
-  "defaults": {"Amount": "0,00", "Country": "UNKNOWN"},
-  "types": {
-    "Amount": {"type": "money", "convert": true, "currency": "EUR", "locale": "de-DE"}
-  }
-}
-```
-
-```bash
-chooong-datasift transactions.csv validation-filter.json \
-  --output matched.ndjson --rejected-output rejected.ndjson --explain statistics.json
-```
-
-This produces two matched records and one rejected original record containing
-both `REQUIRED_MISSING` and `CONVERSION_FAILED`. The empty amount defaults to exact
-EUR 0.00 and the empty country to UNKNOWN. Change the output suffixes to `.parquet`
-to use the same scan with native typed columnar output.
+[Exporting](../guides/exporting.md) defines record formats;
+[Python API](../api/python.md) defines exact callable signatures.

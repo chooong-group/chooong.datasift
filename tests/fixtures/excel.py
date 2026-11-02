@@ -327,10 +327,9 @@ def table_document(*tables: Placement) -> str:
             if 0 <= offset <= 3:
                 code = ("IT", "MK", "HR", "OPS")[offset]
                 status = "review" if offset == 1 else "approved"
-                for column, value in zip(
-                    table.columns, (code, table.base_amount + offset, status), strict=True
-                ):
-                    cells.append((column, cell(column, number, value)))
+                record: tuple[str | int, ...] = (code, table.base_amount + offset, status)
+                for column, item in zip(table.columns, record, strict=True):
+                    cells.append((column, cell(column, number, item)))
         if cells:
             cells.sort(key=lambda item: (len(item[0]), item[0]))
             rows.append(f'<row r="{number}">' + "".join(value for _, value in cells) + "</row>")
@@ -355,7 +354,7 @@ def table_layout(path: Path) -> None:
         rewrite(path, "xl/sharedStrings.xml", f"<t>{original}</t>", f"<t>{label}</t>")
 
 
-def worksheet_rows(values: list[tuple[object, ...]]) -> str:
+def worksheet_rows(values: list[tuple[str | int | float | bool | None, ...]]) -> str:
     result = []
     for number, row in enumerate(values, start=1):
         cells = "".join(cell(chr(65 + index), number, value) for index, value in enumerate(row))

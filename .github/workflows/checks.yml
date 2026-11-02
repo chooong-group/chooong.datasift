@@ -26,5 +26,6 @@ jobs:
       - run: cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
       - run: cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings
       - run: cargo test --manifest-path datasift-core/Cargo.toml --locked
+      - run: uv run --frozen --no-sync python scripts/docs.py
       - run: uv run --frozen --no-sync mkdocs build --strict
       - run: git diff --check

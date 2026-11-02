@@ -51,6 +51,8 @@ include = [
     {path = ".github/workflows/*.yml", format = "sdist"},
     {path = ".github/actions/**/*.yml", format = "sdist"},
     {path = "mkdocs.yml", format = "sdist"},
+    {path = ".pymarkdown.json", format = "sdist"},
+    {path = "SECURITY.md", format = "sdist"},
     {path = "rust-toolchain.toml", format = "sdist"},
     {path = "CONTRIBUTING.md", format = "sdist"},
     {path = "CHANGELOG.md", format = "sdist"},
@@ -70,6 +72,9 @@ dev = [
     "pytest-cov>=5,<8",
     "ruff>=0.16.3",
     "twine>=5.1,<7",
+    "pymarkdownlnt>=0.9,<1",
+    "markdown>=3.8,<4",
+    "readme-renderer[md]>=46,<47",
 ]
 
 [tool.ruff]

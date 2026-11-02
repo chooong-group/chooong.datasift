@@ -32,3 +32,9 @@ repos:
         language: system
         pass_filenames: false
         types: [rust]
+      - id: documentation
+        name: Markdown, links and documentation examples
+        entry: uv run --frozen python scripts/docs.py
+        language: system
+        pass_filenames: false
+        files: '(\.md$|mkdocs\.yml$|scripts/docs\.py$|^src/|^datasift-core/src/)'

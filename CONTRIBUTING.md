@@ -1,49 +1,28 @@
 # Contributing
 
-Use a feature branch and pull request. Keep the public API and filter behavior
-stable; describe contract changes before implementing them. Update the
-[JSON filter reference](docs/contract.md), relevant guides and `CHANGELOG.md`
-when behavior changes. Version bumps and publication require a release decision.
+Work on a feature branch and submit one focused pull request. Preserve public
+contracts and use synthetic inputs; never attach personal workbooks or secrets.
 
-## Setup and checks
+Install CPython 3.12–3.14, uv, Rust 1.95.0 and a native linker, then run:
 
-Install CPython 3.12, 3.13 or 3.14, uv and the Rust toolchain in `rust-toolchain.toml`.
-`uv sync --frozen` builds the native extension and installs locked development
-dependencies.
+<!-- check: syntax -->
 
 ```bash
 uv sync --frozen
-uv run --frozen ruff check src tests tooling scripts release
-uv run --frozen ruff format --check src tests tooling scripts release
-uv run --frozen mypy --strict src scripts release tests/benchmarks
-uv run --frozen pytest tests/ -m "not benchmark" --cov --cov-report=term-missing
-uv run --frozen pytest tooling/tests/
-cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
-cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings
-cargo test --manifest-path datasift-core/Cargo.toml --locked
-uv run --frozen mkdocs build --strict
-uv build
-uv run --frozen twine check dist/*
-git diff --check
 ```
 
-## Tests and review
+The canonical [contributor guide](docs/development/contributing.md) lists exact
+lint, type, test, documentation and build commands. Run those checks before
+submitting changes. It also explains runnable documentation examples and local
+verification against installed wheels.
 
-Tests are grouped by behavior. Shared deterministic generators live in
-`tests/fixtures/`; `tests/conftest.py` supplies common temporary inputs.
-Release tooling tests run separately under `tooling/tests/` without network access.
-Large workloads are opt-in: see [Benchmarks](tests/benchmarks/README.md).
+Update affected guides/API references with behavior changes. Keep
+[CHANGELOG.md](CHANGELOG.md) limited to features, breaking changes, relevant
+bugfixes and security changes. Report observed test failures and validation gaps
+in the PR, not in public usage guides.
 
-The [core README](datasift-core/README.md#test-structure) describes the Rust test
-suites. Run them with Cargo; repository-level pytest tests cover the Python API and CLI.
-
-Use synthetic workbooks and the existing ZIP/XML fixtures. Never commit personal
-data, credentials or generated NDJSON. Cover meaningful failures, including
-preserving existing CLI output after a failed scan. Keep Python annotations
-complete and imports absolute; do not weaken lint/type rules to hide failures.
-
-Describe behavior, checks and remaining gaps in the PR. Native artifact tests
-must use installed wheels/sdist on the matching platform. Release procedures are maintained in
-[RELEASING](.github/RELEASING.md).
-
-Contributions use the repository's [Apache-2.0 license](LICENSE).
+See [architecture](docs/development/architecture.md),
+[Rust tests](datasift-core/README.md#test-structure),
+[benchmarks](docs/development/benchmarks.md) and
+[release procedures](.github/RELEASING.md). Version changes, tags and publication
+require a separate explicit release decision. Contributions use [Apache-2.0](LICENSE).

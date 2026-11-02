@@ -1,70 +1,85 @@
 # chooong.datasift
 
-[![CI](https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml/badge.svg)](https://github.com/chooong-group/chooong.datasift/actions/workflows/ci.yml)
-[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+Extract, validate and filter tables from XLSX/XLSM and CSV with a JSON mask.
+Rust streams rows and writes NDJSON/Parquet; Python exposes typed, immutable
+results. Tables may start away from A1 or sit beside other tables.
 
-Extract, validate and filter tabular data from XLSX/XLSM and CSV using a JSON mask. Rust streams
-worksheet rows; Python receives typed, immutable results without loading whole
-sheets into a DataFrame. DataSift finds tables beyond A1 and handles repeated
-headers and neighboring tables. It does not calculate formulas or write Excel files.
+## Installation
 
-Requires CPython 3.12, 3.13 or 3.14 and Pydantic. No external service is needed.
-The package is currently unreleased; install from a checkout with Rust 1.95.0:
+Version 0.1.0 is unreleased. Use CPython 3.12–3.14 and install from a checkout
+with Rust 1.95.0, Cargo and a native linker:
+
+<!-- check: syntax -->
 
 ```bash
 python -m pip install .
-# or, in an active environment:
-uv pip install .
 ```
+
+Compatible maintainer-built wheels need no compiler. Pydantic is the only direct
+Python runtime dependency; no external service is needed.
 
 ## Example
 
-Use a workbook named `sample.xlsx` with `Country` and `Amount` columns.
-Headers may start away from A1, and matching tables may be adjacent.
+This example creates its own input:
 
 ```python
 from pathlib import Path
 
-from chooong.datasift import AllOf, FilterMask, NumericCondition, Operator, ScalarCondition, iter_matching_rows
+from chooong.datasift import (
+    AllOf,
+    DataType,
+    FilterMask,
+    HeaderConfig,
+    NumericCondition,
+    Operator,
+    ScalarCondition,
+    TypeRule,
+    iter_matching_rows,
+)
 
+Path("transactions.csv").write_text(
+    "Country,Amount,Note\nDE,1500,first\nAT,2000,second\nDE,900,third\n",
+    encoding="utf-8",
+)
 mask = FilterMask(
     sheet=None,
+    header=HeaderConfig(anchors=("Country", "Amount")),
+    types={"Amount": TypeRule(type=DataType.INTEGER, convert=True)},
     where=AllOf(conditions=(
         ScalarCondition(column="Country", op=Operator.EQ, value="DE"),
         NumericCondition(column="Amount", op=Operator.GTE, value=1000),
     )),
 )
-for row in iter_matching_rows("sample.xlsx", mask):
-    print(dict(row))
-# {'Country': 'DE', 'Amount': 1500}
-# {'Country': 'DE', 'Amount': 2400}
-
-Path("sample-filter.json").write_text(mask.model_dump_json(by_alias=True), encoding="utf-8")
+rows = [dict(row) for row in iter_matching_rows("transactions.csv", mask)]
+assert rows == [{"Country": "DE", "Amount": 1500}]
+Path("mask.json").write_text(mask.model_dump_json(by_alias=True), encoding="utf-8")
 ```
 
 Run the same filter from the CLI:
 
 ```bash
-chooong-datasift sample.xlsx sample-filter.json --output matches.ndjson
+chooong-datasift transactions.csv mask.json --output matches.ndjson
 ```
 
-[Getting Started](docs/index.md) shows the workbook layout and filter JSON.
-See [JSON Filters](docs/contract.md), [Excel Layouts](docs/layouts.md),
-[Python API](docs/python-api.md), [CLI](docs/cli.md) and
-[Limits & Errors](docs/limits.md) for the supported behavior.
+## Documentation and limits
 
-Python validates masks with Pydantic; Rust handles parsing, discovery, types,
-filtering, matched/rejected routing and NDJSON/Parquet writing. Public imports come from `chooong.datasift`, including
-`FilterMask`, `TableSource`, `Row`, the matching iterators, `scan_batches`
-for matched/rejected records, and `export` for native file output.
-Schema failures preserve valid partial records but finish with an error; exports
-keep previous files. Free layouts require structural evidence, otherwise use
-anchors or explicit sources. Comments/totals/separators use explicit rules.
-Recovery requires caller-confirmed destinations and a trusted journal hash;
-see the [commit and recovery contract](docs/cli.md#file-output).
+Start with [installation](https://github.com/chooong-group/chooong.datasift/blob/main/docs/installation.md)
+and the [quickstart](https://github.com/chooong-group/chooong.datasift/blob/main/docs/quickstart.md).
+The [documentation](https://github.com/chooong-group/chooong.datasift/blob/main/docs/index.md)
+links guides, exact Python/CLI references and the filter schema.
 
-The [Rust core](datasift-core/README.md) lives in `datasift-core/`; Python sources are in `src/chooong/datasift/`.
-For development, run `uv sync --frozen`; checks and build commands are in
-[Contributing](CONTRIBUTING.md).
-Performance measurements are opt-in; see [Benchmarks](tests/benchmarks/README.md).
-[Changelog](CHANGELOG.md) · [License](LICENSE)
+XLS/XLSB, encrypted workbooks, formula calculation and Excel output are unsupported.
+Formula caches are read. Shared strings and metadata use memory despite row
+streaming. Ambiguous layouts require anchors or explicit sources. A late scan
+failure may follow partial iterator/stdout results; exported results use a
+journaled commit, not a shared atomic two-file replacement. See
+[file safety](https://github.com/chooong-group/chooong.datasift/blob/main/docs/reference/file-safety.md).
+
+Public imports come from `chooong.datasift`. Python validates masks; the
+[Rust core](https://github.com/chooong-group/chooong.datasift/blob/main/datasift-core/README.md)
+owns parsing and the row pipeline. For development, use `uv sync --frozen` and
+[Contributing](https://github.com/chooong-group/chooong.datasift/blob/main/CONTRIBUTING.md).
+
+[Changelog](https://github.com/chooong-group/chooong.datasift/blob/main/CHANGELOG.md) ·
+[Security](https://github.com/chooong-group/chooong.datasift/blob/main/SECURITY.md) ·
+[Apache-2.0 license](https://github.com/chooong-group/chooong.datasift/blob/main/LICENSE)

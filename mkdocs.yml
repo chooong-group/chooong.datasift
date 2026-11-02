@@ -1,21 +1,52 @@
-site_name: chooong.datasift
-site_description: Streaming XLSX and XLSM filtering with typed Python results
+site_name: DataSift
+site_description: Streaming XLSX, XLSM and CSV extraction, validation and filtering
 site_url: https://chooong-group.github.io/chooong.datasift/
 repo_url: https://github.com/chooong-group/chooong.datasift
 edit_uri: edit/main/docs/
 site_dir: site
+strict: true
 theme:
   name: readthedocs
   highlightjs: true
-strict: true
-exclude_docs: |
-  /verification.md
-  /unnamed-columns-verification.md
-  /table-sources-verification.md
+  navigation_depth: 3
+markdown_extensions:
+  - tables
+  - fenced_code
+  - toc:
+      permalink: true
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
 nav:
-  - Getting Started: index.md
-  - JSON Filters: contract.md
-  - Excel Layouts: layouts.md
-  - Python API: python-api.md
-  - CLI: cli.md
-  - Limits & Errors: limits.md
+  - Overview: index.md
+  - Installation: installation.md
+  - Quickstart: quickstart.md
+  - Concepts:
+      - Filters: concepts/filters.md
+      - Table discovery: concepts/table-discovery.md
+      - Column mapping: concepts/column-mapping.md
+      - Data types: concepts/data-types.md
+      - Streaming: concepts/streaming.md
+  - Guides:
+      - Excel: guides/excel.md
+      - CSV: guides/csv.md
+      - Complex layouts: guides/complex-layouts.md
+      - Validation: guides/validation.md
+      - Exporting: guides/exporting.md
+  - API:
+      - Python: api/python.md
+      - Filter models: api/filters.md
+      - JSON Schema: api/json-schema.md
+      - CLI: api/cli.md
+  - Reference:
+      - Limits: reference/limits.md
+      - Errors: reference/errors.md
+      - File safety: reference/file-safety.md
+  - Development:
+      - Architecture: development/architecture.md
+      - Contributing: development/contributing.md
+      - Benchmarks: development/benchmarks.md

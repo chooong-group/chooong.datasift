@@ -8,6 +8,8 @@ must agree. Preparation supports canonical final PEP 440 versions (`X.Y.Z`).
 
 From a clean, current `main` with uv, Rust and authenticated GitHub CLI installed:
 
+<!-- check: syntax -->
+
 ```bash
 uv run release/prepare.py --version 0.1.0 --dry-run
 uv run release/prepare.py --version 0.1.0
@@ -15,6 +17,7 @@ uv run release/push.py --dry-run
 uv run release/push.py
 ```
 
+The changelog retains exactly one `## Unreleased` heading with user-facing notes.
 Preparation checks PyPI, synchronizes version entries and moves Unreleased notes
 into one versioned section. Repeating it does not duplicate notes. Network failures
 block preparation. The push command stages only release files, creates
@@ -38,9 +41,11 @@ failed/skipped tests or modified bytes block the complete set.
 Run **Release dry run** manually with the committed version and `publish: false`.
 Private-repository jobs are skipped under the existing cost policy; a skip is
 not validation. Record actual platform results in the PR. Benchmarks are a separate
-manual workflow; see [Benchmarks](../tests/benchmarks/README.md).
+manual workflow; see [Benchmarks](../docs/development/benchmarks.md).
 
 For a local artifact, put exactly one wheel or sdist in `bundle/dist/`:
+
+<!-- check: syntax -->
 
 ```bash
 uv run python scripts/artifacts.py plan
@@ -74,4 +79,11 @@ rechecks bytes without rebuilding, refuses `skip-existing`, and verifies the exa
 published file set and downloaded PyPI bytes. GitHub Release creation follows only
 after that verification. A partial upload needs investigation before recovery.
 
-Pages deployment stays disabled until separately authorized and configured.
+## Documentation deployment
+
+Pages deployment remains hard-disabled. The prepared workflow builds the site,
+checks its sources/examples and uploads only `site/`. Enabling deployment needs
+an explicit reviewed change to the literal `false` guards, a public repository,
+`PAGES_DEPLOY_ENABLED=true` and an authorized GitHub Pages environment. Do not
+change repository visibility, organization settings or budget guards as a shortcut.
+The package Documentation URL stays on GitHub until Pages is reachable and authorized.
