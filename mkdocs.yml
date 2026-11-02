@@ -1,6 +1,6 @@
 site_name: DataSift
 site_description: Streaming XLSX, XLSM and CSV extraction, validation and filtering
-site_url: https://chooong-group.github.io/chooong.datasift/
+site_url: https://datasift.chooong.com/
 repo_url: https://github.com/chooong-group/chooong.datasift
 edit_uri: edit/main/docs/
 site_dir: site
@@ -71,9 +71,16 @@ nav:
   - Guides:
       - Excel: guides/excel.md
       - CSV: guides/csv.md
+      - Automatic table discovery: guides/automatic-table-discovery.md
       - Complex layouts: guides/complex-layouts.md
+      - Advanced filtering: guides/advanced-filtering.md
+      - Column selection: guides/column-selection.md
       - Validation: guides/validation.md
+      - Table inspection and diagnostics: guides/table-inspection.md
+      - Batch processing and streaming: guides/batch-processing.md
       - Exporting: guides/exporting.md
+      - Error handling: guides/error-handling.md
+      - Performance and resources: guides/performance.md
   - API:
       - Python: api/python.md
       - Filter models: api/filters.md

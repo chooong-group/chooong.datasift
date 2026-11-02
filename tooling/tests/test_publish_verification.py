@@ -8,10 +8,12 @@ import pytest
 from tooling.tests.fixtures import REPO, SyntheticBundle, _gate, _sha
 
 
-@pytest.mark.parametrize("tamper", ["dist", "checksums", "extra", "missing"])
+@pytest.mark.parametrize("kind", [".whl", ".tar.gz"])
+@pytest.mark.parametrize("tamper", ["dist", "checksums", "dist_and_checksums", "extra", "missing"])
 def test_publish_verifier_blocks_changes_after_the_final_gate(
     synthetic_bundle: SyntheticBundle,
     tamper: str,
+    kind: str,
 ) -> None:
     bundle = synthetic_bundle
     assert _gate(bundle).returncode == 0
@@ -23,9 +25,17 @@ def test_publish_verifier_blocks_changes_after_the_final_gate(
         expected,
     ]
     assert subprocess.run(command, check=False).returncode == 0
-    artifact = next((bundle.output / "dist").iterdir())
-    if tamper == "dist":
+    artifact = next(path for path in (bundle.output / "dist").iterdir() if path.name.endswith(kind))
+    if tamper in {"dist", "dist_and_checksums"}:
         artifact.write_bytes(b"changed")
+        if tamper == "dist_and_checksums":
+            checksums = bundle.output / "SHA256SUMS"
+            checksums.write_text(
+                "".join(
+                    f"{_sha(path)}  {path.name}\n"
+                    for path in sorted((bundle.output / "dist").iterdir())
+                )
+            )
     elif tamper == "checksums":
         (bundle.output / "SHA256SUMS").write_text("changed")
     elif tamper == "extra":

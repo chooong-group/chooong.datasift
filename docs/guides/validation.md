@@ -87,3 +87,52 @@ match nor reject streams; statistics count their classifications separately.
 Comments/totals/separators require explicit rules. Free discovery consumes blank
 region boundaries before classification; explicit sources can include physical
 empty records. See [RowPolicy](../api/filters.md#rowpolicy) for every class and field.
+
+## Exact values and dates in Python
+
+This standalone example converts CSV text to exact Decimal and Money values,
+a civil date and a nanosecond datetime. The invalid amount in the second record
+is rejected; it is not rounded or replaced. Anchors keep discovery independent
+of the data types and filters.
+
+```python
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+
+from chooong.datasift import (
+    DataType, FilterMask, HeaderConfig, Money, PreciseDateTime, TypeRule,
+    iter_matching_rows,
+)
+
+Path("exact.csv").write_text(
+    "ID,Ratio,Price,Booked,Observed\n"
+    "a,0.100000000000000000000001,12.50,02.11.2026,2026-11-02T12:00:00.123456789\n"
+    "b,invalid,20.00,03.11.2026,2026-11-03T12:00:00\n",
+    encoding="utf-8",
+)
+mask = FilterMask(
+    sheet=None,
+    header=HeaderConfig(anchors=("ID", "Ratio", "Price", "Booked", "Observed")),
+    types={
+        "Ratio": TypeRule(type=DataType.DECIMAL, convert=True),
+        "Price": TypeRule(type=DataType.MONEY, convert=True, currency="EUR"),
+        "Booked": TypeRule(type=DataType.DATE, convert=True, format="%d.%m.%Y"),
+        "Observed": TypeRule(type=DataType.DATETIME, convert=True),
+    },
+)
+assert [dict(row) for row in iter_matching_rows("exact.csv", mask)] == [{
+    "ID": "a",
+    "Ratio": Decimal("0.100000000000000000000001"),
+    "Price": Money(Decimal("12.50"), "EUR"),
+    "Booked": date(2026, 11, 2),
+    "Observed": PreciseDateTime("2026-11-02T12:00:00.123456789"),
+}]
+```
+
+Matching rows expose Python values; `scan_batches` and NDJSON represent exact
+values using tagged literal models/objects. Decimal supports scale 0–28 and a
+96-bit coefficient. Money requires an unambiguous currency; no exchange conversion
+occurs. Datetime offsets are preserved when present; no timezone is invented.
+Excel date systems, serial-day restrictions and native style handling are defined
+in [data types](../concepts/data-types.md), together with every conversion limit.

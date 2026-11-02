@@ -16,7 +16,11 @@
 
 Extract, validate and filter tables from XLSX/XLSM and CSV with a JSON mask.
 Rust streams rows and writes NDJSON/Parquet; Python exposes typed, immutable
-results. Tables may start away from A1 or sit beside other tables.
+results. Automatic table discovery finds headers away from A1 and multiple table
+regions in Excel and CSV without fixed coordinates in the mask. Start with the
+[discovery guide][discovery-guide] for Named-column and Free Discovery examples.
+
+[discovery-guide]: https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/automatic-table-discovery.md
 
 ## Installation
 
@@ -48,7 +52,8 @@ Pydantic is the only direct Python runtime dependency; no external service is ne
 
 - Automatically discover tables that do not start at A1.
 - Detect multiple tables within a worksheet, including adjacent and vertically separated tables.
-- Support multiline headers, merged cells and repeated header rows.
+- Join a configured number of physical header rows, recognize repeated headers and optionally fill
+  actual Excel merged ranges; [discovery limits][discovery-limits] depend on the mode.
 - Normalize column names with trimming, case conversion, Unicode normalization, whitespace handling
   and aliases.
 - Resolve duplicate column names with deterministic suffixes.
@@ -56,6 +61,13 @@ Pydantic is the only direct Python runtime dependency; no external service is ne
 - Define explicit table sources with column mappings, row ranges and excluded rows.
 - Apply independent rules to different table sources.
 - Detect ambiguous layouts instead of silently guessing table boundaries.
+
+Named-column Discovery uses anchors or filter column names, including for text-only data.
+Free Discovery needs scalar evidence immediately after each candidate header.
+Comments and totals require explicit row rules or predicates; their meaning is not inferred.
+CSV table discovery does not sniff delimiters or encodings.
+
+[discovery-limits]: https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/complex-layouts.md#supported-layouts-and-limits
 
 ### Filtering and column selection
 
@@ -236,7 +248,16 @@ See the [filter reference][filter-reference] for the complete configuration and 
 Start with [installation](https://github.com/chooong-group/chooong.datasift/blob/main/docs/installation.md)
 and the [quickstart](https://github.com/chooong-group/chooong.datasift/blob/main/docs/quickstart.md).
 The [documentation](https://github.com/chooong-group/chooong.datasift/blob/main/docs/index.md)
-links guides, exact Python/CLI references and the filter schema.
+links guides, exact Python/CLI references and the filter schema. Practical workflows:
+
+- [JSON filters](https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/advanced-filtering.md)
+  and [column selection](https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/column-selection.md).
+- [Per-table rules](https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/complex-layouts.md#different-rules-per-table)
+  and [inspection/diagnostics](https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/table-inspection.md).
+- [Batch processing](https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/batch-processing.md)
+  and [partial results](https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/error-handling.md).
+- [Export formats](https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/exporting.md)
+  and [resource use](https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/performance.md).
 
 XLS/XLSB, encrypted workbooks, formula calculation and Excel output are unsupported.
 Formula caches are read. Shared strings and metadata use memory despite row

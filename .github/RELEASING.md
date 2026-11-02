@@ -1,6 +1,7 @@
 # Releasing
 
-Version `0.1.0` remains unreleased. Publishing and Pages deployment are hard-disabled.
+Version `0.1.0` remains unreleased. Publishing requires explicit authorization;
+Pages deployment remains disabled.
 The project version in `pyproject.toml` is authoritative; Cargo and both lockfiles
 must agree. Preparation supports canonical final PEP 440 versions (`X.Y.Z`).
 
@@ -67,13 +68,13 @@ After the release PR is merged, review and explicitly approve its exact commit.
 Only then create a non-overwriting `vX.Y.Z` tag on that commit. Tag creation and
 push are manual owner actions. The workflow does not run automatically on tags.
 
-Activation requires a separately reviewed removal of the literal `false` publish
-guard, verified PyPI project ownership and Trusted Publisher configuration, and a
-protected `pypi` environment with required reviewers. Disable any historical
+Publishing requires `PYPI_PUBLISH_ENABLED=true`, verified PyPI project ownership
+and Trusted Publisher configuration, and a protected `pypi` environment with
+required reviewers. Disable any historical
 GitLab publisher/broker permissions before activation. Do not change repository
 visibility or organization billing settings as part of release preparation.
 
-Once separately enabled, dispatch the release workflow on that tag with the
+Once these prerequisites are satisfied, dispatch the release workflow on that tag with the
 matching version, exact `approved-commit` and `publish: true`. It verifies the tag,
 commit and ancestry on `main`, builds/tests once and hands immutable artifact ID
 and authenticated checksums to the environment-gated OIDC publisher. The publisher
@@ -102,8 +103,12 @@ and environment `pypi`. The workflow filename is case-sensitive. Configure this
 in the owning PyPI account; a repository setting cannot establish PyPI ownership.
 Use OIDC rather than adding a PyPI API token to GitHub secrets.
 
-Before activation, configure a maintainer reviewer in the `pypi` environment.
-Owner self-review may be enabled when explicitly approved by the release owner.
+Restrict `.github/workflows/release.yml` to the release owner with an active
+[Actions policy](https://docs.github.com/en/actions/how-tos/administer/control-workflow-execution).
+A manual trigger alone allows users with repository write access to start workflows.
+Configure the owner as a required reviewer in the `pypi` environment. For the
+owner to start and approve the same deployment, leave **Prevent self-review** off;
+see [environment protection](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments).
 Restrict deployments to version tags (`v*`, type `tag`), not branch `main`.
 The workflow independently checks exact version, approved commit and main ancestry;
 the tag pattern alone is not release authorization. Verify the reviewer and tag

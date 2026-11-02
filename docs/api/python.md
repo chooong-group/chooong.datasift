@@ -58,6 +58,9 @@ boundaries and thread ownership.
 
 ## Results
 
+For a complete workflow inspecting actual records, schemas, bindings and counters,
+see [table inspection and diagnostics](../guides/table-inspection.md).
+
 `Row(cells: Mapping[str, CellValue])` is a frozen immutable mapping. Use
 `row["ID"]`, `len(row)`, iteration over keys or `dict(row)`. It copies the supplied
 mapping and exposes a read-only view. Column selection/order is defined in

@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       publish:
-        description: Reserved for a separately reviewed activation; publishing is hard-disabled
+        description: Publish only with repository enablement and protected environment approval
         required: false
         type: boolean
         default: false
@@ -50,9 +50,8 @@ jobs:
       version: ${{ inputs.version }}
   publish:
     needs: [release-identity, distributions]
-    # Removal of the literal false requires a future reviewed activation PR,
-    # protected environment, Pending Trusted Publisher and explicit owner approval.
-    if: ${{ false && inputs.publish && vars.PYPI_PUBLISH_ENABLED == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+    # Publishing also requires the exact approved identity and protected pypi environment.
+    if: ${{ inputs.publish && vars.PYPI_PUBLISH_ENABLED == 'true' && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -99,4 +98,4 @@ jobs:
         shell: bash
         run: |
           python -c 'import os,pathlib; text=pathlib.Path("CHANGELOG.md").read_text(); version=os.environ["VERSION"]; notes=text.split("## "+version+"\n",1)[1].split("\n## ",1)[0]; pathlib.Path("release-notes.md").write_text(notes)'
-          gh release create "v$VERSION" --verify-tag --target "$GITHUB_SHA" --title "v$VERSION" --notes-file release-notes.md
+          gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file release-notes.md

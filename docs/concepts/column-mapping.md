@@ -16,6 +16,8 @@ Each source may have a unique name and a sheet restriction. An omitted/null sour
 sheet applies to every top-level selected worksheet. A source's `rules` replaces
 the entire shared rule set, including defaults; it is not a partial merge.
 Overlapping explicit regions intentionally emit a record for each source.
+The [per-table rules example](../guides/complex-layouts.md#different-rules-per-table)
+applies different filters and conversions and verifies table identities.
 
 ## Header-bound sources
 

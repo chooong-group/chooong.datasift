@@ -221,3 +221,41 @@ def test_gate_accepts_windows_license_from_autocrlf_checkout(
     result = _gate(bundle)
     assert result.returncode == 0, result.stderr
     assert _sha(bundle.output / "dist" / artifact.name) == receipt["sha256"]
+
+
+def test_cargo_graph_bytes_remain_bound_to_test_receipt(
+    synthetic_bundle: SyntheticBundle,
+) -> None:
+    graph = synthetic_bundle.root / "licenses/linux-x86_64.cargo.json"
+    graph.write_bytes(graph.read_bytes() + b"\n ")
+    result = _gate(synthetic_bundle)
+    assert result.returncode != 0
+    assert "Resolved Cargo graph checksum mismatch" in result.stderr
+    assert not synthetic_bundle.output.exists()
+
+
+def test_windows_checkout_preserves_license_control_hashes(
+    synthetic_bundle: SyntheticBundle,
+    tmp_path: Path,
+) -> None:
+    from scripts.licenses import inventory_errors, read_inventory
+
+    checkout = tmp_path / "windows-controls"
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--quiet",
+            "--no-hardlinks",
+            "--config",
+            "core.autocrlf=true",
+            str(synthetic_bundle.repo),
+            str(checkout),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    inventory = read_inventory(checkout)
+    assert inventory_errors(checkout, inventory) == ()
+    for binding in inventory.locks:
+        assert b"\r\n" not in (checkout / binding.path).read_bytes()

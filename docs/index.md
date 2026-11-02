@@ -1,6 +1,7 @@
 # DataSift
 
-Extract, validate and filter tables from XLSX, XLSM and CSV using a JSON mask.
+Automatically discover, validate and filter tables in XLSX, XLSM and CSV using
+a JSON mask, including tables beside or below one another and headers outside A1.
 Rust reads rows and writes exports; Python validates masks and exposes typed results.
 No database or external service is required.
 
@@ -8,6 +9,27 @@ Start with [installation](installation.md) and the [quickstart](quickstart.md).
 Then choose a guide for [Excel](guides/excel.md), [CSV](guides/csv.md),
 [complex layouts](guides/complex-layouts.md), [validation](guides/validation.md)
 or [exporting](guides/exporting.md).
+
+## Find a workflow
+
+| Task | Guide |
+| --- | --- |
+| Locate offset, adjacent or stacked tables | [Automatic table discovery](guides/automatic-table-discovery.md) |
+| Handle comments, multiline headers or known source windows | [Complex layouts](guides/complex-layouts.md) |
+| Combine AND/OR/NOT, regex and comparisons | [Advanced filtering](guides/advanced-filtering.md) |
+| Select/reorder fields with names, wildcard or regex | [Column selection](guides/column-selection.md) |
+| Apply different filters and rules per table | [Per-table rules](guides/complex-layouts.md#different-rules-per-table) |
+| Inspect schemas, bindings, counts and rejects | [Table inspection and diagnostics](guides/table-inspection.md) |
+| Process large inputs incrementally and close iterators | [Batch processing](guides/batch-processing.md) |
+| Convert exact money, decimals and dates | [Validation](guides/validation.md) |
+| Continue across file errors and handle partial results | [Error handling](guides/error-handling.md) |
+| Write NDJSON/Parquet and understand commit/recovery | [Exporting](guides/exporting.md) |
+| Choose batch sizes and understand memory use | [Performance and resources](guides/performance.md) |
+
+Automatic table discovery is structural, not arbitrary layout understanding.
+Named-column Discovery uses anchors or filter names; Free Discovery needs scalar
+evidence after each header. CSV delimiters and encodings are configured, not
+sniffed. Text-only tables and comments need explicit names/rules or source windows.
 
 ## How a scan works
 

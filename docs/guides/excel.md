@@ -5,6 +5,14 @@ worksheets. All-sheet scans follow workbook order, including hidden worksheets;
 chart sheets without worksheet rows are skipped. The string `"null"` selects a
 worksheet literally named null. XLS, XLSB and encrypted files are unsupported.
 
+## Automatic table discovery
+
+Both [Named-column and Free Discovery](automatic-table-discovery.md) support
+XLSX/XLSM. Use names from anchors or filters when the schema is known; use Free
+Discovery when each candidate has structural confirmation. The
+[complete Excel example](complex-layouts.md#automatic-excel-example) creates its
+own workbook and finds adjacent and shifted tables without coordinates in the mask.
+
 ## Tables outside A1
 
 Create `offset.xlsx`, sheet `Data`, with the following cells. The first three
@@ -40,8 +48,11 @@ assert [dict(row) for row in iter_matching_rows("offset.xlsx", mask)] == [
 
 The complete Country/Amount groups identify two independent tables.
 [Table discovery](../concepts/table-discovery.md) defines adjacent/stacked tables,
-repeated names, ambiguity and ordering. Use [sources](complex-layouts.md) when
-comments or text-only tables cannot be identified reliably.
+repeated names, ambiguity and ordering. Use
+[anchors and row rules](complex-layouts.md#text-only-data-and-comments) for text-only
+data and known comments; reserve
+[sources](complex-layouts.md#manual-fallback-with-tablesource) for boundaries that
+automatic discovery cannot establish.
 
 ## Text and formulas
 

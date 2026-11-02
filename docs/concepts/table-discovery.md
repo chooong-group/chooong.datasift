@@ -60,3 +60,32 @@ reconstructed generally; use header-bound sources for known windows.
 
 [Excel](../guides/excel.md) covers worksheet selection and line endings;
 [complex layouts](../guides/complex-layouts.md) shows source windows and merged headers.
+
+## Physical multiline header example
+
+Header depth must be configured. This CSV example uses Free Discovery to join
+two physical header records, recognize a repeated header and discover another
+schema after an explicit empty-field record. No header start row is configured.
+
+```python
+from pathlib import Path
+
+from chooong.datasift import FilterMask, HeaderConfig, iter_matching_rows
+
+Path("multiline.csv").write_text(
+    "Account,Revenue\nID,EUR\none,1\n"
+    "Account,Revenue\nID,EUR\ntwo,2\n"
+    ",\nCity,Population\nName,Count\nBerlin,3\n",
+    encoding="utf-8",
+)
+mask = FilterMask(sheet=None, header=HeaderConfig(rows=2))
+assert [dict(row) for row in iter_matching_rows("multiline.csv", mask)] == [
+    {"Account ID": "one", "Revenue EUR": "1"},
+    {"Account ID": "two", "Revenue EUR": "2"},
+    {"City Name": "Berlin", "Population Count": "3"},
+]
+```
+
+See [automatic discovery](../guides/automatic-table-discovery.md) for choosing a
+mode and [complex layouts](../guides/complex-layouts.md#supported-layouts-and-limits)
+for the Excel/CSV differences and manual fallbacks.

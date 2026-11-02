@@ -30,3 +30,5 @@ all bound columns are returned.
 [Filter models and operators](../api/filters.md) is the normative reference for
 field names, aliases, defaults, operator semantics and projection order.
 [Validation](../guides/validation.md) demonstrates the complete pipeline.
+For executable workflows, use [advanced JSON filters](../guides/advanced-filtering.md)
+and [column selection](../guides/column-selection.md).
