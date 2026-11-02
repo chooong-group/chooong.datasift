@@ -1,4 +1,4 @@
-name: Documentation deployment (disabled)
+name: Documentation deployment
 on:
   workflow_dispatch:
 concurrency:
