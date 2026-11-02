@@ -1,507 +1,472 @@
-# Explizite Tabellenquellen — Prüfprotokoll
+# Explicit table sources — verification report
 
-## Prüfstand und Urteil
+## Snapshot and verdict
 
-31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`, Basis
-`beb1b834628dfc351ba4b7884ccfaf679ef4e5bb`, bestehender PR #1. Der genaue finale
-Diff ergibt sich aus dieser Basis gegen den lokalen HEAD bzw. Arbeitsstand.
-Benutzerdatei und NDJSON bleiben unversioniert und sind keine Package-Inhalte.
+2026-10-31, `chooong.datasift`, branch `feat/datasift-package`, base
+`beb1b834628dfc351ba4b7884ccfaf679ef4e5bb`, existing PR #1. The exact final
+diff is this base against local HEAD or the working tree. User files and NDJSON
+remain unversioned and are not package contents.
 
-NICHT ENTSCHEIDBAR für eine Gesamtfreigabe: lokale Implementation und Nachweise
-liegen vor; unabhängiges Review, Remote-CI und Übertragung dieses Deltas sind
-UNVERIFIED. Der bisherige Push-Versuch wurde nicht ausgeführt, weil die automatische
-Freigabeprüfung mangels Workspace-Credits nicht abgeschlossen werden konnte.
-Keine Änderung an Version, Abhängigkeiten, Ruff-Regeln, Diensten oder anderen Repos.
+UNDETERMINED for overall approval: local implementation and evidence are available;
+independent review, remote CI and transfer of this delta remain UNVERIFIED.
+The previous push attempt was not executed because automatic approval review
+could not finish due to insufficient workspace credits. No changes to version,
+dependencies, Ruff rules, services or other repositories.
 
-## Befund T01 — P1, unabhängige Schließung offen
+## Finding T01 — P1, independent closure pending
 
-Der frühere Ansatz betrachtete die gesamte Headerzeile als Schema und fügte sogar
-unbenannte Zusatzdaten hinzu. Damit wurden benachbarte Tabellen, mehrzeilige Header
-und Kommentare nicht korrekt als Extraktionsgrenze modelliert.
+The previous approach treated the entire header row as the schema and even added
+unnamed extra data. This failed to model adjacent tables, multiline headers and
+comments correctly as extraction boundaries.
 
-Lösungsleiter: Zellbereiche können mit vorhandener Streaming-Engine gelesen werden;
-benötigt wird eine explizite Quellauswahl, keine zusätzliche Tabellen-Heuristik oder
-zweite Excel-Bibliothek. `TableSource` bindet eindeutige Ausgabe-/Filternamen über
-`ColumnBinding` an absolute Spalten. Zeilenbeginn, optionales Ende und `skip_rows`
-bestimmen die Datensätze. Headertexte werden in diesem Modus nicht interpretiert.
-Die `__column_*`-Funktion wurde entfernt, kein automatisches Mitnehmen fremder Werte.
+Solution ladder: the existing streaming engine can read cell ranges; explicit
+source selection is needed, without another table heuristic or Excel library.
+`TableSource` binds unique output/filter names to absolute columns through
+`ColumnBinding`. The first row, optional end and `skip_rows` determine records.
+Header text is not interpreted in this mode. `__column_*` support was removed;
+unrelated values are no longer included automatically.
 
-Invariante: `source` begrenzt die Eingabe und Ausgabe, `where` prüft nur ihre
-gebundenen Werte. Andere Tabellen/Kommentarzeilen dürfen keinen Treffer ergänzen
-oder Werte überschreiben. Unterschiede in Batchgröße, Wiederholung oder Headertext
-verändern das Ergebnis nicht. Fehler innerhalb der Quelle sowie beschädigtes
-XML bleiben Fehler; atomare NDJSON-Ausgabe bleibt erhalten.
+Invariant: `source` bounds input and output; `where` checks its bound values only.
+Other tables/comment rows must not add matches or overwrite values. Batch size,
+repetition and header text do not change results. Errors within the source and
+corrupt XML remain errors; atomic NDJSON output is preserved.
 
-Kommentare werden nicht geraten: Vor dem Datenbeginn sind sie ausgeschlossen;
-innerhalb des Datenbereichs legt die Maske `skip_rows` oder Filterbedingungen fest.
-Mehrere Tabellen werden mit getrennten Masken verarbeitet. Automatische Erkennung
-oder Rekonstruktion verbundener/mehrzeiliger Header ist nicht implementiert.
+Comments are not inferred: those before the data start are excluded; within the
+data range, the mask specifies `skip_rows` or predicates. Multiple tables use
+separate masks. Automatic detection or reconstruction of merged/multiline headers
+is not implemented.
 
-## Abdeckung
+## Coverage
 
-| Dateien / Consumer | Stand |
+| Files / consumers | Status |
 | --- | --- |
-| src/chooong/datasift/_models.py | GEPRÜFT, kanonische Pydantic-Modelle und Bereichs-/Aliasvalidierung |
-| src/chooong/datasift/__init__.py | GEPRÜFT, öffentliche Exporte TableSource/ColumnBinding |
-| datasift-core/src/filter.rs | GEPRÜFT, Source-Contract, Positionsauflösung, unveränderte Filteroperatoren |
-| datasift-core/src/xlsx.rs | GEPRÜFT, Streaming-Selektion vor Zellwert-Konvertierung, gesamte XML-Struktur weiterhin validiert |
-| datasift-core/src/lib.rs | GEPRÜFT, Ausgabe nur gebundener Felder, Lebenszyklus unverändert |
-| datasift-core/src/value.rs, src/chooong/datasift/_reader.py, __main__.py | GEPRÜFT, direkte Consumer/Zelltypen unverändert |
-| tests/test_sources.py | GEPRÜFT, echte OOXML-Tabellenlayouts und Fehlerpfade, keine internen Mocks |
-| tests/test_contract.py | GEPRÜFT, Korrektur der früheren Zusatzfeld-Erwartung |
-| tests/test_engine.py, test_cli.py | GEPRÜFT, bestehende Filter-, Atomicity- und Lifecycle-Pfade |
-| examples/filter.json, examples/layout-filter.json | GEPRÜFT, tatsächliche Benutzerdatei bzw. synthetischer Layout-Test |
-| README.md, docs/contract.md, CHANGELOG.md | GEPRÜFT, Quellmodell, Grenzen und Contract-Korrektur dokumentiert |
-| docs/verification.md, unnamed-columns-verification.md | GEPRÜFT, alte Prüfstände als historisch markiert |
-| pyproject.toml, datasift-core/Cargo.toml, Lockfiles, beide Workflows, Pre-Commit | GEPRÜFT, unverändert |
-| scripts/bench.py | GEPRÜFT, direkter Consumer des unveränderten einfachen Header-Modus |
-| Externe Consumer | Keine Cross-Repo-Änderung oder Integrationszusage |
+| src/chooong/datasift/_models.py | REVIEWED, canonical Pydantic models and range/alias validation |
+| src/chooong/datasift/__init__.py | REVIEWED, public TableSource/ColumnBinding exports |
+| datasift-core/src/filter.rs | REVIEWED, source contract, position resolution, unchanged filter operators |
+| datasift-core/src/xlsx.rs | REVIEWED, streaming selection before cell conversion, full XML structure still validated |
+| datasift-core/src/lib.rs | REVIEWED, bound fields only, lifecycle unchanged |
+| datasift-core/src/value.rs, src/chooong/datasift/_reader.py, __main__.py | REVIEWED, direct consumers/cell types unchanged |
+| tests/test_sources.py | REVIEWED, real OOXML layouts and error paths, no internal mocks |
+| tests/test_contract.py | REVIEWED, previous extra-field expectation corrected |
+| tests/test_engine.py, test_cli.py | REVIEWED, existing filter, atomicity and lifecycle paths |
+| examples/filter.json, examples/layout-filter.json | REVIEWED, actual user file and synthetic layout test respectively |
+| README.md, docs/contract.md, CHANGELOG.md | REVIEWED, source model, limits and contract correction documented |
+| docs/verification.md, unnamed-columns-verification.md | REVIEWED, old snapshots marked historical |
+| pyproject.toml, datasift-core/Cargo.toml, lockfiles, both workflows, Pre-Commit | REVIEWED, unchanged |
+| scripts/bench.py | REVIEWED, direct consumer of unchanged simple header mode |
+| External consumers | No cross-repository change or integration claim |
 
-## Lokale Nachweise
+## Local evidence
 
-Erfolgreiche abschließende Befehle (Exit 0):
+Successful final commands (exit 0):
 
 - `.venv/bin/ruff check src tests scripts`, `.venv/bin/ruff format --check src tests scripts`.
-- `.venv/bin/mypy src`: 5 Quelldateien ohne Fehler.
-- `.venv/bin/pytest --cov --cov-report=term-missing`: 88 bestanden,
-  99,55 % Python-Coverage; keine Behauptung einer Rust-Coverage.
+- `.venv/bin/mypy src`: 5 source files without errors.
+- `.venv/bin/pytest --cov --cov-report=term-missing`: 88 passed,
+  99.55% Python coverage; no Rust coverage claim.
 - `cargo fmt --manifest-path datasift-core/Cargo.toml -- --check`.
 - `cargo clippy --manifest-path datasift-core/Cargo.toml --locked --offline --all-targets -- -D warnings`.
-- `cargo test --manifest-path datasift-core/Cargo.toml --locked --offline`: 6 bestanden.
-- Deklarierter Maturin-Backend, lokal vorhandene Version 1.16.0:
+- `cargo test --manifest-path datasift-core/Cargo.toml --locked --offline`: 6 passed.
+- Declared Maturin backend, locally available version 1.16.0:
   `maturin build --release --offline --locked -i .venv/bin/python --out dist`
-  und `maturin sdist --out dist`; `.venv/bin/twine check dist/*`.
-- Isolierte Wheel-Installation unter Python 3.13 und 3.14: jeweils 88 Tests bestanden.
-- Echte lokale CLI mit `daten.xlsx` und `examples/filter.json`: 121 Treffer,
-  exakt die vier ausgewählten Felder, ursprünglicher Eingabe-Hash unverändert.
+  and `maturin sdist --out dist`; `.venv/bin/twine check dist/*`.
+- Isolated wheel installations on Python 3.13 and 3.14: 88 tests passed each.
+- Actual local CLI with `daten.xlsx` and `examples/filter.json`: 121 matches,
+  exactly the four selected fields, original input hash unchanged.
 - `git diff --check`.
 
-Der diagnostische direkte Cargo-Extension-Build ohne Maturin scheiterte unter
-macOS an fehlenden dynamischen Python-Linker-Flags. Der unterstützte Maturin-Build
-setzt diese Flags und besteht. Es wurden keine Build- oder Validierungsregeln
-aufgeweicht. Die lokale native Erweiterung wurde aus diesem Wheel aktualisiert.
+A diagnostic direct Cargo extension build without Maturin failed on macOS due to
+missing dynamic Python linker flags. The supported Maturin build supplies these
+flags and passes. No build or validation rules were weakened. The local native
+extension was updated from this wheel.
 
-## TODO T01 — unabhängiges Review und Remote-Nachweis
+## TODO T01 — independent review and remote evidence
 
-- Basis: `beb1b834628dfc351ba4b7884ccfaf679ef4e5bb`; vollständiges lokales Delta.
-- Soll: Quellauswahl und Projektion ohne Übernahme fremder Tabellen, unveränderte
-  Filtersemantik und sichere Fehlerbehandlung unabhängig bestätigen.
-- Dateien: geänderte Modelle, drei Rust-Dateien, beide Testdateien und Contract.
-- Schritte: Delta vollständig lesen, Quellen-Beispiele und README-Prüfungen wiederholen;
-  nach wieder verfügbarer Freigabeprüfung Änderungen in den bestehenden PR übertragen.
-- Negativ-/Replay-Tests: Bereichsfehler, Alias-Kollisionen, unbekannte Aliase,
-  beschädigte ausgewählte Zellen, beschädigtes XML hinter dem Bereich,
-  atomare Ausgabe, Batchgrößen 1/2/1024 und Wiederholung.
-- Kriterien: unabhängiger Review ohne offene Datenintegritätsbefunde und grüner
-  regulärer CI-Lauf am endgültigen PR-HEAD. CI nicht manuell starten/pollen.
-- Abhängigkeiten: Reviewer, Workspace-Freigabeprüfung, bereitgestellte Runner-Toolchain.
-- Consumer-Auswirkung: optionale neue `source`-Maske und explizite Ausgabeprojektion;
-  keine automatisch erzeugten Zusatzfelder mehr. Kein Versions-/Releaseauftrag.
+- Base: `beb1b834628dfc351ba4b7884ccfaf679ef4e5bb`; complete local delta.
+- Target: independently confirm source selection/projection without unrelated
+  tables, unchanged filter semantics and safe error handling.
+- Files: modified models, three Rust files, both test files and contract.
+- Steps: read the complete delta, repeat source examples and README checks;
+  transfer changes to the existing PR once approval review is available again.
+- Negative/replay tests: range errors, alias collisions, unknown aliases, corrupt
+  selected cells, corrupt XML beyond the range, atomic output, batch sizes
+  1/2/1024 and repetition.
+- Acceptance: independent review without open data-integrity findings and a
+  successful regular CI run at final PR HEAD. Do not manually trigger/poll CI.
+- Dependencies: reviewer, workspace approval review, configured runner toolchain.
+- Consumer impact: optional new `source` mask and explicit output projection;
+  no automatically generated extra fields. No version/release requested.
 
-## Nachtrag H01 — automatische Header-Indizes
+## Addendum H01 — automatic header indices
 
-Basis `f30f8cd9b60af58145fdaa0123194088e9d350bb`, 31.10.2026. Der Nutzer hat
-präzisiert: Wiederholte Excel-Header erhalten ab 1 Suffixe wie `Umsatz_1` und
-`Umsatz_2`. Die gemeinsame Headerauflösung setzt dies vor Filterkompilierung und
-Iterator-Rückgabe um, in physischer Spaltenreihenfolge und unabhängig vom Batch.
-Eindeutige Namen bleiben unverändert. Namen nach Indizierung müssen eindeutig
-sein; Kollisionen mit bestehenden Suffix-Namen sind ein kontrollierter Fehler.
-`source.columns.name` sind explizite Aliase und bleiben von dieser Automatik getrennt.
+Base `f30f8cd9b60af58145fdaa0123194088e9d350bb`, 2026-10-31. The user clarified:
+repeated Excel headers receive suffixes starting at 1, such as `Revenue_1` and
+`Revenue_2`. Shared header resolution applies this before filter compilation and
+iterator return, in physical column order and independently of batches. Unique
+names remain unchanged. Indexed names must be unique; collisions with existing
+suffixed names produce a controlled error. `source.columns.name` values are explicit
+aliases and remain separate from this automatic behavior.
 
-GEPRÜFT: datasift-core/src/filter.rs (Ursache und Namensbildung), direkter Consumer
-datasift-core/src/xlsx.rs (Headerauflösung), datasift-core/src/lib.rs (Ready-/Ausgabevertrag),
-tests/test_contract.py, tests/test_header_indexing.py, README.md, docs/contract.md
-und CHANGELOG.md. CLI, Python-Reader, Modelle und Workflows sind unverändert;
-bestehende Contract-/Quellen-/Atomicity-Tests bleiben relevant und bestanden.
-Keine Version, Abhängigkeit, Migration oder Ruff-Regel geändert.
+REVIEWED: datasift-core/src/filter.rs (root cause and naming), direct consumer
+datasift-core/src/xlsx.rs (header resolution), datasift-core/src/lib.rs (Ready/output
+contract), tests/test_contract.py, tests/test_header_indexing.py, README.md,
+docs/contract.md and CHANGELOG.md. CLI, Python reader, models and workflows are
+unchanged; existing contract/source/atomicity tests remain relevant and passed.
+No version, dependency, migration or Ruff rule changed.
 
-Abschließende Prüfungen mit Exit-Code 0: Ruff check/format, mypy (5 Dateien),
-pytest --cov (99 bestanden, 99,55 % Python-Coverage), cargo fmt, Clippy mit
-`-D warnings`, cargo test (7 bestanden), Maturin-Wheel/sdist und Twine. Das isolierte
-Wheel besteht je 99 Tests unter Python 3.13 und 3.14. Regressionen prüfen zwei/drei
-Wiederholungen, Indizes bis 12, leere Spalten, verschobene Kopfzeilen, typisierte
-Werte, verschiedene Batchgrößen, Replay, CLI-Schlüssel, nichttextuelle Header und
-Suffix-Kollisionen vor Iterator-Rückgabe. Benutzerdaten bleiben außerhalb von Git
-und Package-Artefakten.
+Final checks, exit 0: Ruff check/format, mypy (5 files), pytest --cov (99 passed,
+99.55% Python coverage), cargo fmt, Clippy with `-D warnings`, cargo test (7 passed),
+Maturin wheel/sdist and Twine. Isolated wheel: 99 tests passed each on Python 3.13
+and 3.14. Regressions cover two/three repetitions, indices up to 12, empty columns,
+shifted headers, typed values, batch sizes, replay, CLI keys, nontext headers and
+suffix collisions before iterator return. User data remain outside Git and artifacts.
 
-TODO H01 (P1, unabhängige Schließung offen): Reviewer prüft das Delta ab obiger
-Basis, insbesondere `headers_from_row`, Kollisionsbehandlung und Filter-/Ausgabe-
-Zuordnung. `tests/test_header_indexing.py`, Rust-Tests und README-Qualitätsbefehle
-wiederholen; auf den finalen regulären PR-CI-Lauf prüfen, ohne ihn manuell zu
-starten/pollen. Abnahme: eindeutige Zuordnung ohne Wertverlust/Überschreiben,
-unveränderte eindeutige Header, alle Prüfungen erfolgreich. Abhängigkeiten:
-unabhängiger Reviewer und bereitgestellte Runner-Toolchain. Consumer-Auswirkung:
-vormals abgewiesene doppelte Header werden über ihre indizierten Namen auswählbar.
-Gesamtfreigabe bleibt NICHT ENTSCHEIDBAR bis Review und Remote-Nachweis.
+TODO H01 (P1, independent closure pending): reviewer checks the delta from the base
+above, especially `headers_from_row`, collisions and filter/output mapping.
+Repeat `tests/test_header_indexing.py`, Rust tests and README quality commands;
+check the final regular PR CI run without manually triggering/polling it.
+Acceptance: unique mapping without value loss/overwriting, unchanged unique headers,
+all checks pass. Dependencies: independent reviewer and runner toolchain.
+Consumer impact: previously rejected duplicate headers become selectable through
+indexed names. Overall approval remains UNDETERMINED until review and remote evidence.
 
-## Nachtrag S01 — alle Arbeitsblätter bei `sheet: null`
+## Addendum S01 — all worksheets with `sheet: null`
 
-Prüfstand 31.10.2026, Repository `chooong.datasift`, Branch
-`feat/datasift-package`, Basis `bc4d9f4304d1af86571e6c7b8ed3cec1abc4bcbb`,
-bestehender PR #1. Exakter Diff nach Commit:
-`git diff bc4d9f4...feat/datasift-package`. Elf geänderte bzw. neue Dateien.
-Dieser Nachtrag ersetzt für dieses Delta die älteren Prüfstände oben.
+Snapshot 2026-10-31, repository `chooong.datasift`, branch `feat/datasift-package`,
+base `bc4d9f4304d1af86571e6c7b8ed3cec1abc4bcbb`, existing PR #1.
+Exact diff after commit: `git diff bc4d9f4...feat/datasift-package`.
+Eleven modified/new files. This addendum supersedes the older snapshots above
+for this delta.
 
-S01, P1, unabhängige Schließung offen: `sheet` bleibt erforderlich und akzeptiert
-nun JSON-null. Die bestehende Streaming-Engine verarbeitet alle Arbeitsblätter
-in Workbook-Reihenfolge, mit separater Header-/Filterauflösung und ohne zusätzliche
-Ausgabefelder. Kein zweiter Reader, keine neue Abhängigkeit. Namen wählen weiterhin
-ein einzelnes Blatt. Ohne `source` werden fehlende Kopfzeilen und unpassende
-Schemas übersprungen; mit `source` gelten die Bindungen auf jedem Blatt.
-Strukturelle Fehler bleiben Fehler, auch nach ersten Treffern und in übersprungenen
-Blättern. Die CLI ersetzt das Ziel erst nach erfolgreichem Gesamtscan.
+S01, P1, independent closure pending: `sheet` remains required and now accepts JSON
+null. The existing streaming engine processes all worksheets in workbook order,
+with separate header/filter resolution and no extra output fields. No second
+reader or new dependency. Names still select one sheet. Without `source`, missing
+headers and incompatible schemas are skipped; with `source`, bindings apply to
+every sheet. Structural errors remain errors, including after initial matches and
+in skipped sheets. The CLI replaces its destination only after a successful full scan.
 
-GEPRÜFT, vollständig: `_models.py`, `_reader.py`, `datasift-core/src/filter.rs`,
+REVIEWED in full: `_models.py`, `_reader.py`, `datasift-core/src/filter.rs`,
 `datasift-core/src/xlsx.rs`, `datasift-core/src/lib.rs`, `tests/test_all_sheets.py`,
-`examples/filter.json`, README.md, CHANGELOG.md und docs/contract.md.
-Direkte Consumer: Python-Reader und CLI sowie bestehende Contract-, Engine-,
-Quellen- und Header-Tests; unveränderte Pfade durch die gesamte Testsuite geprüft.
-Build-Konfiguration, Workflows und Lockfiles bleiben unverändert. Keine externen
-Consumer geändert. Lokale Benutzerdateien bleiben unversioniert; der sdist wird aus
-einer gezielten Quellkopie gebaut, damit unversionierte Beispiele nicht einfließen.
+`examples/filter.json`, README.md, CHANGELOG.md and docs/contract.md.
+Direct consumers: Python reader and CLI, existing contract/engine/source/header
+tests; unchanged paths checked by the full suite. Build configuration, workflows
+and lockfiles unchanged. No external consumer changes. Local user files remain
+unversioned; the sdist is built from a targeted source copy to exclude unversioned examples.
 
-Lokale Nachweise (Exit 0): Ruff check/format, mypy (5 Dateien), cargo fmt,
-Clippy `--locked --offline --all-targets -- -D warnings`, cargo test (8 bestanden),
-pytest --cov (112 bestanden, 99,55 % Python-Coverage), Maturin-Wheel/sdist,
-Twine und `git diff --check`. Isolierte Wheel-Prüfungen: jeweils 112 Tests unter
-Python 3.13 und 3.14. Die Tests prüfen Blattreihenfolge trotz anders geordneter
-Relationships, ausgeblendete Blätter, Diagrammseiten, unterschiedliche Spalten,
-fehlende Kopfzeilen, explizite Quellen, leere Ergebnisse, ungültige Regexes,
-Batchgrößen 1/2/1024, Replay und unveränderte Eingabe. Fehler in späteren Blättern,
-extern verknüpfte Arbeitsblätter und abgeschnittenes XML werden abgewiesen;
-ein bestehendes CLI-Ausgabeziel bleibt bei Fehler unverändert.
+Local evidence (exit 0): Ruff check/format, mypy (5 files), cargo fmt,
+Clippy `--locked --offline --all-targets -- -D warnings`, cargo test (8 passed),
+pytest --cov (112 passed, 99.55% Python coverage), Maturin wheel/sdist, Twine and
+`git diff --check`. Isolated wheels: 112 tests each on Python 3.13 and 3.14.
+Tests cover sheet order despite differently ordered relationships, hidden sheets,
+chart sheets, different columns, missing headers, explicit sources, empty results,
+invalid regexes, batch sizes 1/2/1024, replay and unchanged input. Errors in later
+sheets, externally linked worksheets and truncated XML are rejected; existing CLI
+output remains unchanged on failure.
 
-Urteil: NICHT ENTSCHEIDBAR für die Gesamtfreigabe; Implementation und lokale
-Nachweise liegen vor, unabhängiges Review und Remote-CI bleiben UNVERIFIED.
+Verdict: UNDETERMINED for overall approval; implementation and local evidence are
+available, independent review and remote CI remain UNVERIFIED.
 
-TODO S01-Review: Basis wie oben. Reviewer liest den vollständigen Diff der
-aufgelisteten Dateien und prüft insbesondere Metadatenreihenfolge, Ready-/Batch-
-Zuordnung, fehlende Kopfzeilen und atomare Ausgabe bei spätem Fehler.
-Verifikation: README-Qualitätsbefehle und `tests/test_all_sheets.py` wiederholen.
-Abnahme: keine offenen Datenintegritätsbefunde, gleiche Treffer bei Replay und
-allen Batchgrößen, Fehler überschreiben kein Ausgabeziel. Abhängigkeit: unabhängiger
-Reviewer. Consumer-Auswirkung: optionale Suche über alle Blätter ohne Schemaänderung
-der Ergebniszeilen.
+TODO S01-Review: base as above. Reviewer reads the full diff of listed files,
+especially metadata order, Ready/Batch mapping, missing headers and atomic output
+on late failure. Verification: repeat README quality commands and
+`tests/test_all_sheets.py`. Acceptance: no open data-integrity findings, identical
+matches for replay/all batch sizes, errors do not overwrite output. Dependency:
+independent reviewer. Consumer impact: optional all-sheet search without changing row schemas.
 
-TODO S01-CI: gleicher Basis-/Dateiumfang. Nach dem Push regulären CI-Lauf am
-endgültigen PR-HEAD prüfen; keine manuelle Auslösung oder Polling durch den Agenten.
-Abnahme: alle konfigurierten Gates erfolgreich, einschließlich bestehender
-Negativ-/Replay-Tests. Abhängigkeit: Runner-Toolchain. Consumer-Auswirkung:
-plattformübergreifender Build-/Contract-Nachweis bleibt bis dahin UNVERIFIED.
+TODO S01-CI: same base/files. After push, check regular CI at final PR HEAD;
+no manual triggering/polling by the agent. Acceptance: all configured checks,
+including existing negative/replay tests, pass. Dependency: runner toolchain.
+Consumer impact: cross-platform build/contract evidence remains UNVERIFIED until then.
 
-Der erste Commitversuch scheiterte mit Exit 128 (`agent refused operation`).
-Nach Rückmeldung des Nutzers wird Commit/Push mit unveränderter SSH-Signierung
-erneut ausgeführt; der endgültige Commit wird am PR-HEAD ausgewiesen.
+The first commit attempt failed with exit 128 (`agent refused operation`).
+Following user feedback, commit/push is retried with unchanged SSH signing;
+the final commit is recorded at PR HEAD.
 
-## Nachtrag A01 — automatische Headersuche und Maskenprojektion
+## Addendum A01 — automatic header discovery and mask projection
 
-Prüfstand 31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`,
-Basis `2b9bb9822079687ab09327b86082452772326c0b`, bestehender PR #1.
-Exakter Diff nach Commit: `git diff 2b9bb98...feat/datasift-package`.
-Dieser Nachtrag ersetzt die Header-/Ausgabeaussagen älterer Prüfstände.
+Snapshot 2026-10-31, `chooong.datasift`, branch `feat/datasift-package`, base
+`2b9bb9822079687ab09327b86082452772326c0b`, existing PR #1.
+Exact diff after commit: `git diff 2b9bb98...feat/datasift-package`.
+This addendum supersedes older header/output statements.
 
-A01 (P1, unabhängige Schließung offen): Die bisherige feste Headerzeile machte
-Zeilenpositionen zum Maskenwissen und erklärte fremde Kommentartexte zu Spalten.
-Die vorhandene Streaming-Engine löst nun die erste Zeile mit sämtlichen
-Maskenspalten als Header auf. Sie projiziert Filtereingabe und Ausgabe auf die
-referenzierten Spalten, einschließlich `any`/`not`, auch bei `source`.
-Lösungsleiter: vorhandene Headerauflösung und Filterreferenzen wiederverwendet,
-kein zweiter Reader, keine Formatierungsheuristik und keine neue Abhängigkeit.
+A01 (P1, independent closure pending): the previous fixed header row made row
+positions part of mask knowledge and treated unrelated comments as columns.
+The existing streaming engine now resolves the first row containing all mask
+columns as the header. It projects filter input and output onto referenced columns,
+including `any`/`not`, also with `source`. Solution ladder: reuse existing header
+resolution and filter references; no second reader, formatting heuristic or new dependency.
 
-Invarianten: Versetzte Header und Titel davor benötigen keine Zeilenangabe;
-Kommentar-/Nachbarspalten gelangen nicht in Ergebnisse. Referenzierte Spalten
-bleiben eindeutig und in physischer Reihenfolge (bei `source`: Bindungsreihenfolge).
-Nach Schemaerkennung werden Fremdspalten nicht konvertiert. Beschädigte gewählte
-Werte und strukturell beschädigtes XML bleiben Fehler; atomare Ausgabe bleibt
-auch bei späten Fehlern erhalten. Batchgröße und Replay verändern keine Werte.
+Invariants: shifted headers and preceding titles require no row setting; comments
+and neighboring columns do not enter results. Referenced columns remain unique
+and in physical order (with `source`: binding order). Unrelated columns are not
+converted after schema detection. Corrupt selected values and structurally corrupt
+XML remain errors; atomic output survives late failures. Batch size/replay do not change values.
 
-Expliziter Breaking Change im Greenfield-Contract: `header_row` ist entfernt;
-Masken entfernen das Feld. Unbenutzte Header/Source-Aliase erscheinen nicht mehr
-in Ergebnissen. Erkennung ist auf den ersten vollständigen Header pro Blatt
-begrenzt. Text mit Zeilenumbruch in einer Zelle bleibt ein exakter Name; über
-mehrere physische Zeilen verteilte Header werden nicht geraten. Wiederholte
-Headertexte in gewählten Spalten werden übersprungen. Für echte Daten mit exakt
-diesen Texten oder abweichende Layouts bleiben explizite `source`-Bindungen.
+Explicit breaking change in the greenfield contract: `header_row` is removed;
+remove it from masks. Unused headers/source aliases no longer appear in results.
+Detection is limited to the first complete header per sheet. A line break within
+one cell remains part of an exact name; headers spanning physical rows are not
+inferred. Repeated header text in selected columns is skipped. Use explicit
+`source` bindings for real data containing exactly those texts or for other layouts.
 
-GEPRÜFT, vollständig und geändert: `_models.py`, `datasift-core/src/filter.rs`,
+REVIEWED in full and modified: `_models.py`, `datasift-core/src/filter.rs`,
 `datasift-core/src/xlsx.rs`, `tests/test_auto_headers.py`, `tests/test_all_sheets.py`,
 `tests/test_contract.py`, `tests/test_header_indexing.py`, `tests/test_engine.py`,
-`tests/test_cli.py`, `tests/test_sources.py`, README.md, CHANGELOG.md, docs/contract.md
-und dieses Protokoll. GEPRÜFT, direkte Consumer unverändert: `_reader.py`,
+`tests/test_cli.py`, `tests/test_sources.py`, README.md, CHANGELOG.md,
+docs/contract.md and this report. REVIEWED, direct consumers unchanged: `_reader.py`,
 `__main__.py`, `datasift-core/src/lib.rs`, `datasift-core/src/value.rs`, `scripts/bench.py`.
-GEPRÜFT, unverändert: Build-Konfiguration, Lockfiles, Workflows, öffentliche Exporte
-und versionierte Beispiele. Keine Cross-Repo-Consumer geändert. Benutzerdateien
-bleiben unversioniert und werden nicht als Fixtures oder Artefakte hochgeladen.
-Die lokale Maske `examples/filter_schmutzig.json` wurde um `header_row` bereinigt;
-die lokale Ausgabe wurde mit dem beauftragten CLI-Pfad neu erstellt.
+REVIEWED, unchanged: build configuration, lockfiles, workflows, public exports and
+versioned examples. No cross-repository consumer changes. User files remain
+unversioned and are not uploaded as fixtures/artifacts. `header_row` was removed
+from local mask `examples/filter_schmutzig.json`; local output was regenerated
+through the requested CLI path.
 
-Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format, mypy
-(5 Dateien), cargo fmt, Clippy `--locked --offline --all-targets -- -D warnings`,
-cargo test (8 bestanden), pytest --cov (120 bestanden, 99,54 % Python-Coverage),
-Maturin-Wheel und sdist, Twine, `git diff --check`. Isolierte Wheel-Installation
-unter Python 3.13/3.14: jeweils 120 Tests bestanden. Der sdist wird gezielt aus
-versionierten Quellen plus neuem synthetischem Test gebaut; keine lokalen
-Benutzerdateien enthalten. Regressionen prüfen Header ab Zeile 7, versetzte
-Spalten, Zell-Zeilenumbrüche, Titel/Zahlen/Teilheader davor, Kommentare zwischen
-Header und Daten, wiederholte Header, unbenutzte Kollisionen und beschädigte
-Fremdwerte nach Headererkennung, Batchgrößen 1/2/1024 und Replay.
-Realer CLI-Pfad: Exit 0, weiterhin 2 Treffer mit genau 3 Maskenspalten, Werte
-identisch zur Projektion der vorherigen Ausgabe; Eingabe-Hash unverändert.
+Final local checks, exit 0: Ruff check/format, mypy (5 files), cargo fmt,
+Clippy `--locked --offline --all-targets -- -D warnings`, cargo test (8 passed),
+pytest --cov (120 passed, 99.54% Python coverage), Maturin wheel/sdist, Twine,
+`git diff --check`. Isolated wheel installations on Python 3.13/3.14: 120 tests
+passed each. The sdist uses versioned sources plus the new synthetic test only;
+no local user files. Regressions cover headers starting at row 7, shifted columns,
+cell line breaks, preceding titles/numbers/partial headers, comments between
+header/data, repeated headers, unused collisions and corrupt unrelated values
+after detection, batch sizes 1/2/1024 and replay.
+Actual CLI: exit 0, still 2 matches with exactly 3 mask columns, identical to the
+previous output's projection; input hash unchanged.
 
-Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokale Umsetzung nachgewiesen,
-unabhängiges Review und Remote-CI UNVERIFIED.
+Verdict: UNDETERMINED for overall approval; local implementation verified,
+independent review and remote CI UNVERIFIED.
 
-TODO A01-Review: Basis wie oben, vollständigen Diff der aufgelisteten Dateien
-unabhängig lesen. Soll: automatische eindeutige Schemaauflösung ohne Ausgabe
-fremder Spalten. `tests/test_auto_headers.py`, Header-/Source-/Atomicity-Tests und
-README-Prüfbefehle wiederholen; Negativfälle fehlende/mehrdeutige Header,
-`header_row`-Ablehnung und beschädigte gewählte Werte prüfen. Abnahme: kein
-offener Datenintegritätsbefund, identische Ergebnisse bei Replay/Batchvarianten.
-Abhängigkeit: unabhängiger Reviewer. Consumer-Auswirkung: dokumentierter neuer
-Header-/Projektionscontract; keine Consumer-Integration zugesagt.
+TODO A01-Review: base as above, independently read the full diff of listed files.
+Target: automatic unique schema resolution without unrelated columns in output.
+Repeat `tests/test_auto_headers.py`, header/source/atomicity tests and README checks;
+check missing/ambiguous headers, rejection of `header_row` and corrupt selected
+values. Acceptance: no open data-integrity finding, identical results across
+replay/batch variants. Dependency: independent reviewer. Consumer impact: documented
+new header/projection contract; no consumer integration claim.
 
-TODO A01-CI: gleicher Basis-/Dateiumfang. Regulären CI-Lauf am endgültigen PR-HEAD
-durch Nutzer prüfen; keine manuelle Auslösung oder Polling durch den Agenten.
-Abnahme: konfigurierte Lint-/Typ-/Test-/Build-Gates inklusive Negativ-/Replay-Tests
-erfolgreich. Abhängigkeit: Runner-Toolchain. Consumer-Auswirkung: unterstützte
-Plattformen bleiben bis zum Remote-Nachweis UNVERIFIED.
+TODO A01-CI: same base/files. User checks regular CI at final PR HEAD; no manual
+triggering/polling by the agent. Acceptance: configured lint/type/test/build checks,
+including negative/replay tests, pass. Dependency: runner toolchain. Consumer impact:
+supported platforms remain UNVERIFIED until remote evidence is available.
 
-## Nachtrag L01 — Excel-Zeilenumbrüche
+## Addendum L01 — Excel line endings
 
-Prüfstand 31.10.2026, Repository `chooong.datasift`, Branch `feat/datasift-package`,
-Basis `70f88e332228fe5935ab4a74c8e768914d98ebac`, bestehender PR #1.
-Exakter Diff nach Commit: `git diff 70f88e3...feat/datasift-package`.
+Snapshot 2026-10-31, repository `chooong.datasift`, branch `feat/datasift-package`,
+base `70f88e332228fe5935ab4a74c8e768914d98ebac`, existing PR #1.
+Exact diff after commit: `git diff 70f88e3...feat/datasift-package`.
 
-L01 (P1, unabhängige Schließung offen): Nach dem Speichern in Excel enthielten
-Header in sharedStrings.xml literale CRLF statt LF. Der Reader übernahm rohe
-Bytes, die Maske verwendete LF; dadurch fand die Headersuche kein vollständiges
-Schema. Invariante: XML-konforme Zeilenenden verändern weder Headerzuordnung
-noch Textfilterung. Korrektur an beiden XML-Einlesepfaden durch vorhandenes
-Quick-XML `xml10_content()`, bevor der gemeinsame Text-Helper Inhalte anhängt.
-Lösungsleiter: vorhandene Bibliotheksfunktion, keine eigene Ersetzungsheuristik
-oder zusätzliche Abhängigkeit. Explizite Zeichenreferenzen werden separat
-aufgelöst und behalten das referenzierte Zeichen. Kein pauschales Trimmen.
+L01 (P1, independent closure pending): after saving in Excel, sharedStrings.xml
+headers contained literal CRLF instead of LF. The reader kept raw bytes while the
+mask used LF, so discovery found no complete schema. Invariant: XML-compliant line
+endings change neither header mapping nor text filtering. Both XML input paths
+use existing Quick-XML `xml10_content()` before the shared text helper appends content.
+Solution ladder: existing library function; no custom replacement heuristic or
+new dependency. Explicit character references are resolved separately and retain
+the referenced character. No blanket trimming.
 
-GEPRÜFT, vollständig und geändert: datasift-core/src/xlsx.rs, tests/test_xml_line_endings.py,
-README.md, CHANGELOG.md, docs/contract.md und dieses Protokoll. Direkte Consumer:
-Shared Strings sowie Worksheet-Text/CDATA, Headerauflösung in datasift-core/src/filter.rs
-und Python-/CLI-Ausgabe; bestehende Tests bleiben relevant. Modelle, datasift-core/src/lib.rs,
-Workflows, Lockfiles und Build-Konfiguration unverändert. Keine externen Consumer
-geändert. Die vorhandenen lokalen Löschungen unter rust_xlsx_filter stammen vom
-Nutzer und sind kein Bestandteil dieses Commits. Excel, lokale Maske und NDJSON
-bleiben unversioniert; Benutzerdateien gelangen nicht in Package-Artefakte.
+REVIEWED in full and modified: datasift-core/src/xlsx.rs, tests/test_xml_line_endings.py,
+README.md, CHANGELOG.md, docs/contract.md and this report. Direct consumers:
+shared strings, worksheet text/CDATA, header resolution in datasift-core/src/filter.rs
+and Python/CLI output; existing tests remain relevant. Models, datasift-core/src/lib.rs,
+workflows, lockfiles and build configuration unchanged. No external consumer changes.
+Existing local deletions under rust_xlsx_filter are the user's and excluded from
+this commit. Excel, local mask and NDJSON remain unversioned; user files are not packaged.
 
-Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format,
-mypy (5 Dateien), cargo fmt, Clippy `--locked --offline --all-targets -- -D warnings`,
-cargo test (8 bestanden), pytest --cov (130 bestanden, 99,54 % Python-Coverage),
-Maturin-Wheel/sdist, Twine und `git diff --check`. Wheel-Tests unter Python 3.13
-und 3.14: jeweils 130 bestanden. Regressionen prüfen LF, CRLF und CR in Shared
-Strings, Inline Strings und CDATA für Header und Daten; Replay und unveränderte
-Eingabe werden geprüft. Negativgegenfall: explizites `&#13;` bleibt CR.
-Realer beauftragter CLI-Pfad: Exit 0, vier Treffer mit drei Maskenspalten,
-Eingabe-Hash unverändert und Maske unverändert. Zwei passende Blätter enthalten
-je zwei Treffer; `sheet: null` dedupliziert diese bewusst nicht.
+Final local checks, exit 0: Ruff check/format, mypy (5 files), cargo fmt,
+Clippy `--locked --offline --all-targets -- -D warnings`, cargo test (8 passed),
+pytest --cov (130 passed, 99.54% Python coverage), Maturin wheel/sdist, Twine and
+`git diff --check`. Wheel tests on Python 3.13/3.14: 130 passed each. Regressions
+cover LF, CRLF and CR in shared strings, inline strings and CDATA for headers/data;
+replay and unchanged input are checked. Negative counterexample: explicit `&#13;`
+remains CR. Actual requested CLI: exit 0, four matches with three mask columns,
+input hash and mask unchanged. Two matching sheets contain two matches each;
+`sheet: null` intentionally does not deduplicate them.
 
-Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokal nachgewiesen;
-unabhängiges Review und Remote-CI UNVERIFIED.
+Verdict: UNDETERMINED for overall approval; verified locally;
+independent review and remote CI UNVERIFIED.
 
-TODO L01-Review: Basis und Dateien wie oben. Vollständigen Diff unabhängig lesen,
-insbesondere Text/CDATA vor Zeichenreferenz-Auflösung; Soll: gleiche Ergebnisse
-bei allen drei XML-Zeilenenden ohne Veränderung expliziter Zeichenreferenzen.
-Verifikation: tests/test_xml_line_endings.py und README-Qualitätsbefehle inklusive
-Negativ-/Replay-Fällen wiederholen. Abnahme: keine offenen Datenkorrektheitsbefunde.
-Abhängigkeit: unabhängiger Reviewer. Consumer-Auswirkung: XML-Zeilenenden in
-Headern und Textwerten entsprechen LF, Zeichenreferenzen behalten ihren Wert.
+TODO L01-Review: base/files as above. Independently read the full diff, especially
+text/CDATA before character-reference resolution. Target: identical results across
+all three XML line endings without changing explicit character references.
+Verification: repeat tests/test_xml_line_endings.py and README checks, including
+negative/replay cases. Acceptance: no open data-correctness findings. Dependency:
+independent reviewer. Consumer impact: XML line endings in headers/text become LF;
+character references retain their values.
 
-TODO L01-CI: gleicher Basis-/Dateiumfang; Nutzer prüft regulären CI-Lauf am finalen
-PR-HEAD, keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
-konfigurierte Tests/Typ-/Lint-/Build-Gates erfolgreich, einschließlich
-Zeilenenden-/Zeichenreferenz-/Replay-Tests. Abhängigkeit: Runner-Toolchain.
-Consumer-Auswirkung: weitere Plattformen bleiben bis Remote-Nachweis UNVERIFIED.
+TODO L01-CI: same base/files; user checks regular CI at final PR HEAD; no manual
+triggering/polling by the agent. Acceptance: configured test/type/lint/build checks
+pass, including line-ending/character-reference/replay tests. Dependency: runner
+toolchain. Consumer impact: other platforms remain UNVERIFIED until remote evidence.
 
-## Nachtrag N01 — Modulnamen und absolute Imports
+## Addendum N01 — module names and absolute imports
 
-Prüfstand 31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`,
-Basis `d3818a32c3724c56aa5a42c5f6b46158feb030a1`, bestehender PR #1.
-Exakter Diff nach Commit: `git diff d3818a3...feat/datasift-package`.
+Snapshot 2026-10-31, `chooong.datasift`, branch `feat/datasift-package`, base
+`d3818a32c3724c56aa5a42c5f6b46158feb030a1`, existing PR #1.
+Exact diff after commit: `git diff d3818a3...feat/datasift-package`.
 
-N01 (P2, unabhängige Schließung offen): `_models.py`, `_reader.py` und `_rust.pyi`
-heißen nun `models.py`, `reader.py`, `rust.pyi`. Die native Erweiterung heißt
-konsistent in Maturin, Cargo und PyO3 `chooong.datasift.rust`. Vorhandene Module
-wurden umbenannt, keine Kompatibilitätswrapper oder zusätzliche Abhängigkeiten.
-Alle Python-Imports sind absolut. Die vom Nutzer verschärften Ruff-Regeln
-(`TID252`, `ban-relative-imports = "all"`) werden unverändert übernommen und
-zusammen mit der Änderung gepusht. `__init__.py` und `__main__.py` behalten ihre
-Python-Standardnamen für Exporte und `python -m chooong.datasift`.
+N01 (P2, independent closure pending): `_models.py`, `_reader.py` and `_rust.pyi`
+are now named `models.py`, `reader.py`, `rust.pyi`. The native extension consistently
+uses `chooong.datasift.rust` in Maturin, Cargo and PyO3. Existing modules were renamed;
+no compatibility wrappers or additional dependencies. All Python imports are absolute.
+The user's stricter Ruff rules (`TID252`, `ban-relative-imports = "all"`) are retained
+unchanged and pushed with this change. `__init__.py` and `__main__.py` keep standard
+Python names for exports and `python -m chooong.datasift`.
 
-Invarianten: öffentliche Exporte und CLI bleiben unverändert; keine Änderung an
-Filtersemantik, Maskenformat oder Ausgabe. Das Wheel enthält nur die neuen
-Implementierungsnamen und den passenden nativen Initialisierer, keinen alten
-`_rust`-Stub oder Binärcode. Frühere Implementierungsimporte waren kein
-zugesicherter Contract und erhalten keine Weiterleitungen.
+Invariants: public exports and CLI unchanged; no changes to filter semantics,
+mask format or output. The wheel contains only new implementation names and the
+matching native initializer, without old `_rust` stubs/binaries. Earlier implementation
+imports were not a guaranteed contract and receive no redirects.
 
-GEPRÜFT, vollständig und geändert: `src/chooong/datasift/models.py`, `reader.py`,
+REVIEWED in full and modified: `src/chooong/datasift/models.py`, `reader.py`,
 `rust.pyi`, `__init__.py`, `__main__.py`, `datasift-core/src/lib.rs`, `datasift-core/Cargo.toml`,
-`pyproject.toml`, README.md, CHANGELOG.md, docs/contract.md und dieses Protokoll.
-GEPRÜFT, direkte Consumer: sämtliche bestehenden Python-Tests, `scripts/bench.py`
-und CLI-Entry-Point; keine Umstellung außerhalb der Package-Verdrahtung nötig.
-GEPRÜFT, unverändert: Lockfiles, Workflows und Pre-Commit-Konfiguration.
-Vorhandene Nutzerlöschungen unter `rust_xlsx_filter` bleiben ungestagt; lokale
-Excel-Dateien und Masken bleiben unversioniert. Keine Cross-Repo-Änderung.
+`pyproject.toml`, README.md, CHANGELOG.md, docs/contract.md and this report.
+REVIEWED, direct consumers: all existing Python tests, `scripts/bench.py` and CLI
+entry point; no changes needed outside package wiring. REVIEWED, unchanged:
+lockfiles, workflows and Pre-Commit configuration. Existing user deletions under
+`rust_xlsx_filter` remain unstaged; local Excel files and masks remain unversioned.
+No cross-repository change.
 
-Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format mit den
-neuen Nutzerregeln, mypy (5 Dateien), pytest --cov (130 bestanden, 99,54 %
-Python-Coverage), cargo fmt, Clippy `--locked --offline --all-targets -- -D warnings`,
-cargo test (8 bestanden), Maturin-Wheel und sdist, Twine und `git diff --check`.
-Isolierte Wheel-Tests unter Python 3.13/3.14: jeweils 130 bestanden. Artefaktinventar
-prüft neue Modul-/Stub-Namen und Abwesenheit alter Namen sowie lokaler Benutzerdaten.
-Native Modulzuordnung und CLI-Start werden gegen das installierte Wheel geprüft.
-Der sdist wird aus gezielt kopierten versionierten Quellen einschließlich der
-umbenannten Module gebaut; keine unversionierten Benutzerbeispiele enthalten.
+Final local checks, exit 0: Ruff check/format with new user rules, mypy (5 files),
+pytest --cov (130 passed, 99.54% Python coverage), cargo fmt,
+Clippy `--locked --offline --all-targets -- -D warnings`, cargo test (8 passed),
+Maturin wheel/sdist, Twine and `git diff --check`. Isolated wheel tests on Python
+3.13/3.14: 130 passed each. Artifact inventory checks new module/stub names and
+absence of old names/local user data. Native module mapping and CLI startup are
+checked against the installed wheel. The sdist uses a targeted copy of versioned
+sources, including renamed modules; no unversioned user examples.
 
-Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokal nachgewiesen;
-unabhängiges Review und Remote-CI UNVERIFIED.
+Verdict: UNDETERMINED for overall approval; verified locally;
+independent review and remote CI UNVERIFIED.
 
-TODO N01-Review: Basis/Dateien wie oben. Vollständigen Diff einschließlich
-Nutzer-Ruff-Regeln, Package-Exporte, Maturin-/Cargo-/PyO3-Namen unabhängig prüfen.
-Soll: keine alten Implementierungsdateien im Artefakt, keine relativen Imports,
-unveränderte öffentliche Import-/CLI-Pfade. README-Prüfbefehle, installierte
-Wheel-Tests mit bestehenden Negativ-/Replay-Fällen und CLI-Start wiederholen.
-Abnahme: keine offenen Import-/Build-/Contract-Befunde. Abhängigkeit: unabhängiger
-Reviewer. Consumer-Auswirkung: öffentliche Exporte bleiben stabil; direkte
-Implementierungsimporte sind unverändert keine zugesicherte API.
+TODO N01-Review: base/files as above. Independently review the full diff, including
+user Ruff rules, exports and Maturin/Cargo/PyO3 names. Target: no old implementation
+files in artifacts, no relative imports, unchanged public import/CLI paths.
+Repeat README checks, installed-wheel tests including existing negative/replay
+cases and CLI startup. Acceptance: no open import/build/contract findings.
+Dependency: independent reviewer. Consumer impact: public exports remain stable;
+direct implementation imports remain outside the guaranteed API.
 
-TODO N01-CI: gleicher Basis-/Dateiumfang; Nutzer prüft regulären CI-Lauf am finalen
-PR-HEAD, keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
-konfigurierte Python-/Rust-/Artefakt-Gates einschließlich strikter Importregel
-und bestehender Negativ-/Replay-Tests erfolgreich. Abhängigkeit: Runner-Toolchain.
-Consumer-Auswirkung: andere Plattformen bleiben bis Remote-Nachweis UNVERIFIED.
+TODO N01-CI: same base/files; user checks regular CI at final PR HEAD, no manual
+triggering/polling by the agent. Acceptance: configured Python/Rust/artifact checks,
+including strict import rules and existing negative/replay tests, pass. Dependency:
+runner toolchain. Consumer impact: other platforms remain UNVERIFIED until remote evidence.
 
-## Nachtrag P01 — restliche Nutzeränderungen
+## Addendum P01 — remaining user changes
 
-Prüfstand 31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`,
-Basis `a847719fa05cab14215bf30217de64075f711339`, bestehender PR #1.
-Exakter Diff nach Commit: `git diff a847719...feat/datasift-package`.
-Dieser Nachtrag ersetzt ältere Aussagen über einen vorhandenen PoC im Checkout.
+Snapshot 2026-10-31, `chooong.datasift`, branch `feat/datasift-package`, base
+`a847719fa05cab14215bf30217de64075f711339`, existing PR #1.
+Exact diff after commit: `git diff a847719...feat/datasift-package`.
+This addendum supersedes older statements about a PoC present in the checkout.
 
-P01 (P2, unabhängige Schließung offen): Beauftragte Nutzeränderungen übernommen:
-`.data/` wird ignoriert, `examples/filter_schmutzig.json` wird als Beispielmaske
-versioniert und der historische Ordner `rust_xlsx_filter/` entfernt. Seine
-bisherigen Python-/Rust-Dateien, Manifeste, README, Beispiel und Benchmark sind
-keine Consumer des aktuellen Package-Builds. Die Git-Historie bleibt erhalten.
-README und Contract beschreiben den aktuellen Stand, der obsolete Pre-Commit-
-Ausschluss des entfernten Ordners entfällt. Kein Runtime-Code, Filterformat,
-öffentlicher Import oder CLI-Pfad geändert; keine neue Abhängigkeit oder Version.
+P01 (P2, independent closure pending): requested user changes adopted: `.data/`
+is ignored, `examples/filter_schmutzig.json` is versioned as an example mask and
+historical directory `rust_xlsx_filter/` is removed. Its Python/Rust files,
+manifests, README, example and benchmark are not consumers of the current build.
+Git history is preserved. README/contract describe the current state; the obsolete
+Pre-Commit exclusion for the removed directory is dropped. No runtime code, filter
+format, public import or CLI path changed; no new dependency or version.
 
-GEPRÜFT: .gitignore, neue Beispielmaske, alle zwölf gezielt entfernten PoC-Dateien
-und ihr Ausschluss aus dem aktuellen Build, .pre-commit-config.yaml, README.md,
-CHANGELOG.md, docs/contract.md und dieses Protokoll. Aktuelle Python-/Rust-Quellen,
-pyproject.toml, Workflows, Lockfiles und direkte Consumer unverändert. Historische
-Prüfprotokolle bleiben als historische Prüfstände erhalten. Keine Excel-/NDJSON-
-Dateien und keine lokalen `.data/`-Inhalte werden versioniert oder verpackt.
+REVIEWED: .gitignore, new example mask, all twelve specifically removed PoC files
+and their exclusion from the current build, .pre-commit-config.yaml, README.md,
+CHANGELOG.md, docs/contract.md and this report. Current Python/Rust sources,
+pyproject.toml, workflows, lockfiles and direct consumers unchanged. Historical
+reports remain historical snapshots. No Excel/NDJSON files or local `.data/`
+contents are versioned or packaged.
 
-Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format, mypy
-(5 Dateien), pytest --cov (130 bestanden, 99,54 % Python-Coverage),
-`pre-commit validate-config`, Pydantic-Validierung aller drei Beispielmasken,
-Maturin-Wheel/sdist, Twine und `git diff --check`. Artefaktinventar bestätigt:
-neue Beispielmaske im sdist, kein PoC und keine lokalen Beispieldaten.
+Final local checks, exit 0: Ruff check/format, mypy (5 files), pytest --cov
+(130 passed, 99.54% Python coverage), `pre-commit validate-config`, Pydantic
+validation of all three example masks, Maturin wheel/sdist, Twine and
+`git diff --check`. Artifact inventory confirms the new mask in the sdist,
+without PoC or local example data.
 
-Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokale Checks liegen vor,
-unabhängiges Review und Remote-CI UNVERIFIED.
+Verdict: UNDETERMINED for overall approval; local checks available,
+independent review and remote CI UNVERIFIED.
 
-TODO P01-Review: Basis und Dateien wie oben. Reviewer prüft vollständigen Diff,
-insbesondere auf unbeabsichtigte Löschungen außerhalb des historischen PoC,
-Beispielmasken-Validität, Ignore-Regel und aktuelle Doku. Soll: aktuelles Package
-und öffentliche Pfade bleiben unverändert; keine privaten Beispieldaten im Commit
-oder Artefakt. Bestehende Contract-/Negativ-/Replay-Tests sowie README-Prüfbefehle
-wiederholen. Abnahme: keine offenen Daten-/Build-/Contract-Befunde. Abhängigkeit:
-unabhängiger Reviewer. Consumer-Auswirkung: historischer PoC entfernt, der bereits
-vorher keine zugesicherte API war; aktueller Import-/Maskencontract bleibt stabil.
+TODO P01-Review: base/files as above. Reviewer checks the complete diff, especially
+unintended deletions outside the PoC, example-mask validity, ignore rules and current
+docs. Target: current package/public paths unchanged; no private example data in
+commits/artifacts. Repeat existing contract/negative/replay tests and README checks.
+Acceptance: no open data/build/contract findings. Dependency: independent reviewer.
+Consumer impact: historical PoC removed, which was already outside the guaranteed
+API; current import/mask contract remains stable.
 
-TODO P01-CI: gleicher Basis-/Dateiumfang; Nutzer prüft regulären CI-Lauf am finalen
-PR-HEAD. Keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
-konfigurierte Python-/Rust-/Artefakt-Gates einschließlich bestehender
-Negativ-/Replay-Tests erfolgreich. Abhängigkeit: Runner-Toolchain.
-Consumer-Auswirkung: Remote-Build bleibt bis zu diesem Nachweis UNVERIFIED.
+TODO P01-CI: same base/files; user checks regular CI at final PR HEAD. No manual
+triggering/polling by the agent. Acceptance: configured Python/Rust/artifact checks,
+including existing negative/replay tests, pass. Dependency: runner toolchain.
+Consumer impact: remote build remains UNVERIFIED until this evidence is available.
 
-## Nachtrag M01 — mehrere Tabellen pro Arbeitsblatt
+## Addendum M01 — multiple tables per worksheet
 
-Prüfstand 31.10.2026, `chooong.datasift`, Branch `feat/datasift-package`,
-Basis `c4d8e2b2c7e6d34daa915446b4b5d3e135c66b46`, bestehender PR #1.
-Exakter Diff nach Commit: `git diff c4d8e2b...feat/datasift-package`.
-Dieser Nachtrag ersetzt ältere Aussagen über genau einen Header pro Blatt.
+Snapshot 2026-10-31, `chooong.datasift`, branch `feat/datasift-package`, base
+`c4d8e2b2c7e6d34daa915446b4b5d3e135c66b46`, existing PR #1.
+Exact diff after commit: `git diff c4d8e2b...feat/datasift-package`.
+This addendum supersedes older statements limiting detection to one header per sheet.
 
-M01 (P1, unabhängige Schließung offen): Die vorherige Headersuche übersah Tabellen
-neben/unter dem ersten Bereich; gleiche Namen über benachbarte Tabellen wurden
-fälschlich global indiziert. Die gemeinsame Headerauflösung erkennt nun mehrere
-vollständige Gruppen der wortgleichen Maskenspalten in einer Zeile. Ein einzelnes
-Zeilenschema behält die bisherige Index-/Kollisionssemantik. Ein Spaltenbereich
-hat einen eigenen vorbereiteten Filter und eigene Bindungen. Neue überlappende
-Header ersetzen den alten Bereich; unabhängige Nachbartabellen laufen weiter.
-Lösungsleiter: vorhandenen Streaming-Reader und Header-/Filtercompiler erweitern,
-kein zweiter Parser, keine zusätzliche Abhängigkeit oder künstliche API.
+M01 (P1, independent closure pending): previous discovery missed tables beside/below
+the first region; identical names across adjacent tables were incorrectly indexed
+globally. Shared header resolution now detects multiple complete groups of identical
+mask columns within a row. A single row schema retains existing indexing/collision
+semantics. Each column region has its own compiled filter/bindings. New overlapping
+headers replace the old region; independent neighbors continue. Solution ladder:
+extend the existing streaming reader and header/filter compiler; no second parser,
+additional dependency or artificial API.
 
-Invarianten: keine Vermischung von Werten benachbarter Tabellen, kein doppeltes
-Auswerten ersetzter Bereiche, Reihenfolge Workbook/Zeile/linke Spalte. Nach außen
-nur Maskenspalten und keine Tabellenmetadaten. Vor einem Wechsel der Ausgabespalten-
-reihenfolge wird der bestehende Batch geleert; projizierte Werte entsprechen dem
-jeweiligen Ready-Schema. Beschädigte gewählte Werte und XML bleiben Fehler;
-bei spätem Fehler bleibt das CLI-Ziel unverändert. Explizite `source`-Grenzen,
-Batchgrößen und Replay bleiben stabil. Aktive Bereiche überlappen sich nicht.
+Invariants: no mixing of neighboring table values, no duplicate evaluation of
+replaced regions; workbook/row/left-column order. Only mask columns are exposed,
+without table metadata. Existing batches are flushed before changing output-column
+order; projected values match the current Ready schema. Corrupt selected values
+and XML remain errors; late errors preserve CLI output. Explicit `source` boundaries,
+batch sizes and replay remain stable. Active regions do not overlap.
 
-Die dokumentierte Grenze bleibt bewusst: horizontale Aufteilung nur bei mindestens
-zwei vollständigen wortgleichen Maskenschemas mit mindestens zwei unterschiedlichen
-Maskenspalten. Einzelne wiederholte Namen, teilweise Schemata und horizontale
-Tabellen mit intern indizierten Maskennamen werden nicht geraten; dafür explizite
-Quellen. Über physische Zeilen verteilte Header werden nicht rekonstruiert.
-Außerhalb aktiver Spalten werden nur gültige Text-Headerkandidaten betrachtet;
-ungültige unselektierte Werte werden weiterhin nicht extrahiert. Keine Änderung
-am Maskenformat, keine neue Version oder Veröffentlichung.
+The documented limit remains deliberate: horizontal splitting requires at least
+two complete identical mask schemas with at least two distinct mask columns.
+Single repeated names, partial schemas and horizontal tables with internally indexed
+mask names are not inferred; use explicit sources. Headers spanning physical rows
+are not reconstructed. Outside active columns, only valid text header candidates
+are considered; invalid unselected values are still not extracted. No mask-format
+change, new version or publication.
 
-GEPRÜFT, vollständig und geändert: datasift-core/src/filter.rs (Schemaauflösung und aus
-der Maske abgeleitete Headerkandidaten), datasift-core/src/xlsx.rs (aktive Tabellen,
-Zellselektion, Projektion, Batchgrenzen), tests/test_multiple_tables.py, README.md,
-CHANGELOG.md, docs/contract.md und dieses Protokoll. GEPRÜFT, direkte Consumer
-unverändert: datasift-core/src/lib.rs (Ready/Batch), Python-Reader, CLI und Benchmark;
-bestehende Contract-/Header-/Quellen-/Zeilenenden-Tests bleiben relevant.
-Modelle, Workflows und Lockfiles bleiben unverändert. Die gleichzeitig vom Nutzer
-geänderte Kommentarübersetzung in pyproject.toml bleibt ungestagt; keine Ruff-Regel
-wurde verändert. Benutzerdateien und `treffer.ndjson` bleiben unversioniert.
+REVIEWED in full and modified: datasift-core/src/filter.rs (schema resolution and
+mask-derived header candidates), datasift-core/src/xlsx.rs (active tables, cell
+selection, projection, batch boundaries), tests/test_multiple_tables.py, README.md,
+CHANGELOG.md, docs/contract.md and this report. REVIEWED, direct consumers unchanged:
+datasift-core/src/lib.rs (Ready/Batch), Python reader, CLI and benchmark; existing
+contract/header/source/line-ending tests remain relevant. Models, workflows and
+lockfiles unchanged. The user's concurrent comment translation in pyproject.toml
+remains unstaged; no Ruff rule changed. User files and `treffer.ndjson` remain unversioned.
 
-Lokale Nachweise, abschließende Befehle jeweils Exit 0: Ruff check/format,
-mypy (5 Dateien), cargo fmt, Clippy `--locked --offline --all-targets -- -D warnings`,
-cargo test (8 bestanden), pytest --cov (147 bestanden, 99,54 % Python-Coverage),
-Maturin-Wheel/sdist, Twine, `git diff --check`. Isolierte Wheel-Prüfungen unter
-Python 3.13 und 3.14: jeweils 147 bestanden. Artefakte enthalten keine lokalen
-Excel-/NDJSON-Dateien oder `.data/`-Inhalte. Synthetische Regressionen prüfen fünf
-Tabellen auf zwei Blättern, identische/anders geordnete Spalten, horizontale,
-vertikale und versetzte Header, Header neben Daten, Shared-String-Header außerhalb
-bisheriger Bindungen, unabhängige Filterbedingungen, späte beschädigte Werte,
-Batchgrößen 1/2/3/1024 und Replay. Bestehende Indizes und Kollisionen bleiben geprüft.
-Der bestehende Benchmark liest 250000 Zeilen und liefert korrekt 12500 Treffer;
-keine plattformübergreifende Performance-/RAM-Zusage aus diesem lokalen Lauf.
+Final local checks, exit 0: Ruff check/format, mypy (5 files), cargo fmt,
+Clippy `--locked --offline --all-targets -- -D warnings`, cargo test (8 passed),
+pytest --cov (147 passed, 99.54% Python coverage), Maturin wheel/sdist, Twine,
+`git diff --check`. Isolated wheels on Python 3.13/3.14: 147 passed each. Artifacts
+contain no local Excel/NDJSON files or `.data/` contents. Synthetic regressions
+cover five tables on two sheets, identical/reordered columns, horizontal/vertical/
+shifted headers, headers beside data, shared-string headers outside prior bindings,
+independent predicates, late corrupt values, batch sizes 1/2/3/1024 and replay.
+Existing indices/collisions remain checked. The existing benchmark reads 250000
+rows and correctly yields 12500 matches; no cross-platform performance/RAM claim
+follows from this local run.
 
-Realer beauftragter CLI-Pfad: Exit 0, zehn Einträge mit genau drei Maskenspalten,
-Excel-Hash und Maske unverändert. Die Ergebnisse entsprechen als Multimenge exakt
-fünf separaten Scans mit expliziten Spalten-/Zeilengrenzen: vier Tabellen mit je
-zwei Treffern auf einem Blatt und eine Tabelle mit zwei Treffern auf einem zweiten
-Blatt. Kein pauschaler Sollzähler und keine duplizierten Ergebniseinträge im Code.
+Actual requested CLI: exit 0, ten records with exactly three mask columns, Excel
+hash and mask unchanged. As a multiset, results exactly match five separate scans
+with explicit column/row boundaries: four tables with two matches each on one
+sheet and one table with two matches on another. No blanket expected counter or
+duplicated result records in code.
 
-Urteil NICHT ENTSCHEIDBAR für Gesamtfreigabe: lokal nachgewiesen;
-unabhängiges Review und Remote-CI UNVERIFIED.
+Verdict: UNDETERMINED for overall approval; verified locally;
+independent review and remote CI UNVERIFIED.
 
-TODO M01-Review: Basis/Dateien wie oben. Vollständigen Diff unabhängig prüfen,
-insbesondere Aufteilung vollständiger Schemata, Überlappungsregel, kompakte
-Projektion und Ready-/Batch-Reihenfolge. README-Prüfbefehle und
-`tests/test_multiple_tables.py` einschließlich Negativ-/Replay-/Atomicity-Fällen
-wiederholen. Soll: alle zehn synthetischen Treffer ohne Vermischung oder zusätzliche
-Treffer, unveränderte explizite Quellen und Indexsemantik. Abnahme: keine offenen
-Datenkorrektheits-/Lifecycle-Befunde. Abhängigkeit: unabhängiger Reviewer.
-Consumer-Auswirkung: weitere passende Tabellen liefern zusätzliche Datensätze;
-Maskenformat und öffentliche Import-/CLI-Pfade bleiben unverändert.
+TODO M01-Review: base/files as above. Independently check the full diff, especially
+splitting complete schemas, overlap rules, compact projection and Ready/Batch order.
+Repeat README commands and `tests/test_multiple_tables.py`, including negative/
+replay/atomicity cases. Target: all ten synthetic matches without mixing or extra
+matches, unchanged explicit sources and index semantics. Acceptance: no open
+data-correctness/lifecycle findings. Dependency: independent reviewer. Consumer
+impact: additional matching tables produce additional records; mask format and
+public import/CLI paths remain unchanged.
 
-TODO M01-CI: gleicher Basis-/Dateiumfang; Nutzer prüft regulären CI-Lauf am finalen
-PR-HEAD. Keine manuelle Auslösung oder Polling durch den Agenten. Abnahme:
-konfigurierte Python-/Rust-/Artefakt-Gates einschließlich bestehender und neuer
-Negativ-/Replay-Tests erfolgreich. Abhängigkeit: Runner-Toolchain.
-Consumer-Auswirkung: andere Plattformen bleiben bis Remote-Nachweis UNVERIFIED.
+TODO M01-CI: same base/files; user checks regular CI at final PR HEAD. No manual
+triggering/polling by the agent. Acceptance: configured Python/Rust/artifact checks,
+including existing/new negative/replay tests, pass. Dependency: runner toolchain.
+Consumer impact: other platforms remain UNVERIFIED until remote evidence is available.

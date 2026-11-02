@@ -1,89 +1,88 @@
-# Historisch: XLSX-Zusatzspalten ohne Überschrift
+# Historical: XLSX extra columns without headers
 
-Dieser Zwischenstand ist überholt. Maßgeblich sind die
-[expliziten Tabellenquellen](table-sources-verification.md): Ungebundene Zusatzwerte
-werden nicht ausgegeben; die `__column_*`-Funktion ist entfernt.
+This intermediate state is obsolete. [Explicit table sources](table-sources-verification.md)
+are authoritative: unbound extra values are not emitted; `__column_*` support was removed.
 
-## Prüfstand und Urteil
+## Snapshot and verdict
 
-31.10.2026, Repository `chooong.datasift`, Branch `feat/datasift-package`,
-Bugfix-Basis `456b3694804ce07f31e7c91a958559e65dbb7a8e`, bestehender PR #1.
-Der finale HEAD ist über Git nachvollziehbar. Die Benutzerdatei und das erzeugte
-NDJSON sind ausschließlich lokale Daten, keine Fixtures oder Package-Inhalte.
+2026-10-31, repository `chooong.datasift`, branch `feat/datasift-package`,
+bugfix base `456b3694804ce07f31e7c91a958559e65dbb7a8e`, existing PR #1.
+The final HEAD is traceable through Git. The user file and generated NDJSON
+are local data only, not fixtures or package contents.
 
-NICHT ENTSCHEIDBAR für eine Gesamtfreigabe: Implementation und lokale Integration
-sind belegt; Remote-CI und unabhängiges Re-Review dieses Deltas bleiben UNVERIFIED.
-Keine Version geändert, keine Abhängigkeit ergänzt, kein Release oder Deployment.
+UNDETERMINED for overall approval: implementation and local integration are
+verified; remote CI and independent re-review of this delta remain UNVERIFIED.
+No version change, dependency addition, release or deployment.
 
-## Befund U01 — P1, unabhängige Schließung OFFEN
+## Finding U01 — P1, independent closure OPEN
 
-Die Benutzerdatei besitzt vier Überschriften und 2000 Datenzeilen mit einzelnen
-Zusatzwerten in M, U und V. `Sink::on_row` brach beim ersten passenden Datensatz
-mit solchem Zusatzwert ab. Die CLI meldete deshalb nur `RuntimeError`.
+The user file has four headers and 2000 data rows with occasional extra values
+in M, U and V. `Sink::on_row` aborted on the first matching record with such an
+extra value. The CLI therefore reported only `RuntimeError`.
 
-Korrektur: Der Worker liefert weiterhin ausschließlich Treffer. Der PyO3-Adapter
-überträgt benannte Felder und zusätzliche belegte Zellen unter positionsabhängigen
-Schlüsseln wie `__column_M`. `unnamed_column_name` löst Kollisionen durch angehängte
-Unterstriche, ohne echte Überschriften zu überschreiben. Keine Tabellen-Vorablesung,
-kein Verwerfen von Zusatzwerten. Filter lösen weiterhin nur echte Überschriften auf.
-`None` ohne Überschrift erzeugt kein Feld; expliziter Leertext bleibt erhalten.
+Correction: the worker still returns matches only. The PyO3 adapter transfers
+named fields and additional populated cells under position-dependent keys such
+as `__column_M`. `unnamed_column_name` resolves collisions by appending underscores
+without overwriting real headers. No table pre-read or discarded extra values.
+Filters still resolve real headers only. `None` without a header creates no
+field; explicit empty text is preserved.
 
-Invariante: Gleiche Eingabe und Maske liefern unabhängig von Batchgröße und
-Wiederholung dieselben typisierten Werte, einschließlich Zusatzdaten. Negativfälle:
-Namenskollisionen überschreiben keine Felder, unbekannte Filterspalten bleiben
-Fehler, beschädigte Dateien dürfen weiterhin keine Teilausgabe veröffentlichen.
+Invariant: identical input and mask yield identical typed values, including extra
+data, regardless of batch size or repetition. Negative cases: name collisions must
+not overwrite fields, unknown filter columns remain errors, and corrupt files
+must not publish partial output.
 
-## Abdeckungsprotokoll
+## Coverage record
 
-| Datei / direkter Consumer | Stand |
+| File / direct consumer | Status |
 | --- | --- |
-| datasift-core/src/filter.rs | GEPRÜFT, Headerauflösung und neue positionsabhängige Namensbildung |
-| datasift-core/src/lib.rs | GEPRÜFT, Ready-/Batch-Verarbeitung, typisierte PyO3-Zellkonvertierung |
-| datasift-core/src/xlsx.rs | GEPRÜFT, Guard entfernt, übrige XML-/Archiv-Validierung erhalten |
-| datasift-core/src/value.rs | GEPRÜFT, Zelltypen unverändert |
-| src/chooong/datasift/_reader.py, __main__.py, _models.py | GEPRÜFT, direkte Consumer und Row-Vertrag unverändert |
-| tests/test_contract.py | GEPRÜFT, synthetische OOXML-Regressionen und echter CLI-Pfad |
-| tests/test_cli.py, tests/test_engine.py | GEPRÜFT, bestehende Fehler-/Atomicity-/Filtertests unverändert |
-| scripts/bench.py, examples/filter.json | GEPRÜFT, direkte Consumer unverändert |
-| README.md, docs/contract.md, CHANGELOG.md | GEPRÜFT, Ausgabevertrag und Änderung dokumentiert |
-| docs/verification.md | GEPRÜFT, Nachtrag und historischer Prüfstand getrennt |
-| pyproject.toml, datasift-core/Cargo.toml, beide CI-Workflows, Pre-Commit | GEPRÜFT, unverändert; Ruff-Regeln unverändert |
-| Externe Consumer | Keine Cross-Repo-Änderungen; keine externe Integrationszusage |
+| datasift-core/src/filter.rs | REVIEWED, header resolution and new position-dependent naming |
+| datasift-core/src/lib.rs | REVIEWED, Ready/Batch processing, typed PyO3 cell conversion |
+| datasift-core/src/xlsx.rs | REVIEWED, guard removed, remaining XML/archive validation preserved |
+| datasift-core/src/value.rs | REVIEWED, cell types unchanged |
+| src/chooong/datasift/_reader.py, __main__.py, _models.py | REVIEWED, direct consumers and Row contract unchanged |
+| tests/test_contract.py | REVIEWED, synthetic OOXML regressions and actual CLI path |
+| tests/test_cli.py, tests/test_engine.py | REVIEWED, existing error/atomicity/filter tests unchanged |
+| scripts/bench.py, examples/filter.json | REVIEWED, direct consumers unchanged |
+| README.md, docs/contract.md, CHANGELOG.md | REVIEWED, output contract and change documented |
+| docs/verification.md | REVIEWED, addendum distinguished from historical snapshot |
+| pyproject.toml, datasift-core/Cargo.toml, both CI workflows, Pre-Commit | REVIEWED, unchanged; Ruff rules unchanged |
+| External consumers | No cross-repository changes or external integration claim |
 
-## Ausgeführte Prüfungen
+## Executed checks
 
-Erfolgreiche abschließende Befehle mit Exit-Code 0:
+Successful final commands, exit code 0:
 
-- `uv sync --frozen --reinstall-package chooong.datasift`: native lokale Erweiterung neu gebaut.
+- `uv sync --frozen --reinstall-package chooong.datasift`: native local extension rebuilt.
 - `.venv/bin/ruff check src tests scripts`; `.venv/bin/ruff format --check src tests scripts`.
-- `.venv/bin/mypy src`: 5 Quelldateien ohne Fehler.
-- `.venv/bin/pytest --cov --cov-report=term-missing`: 66 bestanden, 99,47 % Python-Coverage.
+- `.venv/bin/mypy src`: 5 source files without errors.
+- `.venv/bin/pytest --cov --cov-report=term-missing`: 66 passed, 99.47% Python coverage.
 - `cargo fmt --manifest-path datasift-core/Cargo.toml -- --check`.
 - `cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings`.
-- `cargo test --manifest-path datasift-core/Cargo.toml --locked`: 6 bestanden.
+- `cargo test --manifest-path datasift-core/Cargo.toml --locked`: 6 passed.
 - `.venv/bin/chooong-datasift daten.xlsx examples/filter.json --output treffer.ndjson`:
-  121 Treffer, ein Zusatzwert in passenden Zeilen erhalten, vollständiger unabhängiger
-  ElementTree-Abgleich gegen die Originaldatei erfolgreich; Eingabe-Hash unverändert.
-- `uv build` und `.venv/bin/twine check dist/*`: Wheel und sdist erfolgreich.
-- Isolierte Installation des gebauten Wheels: 66 Tests erfolgreich und 121 Treffer
-  mit der Benutzerdatei; keine editable Installation, kein PYTHONPATH.
+  121 matches, one extra value in matching rows preserved; complete independent
+  ElementTree comparison against the original file passed; input hash unchanged.
+- `uv build` and `.venv/bin/twine check dist/*`: wheel and sdist passed.
+- Isolated installation of the built wheel: 66 tests passed and 121 matches
+  with the user file; no editable installation or PYTHONPATH.
 - `git diff --check`.
 
-Die Originaldatei wurde weder verändert noch in Tests/Artefakte aufgenommen.
-Die neuen Fixtures enthalten ausschließlich synthetische Werte. Die bestehende
-CLI-Fehler-Redaktion bleibt erhalten; Zellwerte werden nicht in Logs geschrieben.
+The original file was neither modified nor included in tests/artifacts. New fixtures
+contain synthetic values only. Existing CLI error redaction is preserved;
+cell values are not written to logs.
 
-## TODO U01 — unabhängiges Delta-Review
+## TODO U01 — independent delta review
 
-- Basis: `456b3694804ce07f31e7c91a958559e65dbb7a8e`, finalen PR-HEAD prüfen.
-- Soll: Unbenannte Zusatzdaten bleiben verlustfrei, Namen eindeutig und Streaming begrenzt.
-- Dateien: drei geänderte Rust-Dateien, test_contract.py und docs/contract.md.
-- Schritte: vollständiges Delta lesen, Kollisionen/Spaltengrenzen nachvollziehen,
-  README-Qualitätsbefehle und isolierte Wheel-Regression wiederholen.
-- Negativ-/Replay-Tests: unbekannte Filterspalten, Kollisionen, leere Zusatzfelder,
-  beschädigte Daten und atomare Ausgabe; Batchgrößen 1, 3 und 1024, erneuter Scan.
-- Kriterien: unabhängiger Reviewer bestätigt Datenintegrität und unveränderte
-  Filtersemantik; neuer regulärer CI-Lauf erfolgreich. CI nicht manuell starten/pollen.
-- Abhängigkeiten: unabhängiger Reviewer und Runner mit bereitgestellter nativer Toolchain.
-- Consumer-Auswirkung: vormals abgewiesene Zeilen erhalten dynamische Zusatzfelder;
-  bisher gültige Zeilen und Filter bleiben unverändert.
+- Base: `456b3694804ce07f31e7c91a958559e65dbb7a8e`; check the final PR HEAD.
+- Target: unnamed extra data remain lossless, names unique and streaming bounded.
+- Files: three modified Rust files, test_contract.py and docs/contract.md.
+- Steps: read the complete delta, trace collisions/column boundaries and repeat
+  README quality commands and isolated wheel regression.
+- Negative/replay tests: unknown filter columns, collisions, empty extra fields,
+  corrupt data and atomic output; batch sizes 1, 3 and 1024, repeated scan.
+- Acceptance: independent reviewer confirms data integrity and unchanged filter
+  semantics; new regular CI run passes. Do not manually trigger or poll CI.
+- Dependencies: independent reviewer and runner with the native toolchain.
+- Consumer impact: previously rejected rows receive dynamic extra fields;
+  previously valid rows and filters remain unchanged.

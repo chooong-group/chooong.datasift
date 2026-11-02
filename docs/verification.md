@@ -1,177 +1,174 @@
-# Prüfprotokoll
+# Verification report
 
-Aktueller Nachtrag: [Explizite Tabellenquellen](table-sources-verification.md).
-Der [Zusatzspalten-Nachtrag](unnamed-columns-verification.md) ist historisch und
-wurde nach der Präzisierung des Extraktionsziels durch die Quellauswahl ersetzt.
-Die folgenden Abschnitte dokumentieren den initialen Package-Prüfstand. Der
-damalige Push-Blocker D08 wurde durch Nutzerfreigabe und den bestehenden PR #1
-aufgehoben; aktuelle offene Abnahmen stehen im Nachtrag.
+Current addendum: [Explicit table sources](table-sources-verification.md).
+The [extra-column addendum](unnamed-columns-verification.md) is historical;
+source selection superseded it after the extraction goal was clarified.
+The sections below record the initial package verification. User approval and
+PR #1 subsequently resolved push blocker D08; current pending acceptance checks
+are recorded in the addendum.
 
-Stand: 31.10.2026, Repository `chooong-group/chooong.datasift`, Branch
-`feat/datasift-package`, Basis `97d4f59614c5294ab50253213a920390da44323d`.
-HEAD und PR sind über Git bzw. den PR nachvollziehbar; keine selbstreferenziellen
-Commit- oder Artefakt-Hashes in ausgelieferten Dateien.
+Snapshot: 2026-10-31, repository `chooong-group/chooong.datasift`, branch
+`feat/datasift-package`, base `97d4f59614c5294ab50253213a920390da44323d`.
+HEAD and PR can be traced through Git and the PR; distributed files contain no
+self-referential commit or artifact hashes.
 
-## Urteil
+## Verdict
 
-BLOCKIERT für Push/PR: Die automatische Freigabeprüfung hat `git push` abgelehnt,
-weil für die Übertragung des neuen Quellcodes und der Historie an `origin` eine
-ausdrückliche Nutzerzustimmung verlangt wird. Der Branch ist ausschließlich lokal;
-es wurde kein PR erstellt. Keine Umgehung oder erneuter Push-Versuch.
+BLOCKED for push/PR: automatic approval review rejected `git push`, requiring
+explicit user consent to transfer the new source code and history to `origin`.
+The branch exists locally only; no PR was created. No bypass or retry was attempted.
 
-NICHT ENTSCHEIDBAR für eine Gesamtfreigabe: lokale Implementation und Nachweise
-liegen vor; Linux-CI und unabhängiges Re-Review sind UNVERIFIED. Keine Veröffentlichung,
-kein Tag, kein Merge, keine Datenbank- oder Dienständerung.
+UNDETERMINED for overall approval: implementation and local evidence are available;
+Linux CI and independent re-review remain UNVERIFIED. No publication, tag, merge,
+database change or service change.
 
-## Analyse und Entscheidungen
+## Analysis and decisions
 
-Das gesamte vorhandene Repository einschließlich PoC, Tests, Benchmark, Lizenz,
-Gitignore, Regeln und beider Workflows wurde gelesen. Zu Arbeitsbeginn lagen
-AGENTS.md, Workflows, Pre-Commit und das PoC bereits gestagt vor. Diese gelieferten
-Dateien werden als Eingangsstand erhalten; nur Workflows/Pre-Commit werden gezielt
-an das neue Package angepasst. Keine offenen PRs laut `gh pr list --state open`.
+The entire existing repository was read, including the PoC, tests, benchmark,
+license, Git ignore rules, instructions and both workflows. AGENTS.md, workflows,
+Pre-Commit and the PoC were already staged when work began. These supplied files
+are preserved as the starting point; only workflows/Pre-Commit are specifically
+adapted to the new package. `gh pr list --state open` reported no open PRs.
 
-Das PoC bleibt unverändert als historische Referenz. Seine pyproject.toml enthält
-zwei konkurrierende Build-Backends und ist keine gültige Package-Konfiguration.
-Die gelieferten Workflows waren Orchestrator-Vorlagen mit nicht vorhandenen
-Imports, Tests, Datenbank- und RabbitMQ-Kommandos.
+The PoC remains unchanged as a historical reference. Its pyproject.toml declares
+two competing build backends and is not a valid package configuration.
+The supplied workflows were Orchestrator templates with nonexistent imports,
+tests, database commands and RabbitMQ commands.
 
-Lösungsleiter: Die vorhandene native Engine deckt den Kern bereits ab. Maturin
-übernimmt Packaging, Pydantic übernimmt Maskenvalidierung und Schemaerzeugung,
-Dataclasses modellieren unveränderliche Zeilen. Pydantic ist die einzige neue
-Python-Laufzeitabhängigkeit und wegen rekursiver strukturierter Filtereingaben
-an der Vertrauensgrenze notwendig. Keine zusätzliche Service-Schicht, kein
-Framework, kein Datenbankzugriff, kein neues UI. Ruff-Regeln wurden unverändert
-aus der gelieferten Konfiguration übernommen; das historische PoC ist nicht Teil
-der Root-Prüfpfade. Die Ausgangsversion 0.1.0 bleibt erhalten.
+Solution ladder: the existing native engine already covers the core functionality.
+Maturin handles packaging, Pydantic validates masks and generates schemas, and
+dataclasses model immutable rows. Pydantic is the only new Python runtime dependency,
+required for recursive structured filter inputs at the trust boundary. No additional
+service layer, framework, database access or UI. Ruff rules were retained from the
+supplied configuration; the historical PoC is outside the root check paths.
+The initial version remains 0.1.0.
 
-## Befunde
+## Findings
 
-Die Korrekturen sind implementiert und lokal geprüft; die unabhängige Schließung
-aller Befunde bleibt dem Re-Review vorbehalten.
+Corrections are implemented and verified locally; independent closure of all
+findings requires re-review.
 
-| ID | Priorität | Stand | Ursache, Korrektur und Nachweis |
+| ID | Priority | Status | Cause, correction and evidence |
 | --- | --- | --- | --- |
-| D01 | P1 | Implementation lokal belegt | pyproject.toml:1 — Ungültiges Packaging: Root-pyproject mit genau einem Maturin-Backend, Namespace-Package, nativer abi3-Erweiterung, Stubs und py.typed; Wheel/sdist installieren und testen |
-| D02 | P1 | Implementation lokal belegt | src/chooong/datasift/_models.py:93 — Unvalidierte Python-Masken und Any-API: Pydantic-Modelle, Operator-Enum, unveränderliche Row; test_contract.py plus mypy |
-| D03 | P1 | Implementation lokal belegt | datasift-core/src/lib.rs:26 — Receiver war nicht Sync: Mutex schützt die native Empfängerverwaltung; Build, Clippy und Threadwechsel-Test |
-| D04 | P1 | Implementation lokal belegt | datasift-core/src/xlsx.rs:25 — EOF konnte unvollständiges XML akzeptieren: gemeinsame XML-Tiefenprüfung für alle Parts; Truncation-Tests für Worksheet/Shared Strings |
-| D05 | P1 | Implementation lokal belegt | src/chooong/datasift/__main__.py:38 — Ausgabe konnte Filter überschreiben: Eingabe-/Masken-Aliasprüfung, temporäre Ausgabe und Rename; echte CLI-Fehler-/Symlink-Tests |
-| D06 | P1 | UNVERIFIED | .github/workflows/ci.yml:15 — Projektfremde CI ersetzt; Ausführung auf Linux-Runner und Release-Broker noch nicht nachgewiesen |
-| D07 | P1 | UNVERIFIED | Unabhängiges Contract-/Datenintegritäts-Re-Review ausstehend |
-| D08 | P1 | [ ] OFFEN | Push/PR durch automatische Freigabeprüfung blockiert; explizite Zustimmung zur Übertragung an origin erforderlich |
+| D01 | P1 | Implementation verified locally | pyproject.toml:1 — Invalid packaging: root pyproject with one Maturin backend, namespace package, native abi3 extension, stubs and py.typed; install and test wheel/sdist |
+| D02 | P1 | Implementation verified locally | src/chooong/datasift/_models.py:93 — Unvalidated Python masks and Any API: Pydantic models, operator enum, immutable Row; test_contract.py and mypy |
+| D03 | P1 | Implementation verified locally | datasift-core/src/lib.rs:26 — Receiver was not Sync: Mutex protects native receiver management; build, Clippy and thread-switch test |
+| D04 | P1 | Implementation verified locally | datasift-core/src/xlsx.rs:25 — EOF could accept incomplete XML: shared XML depth validation for all parts; worksheet/shared-string truncation tests |
+| D05 | P1 | Implementation verified locally | src/chooong/datasift/__main__.py:38 — Output could overwrite the filter: input/mask alias checks, temporary output and rename; real CLI failure/symlink tests |
+| D06 | P1 | UNVERIFIED | .github/workflows/ci.yml:15 — Unrelated CI replaced; Linux runner and release broker execution remain unverified |
+| D07 | P1 | UNVERIFIED | Independent contract/data-integrity re-review pending |
+| D08 | P1 | [ ] OPEN | Automatic approval review blocks push/PR; explicit consent to transfer to origin required |
 
-## Abdeckungsprotokoll
+## Coverage record
 
-Alle Zeilen mit GEPRÜFT bezeichnen vollständige Dateilektüre und lokale Prüfung,
-keine Behauptung über noch nicht ausgeführte CI.
+REVIEWED means the complete file was read and checked locally; it does not claim
+that CI has run.
 
-| Dateien / Consumer | Abdeckung |
+| Files / consumers | Coverage |
 | --- | --- |
-| AGENTS.md | GEPRÜFT, gelieferte Regeln unverändert übernommen |
-| .gitignore, LICENSE | GEPRÜFT, unverändert; Apache-2.0-Metadaten im neuen Package |
-| README.md, CHANGELOG.md | GEPRÜFT, Einstieg und Änderungen aktualisiert |
-| docs/contract.md, docs/verification.md | GEPRÜFT, Contract, Grenzen und Evidenz |
-| pyproject.toml, uv.lock | GEPRÜFT, Python-Abhängigkeiten und Qualitätsbefehle |
-| datasift-core/Cargo.toml, datasift-core/Cargo.lock | GEPRÜFT, PyO3/abi3 und fixierte Rust-Abhängigkeiten |
-| datasift-core/src/value.rs | GEPRÜFT, I/O-unabhängige Zellwerte |
-| datasift-core/src/filter.rs | GEPRÜFT, alle Operatoren, Headerauflösung und Fehlerpfade |
-| datasift-core/src/xlsx.rs | GEPRÜFT, Archiv/XML-Reader und Ressourcen-/Formatgrenzen |
-| datasift-core/src/lib.rs | GEPRÜFT, Worker, Channel, GIL-Freigabe und Iterator-Lebenszyklus |
-| src/chooong/datasift/__init__.py | GEPRÜFT, dokumentierte öffentliche Exporte |
-| src/chooong/datasift/_models.py | GEPRÜFT, Modelle/Enums/Row |
-| src/chooong/datasift/_reader.py | GEPRÜFT, direkte Engine-Aufrufer und Dateiadapter |
-| src/chooong/datasift/_rust.pyi, py.typed | GEPRÜFT, native Typgrenze und Marker im Wheel |
-| src/chooong/datasift/__main__.py | GEPRÜFT, direkter Consumer CLI/NDJSON |
-| tests/test_engine.py | GEPRÜFT, übernommene echte OOXML-Fixtures und Kernabläufe |
-| tests/test_contract.py | GEPRÜFT, alle Operatoren, Fehlereingaben, Replay und Concurrency |
-| tests/test_cli.py | GEPRÜFT, tatsächlicher CLI-Produktionspfad mit Dateien |
-| scripts/bench.py, examples/filter.json | GEPRÜFT, direkter Consumer Benchmark und Beispielmaske |
-| .pre-commit-config.yaml | GEPRÜFT, bestehende Python-Prüfungen, Archiv ausgeschlossen |
-| .github/workflows/ci.yml | GEPRÜFT, Python-3.13/3.14-Matrix, Rust und installierte Artefakte; CI UNVERIFIED |
-| .github/workflows/release-gitlab-pypi.yml | GEPRÜFT, vorhandener CI-Artefakt-/Hash-/OIDC-Pfad beibehalten, Package-Tests ersetzt; Veröffentlichung UNVERIFIED |
-| rust_xlsx_filter/README.md, pyproject.toml, Cargo.toml | GEPRÜFT, historische unveränderte Entwurfsgrundlage |
-| rust_xlsx_filter/src/lib.rs, filter.rs, xlsx.rs | GEPRÜFT, Ausgangsengine; neuer produktiver Code unter datasift-core/ |
-| rust_xlsx_filter/python/rust_xlsx_filter/__init__.py, __main__.py | GEPRÜFT, alte API/CLI; kein zugesicherter Consumer-Contract |
-| rust_xlsx_filter/filter_excel.py, filter.json | GEPRÜFT, historischer Wrapper und Beispiel |
-| rust_xlsx_filter/tests/test_engine.py, benchmarks/bench.py | GEPRÜFT, Grundlage der übernommenen Nachweise |
-| Externe Consumer | Im Repository keine nachgewiesen; keine Cross-Repo-Änderungen oder Integrationszusagen |
+| AGENTS.md | REVIEWED, supplied instructions retained unchanged |
+| .gitignore, LICENSE | REVIEWED, unchanged; Apache-2.0 metadata in the new package |
+| README.md, CHANGELOG.md | REVIEWED, introduction and changes updated |
+| docs/contract.md, docs/verification.md | REVIEWED, contract, limits and evidence |
+| pyproject.toml, uv.lock | REVIEWED, Python dependencies and quality commands |
+| datasift-core/Cargo.toml, datasift-core/Cargo.lock | REVIEWED, PyO3/abi3 and pinned Rust dependencies |
+| datasift-core/src/value.rs | REVIEWED, I/O-independent cell values |
+| datasift-core/src/filter.rs | REVIEWED, all operators, header resolution and error paths |
+| datasift-core/src/xlsx.rs | REVIEWED, archive/XML reader and resource/format limits |
+| datasift-core/src/lib.rs | REVIEWED, worker, channel, GIL release and iterator lifecycle |
+| src/chooong/datasift/__init__.py | REVIEWED, documented public exports |
+| src/chooong/datasift/_models.py | REVIEWED, models/enums/Row |
+| src/chooong/datasift/_reader.py | REVIEWED, direct engine callers and file adapters |
+| src/chooong/datasift/_rust.pyi, py.typed | REVIEWED, native type boundary and wheel marker |
+| src/chooong/datasift/__main__.py | REVIEWED, CLI/NDJSON direct consumer |
+| tests/test_engine.py | REVIEWED, inherited real OOXML fixtures and core flows |
+| tests/test_contract.py | REVIEWED, all operators, invalid inputs, replay and concurrency |
+| tests/test_cli.py | REVIEWED, actual CLI production path with files |
+| scripts/bench.py, examples/filter.json | REVIEWED, benchmark consumer and example mask |
+| .pre-commit-config.yaml | REVIEWED, existing Python checks, archive excluded |
+| .github/workflows/ci.yml | REVIEWED, Python 3.13/3.14 matrix, Rust and installed artifacts; CI UNVERIFIED |
+| .github/workflows/release-gitlab-pypi.yml | REVIEWED, existing CI artifact/hash/OIDC path retained, package tests replaced; publication UNVERIFIED |
+| rust_xlsx_filter/README.md, pyproject.toml, Cargo.toml | REVIEWED, unchanged historical design baseline |
+| rust_xlsx_filter/src/lib.rs, filter.rs, xlsx.rs | REVIEWED, original engine; new production code under datasift-core/ |
+| rust_xlsx_filter/python/rust_xlsx_filter/__init__.py, __main__.py | REVIEWED, old API/CLI; no guaranteed consumer contract |
+| rust_xlsx_filter/filter_excel.py, filter.json | REVIEWED, historical wrapper and example |
+| rust_xlsx_filter/tests/test_engine.py, benchmarks/bench.py | REVIEWED, basis of inherited evidence |
+| External consumers | None established in the repository; no cross-repository changes or integration claims |
 
-## Lokale Verifikation
+## Local verification
 
-Plattform: macOS ARM64, CPython 3.13.15 und 3.14.6, Rust/Cargo 1.95.0.
-Die folgende Tabelle protokolliert die erfolgreichen abschließenden Prüfbefehle;
-frühere Entwicklungsfehler wurden korrigiert und die betroffenen Gates wiederholt.
-Python-Coverage gilt ausschließlich für Python, nicht für die Rust-Engine.
+Platform: macOS ARM64, CPython 3.13.15 and 3.14.6, Rust/Cargo 1.95.0.
+The table records successful final checks; earlier development failures were
+corrected and affected checks repeated. Python coverage does not cover the Rust engine.
 
-| Befehl | Ergebnis / Exit-Code |
+| Command | Result / exit code |
 | --- | --- |
-| uv lock --check; uv sync --frozen | Lock gültig, native editable Installation; 0 |
+| uv lock --check; uv sync --frozen | Valid lock, native editable installation; 0 |
 | .venv/bin/ruff check src tests scripts | All checks passed; 0 |
-| .venv/bin/ruff format --check src tests scripts | 9 Dateien formatiert; 0 |
-| .venv/bin/mypy src | 5 Quelldateien ohne Fehler; 0 |
-| .venv/bin/pytest --cov --cov-report=term-missing | 60 passed, 99.47 % Python-Coverage; 0 |
-| cargo fmt --manifest-path datasift-core/Cargo.toml -- --check | erfolgreich; 0 |
-| cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings | erfolgreich; 0 |
+| .venv/bin/ruff format --check src tests scripts | 9 files formatted; 0 |
+| .venv/bin/mypy src | 5 source files without errors; 0 |
+| .venv/bin/pytest --cov --cov-report=term-missing | 60 passed, 99.47% Python coverage; 0 |
+| cargo fmt --manifest-path datasift-core/Cargo.toml -- --check | Passed; 0 |
+| cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings | Passed; 0 |
 | cargo test --manifest-path datasift-core/Cargo.toml --locked | 6 passed; 0 |
-| uv build | Wheel und sdist, Wheel aus sdist gebaut; 0 |
-| .venv/bin/twine check dist/* | Wheel und sdist PASSED; 0 |
-| Isoliertes Wheel, Python 3.13, pytest -o addopts= tests | 60 passed; 0 |
-| Isoliertes sdist, Python 3.13, pytest -o addopts= tests | 60 passed; 0 |
-| Isoliertes Wheel, Python 3.14, pytest -o addopts= tests | 60 passed; 0 |
-| Installiertes chooong-datasift --help, python -m chooong.datasift --help | erfolgreich; 0 |
-| .venv/bin/python scripts/bench.py --rows 250000 --batch-size 1024 | 12500 Treffer, ca. 0.225 s; 0; keine allgemeine Performance-Zusage |
-| YAML laden und eingebettete Python-Skripte kompilieren | erfolgreich; 0; kein Ersatz für Actionlint/CI |
-| git diff --check | erfolgreich; 0 |
+| uv build | Wheel and sdist, wheel built from sdist; 0 |
+| .venv/bin/twine check dist/* | Wheel and sdist PASSED; 0 |
+| Isolated wheel, Python 3.13, pytest -o addopts= tests | 60 passed; 0 |
+| Isolated sdist, Python 3.13, pytest -o addopts= tests | 60 passed; 0 |
+| Isolated wheel, Python 3.14, pytest -o addopts= tests | 60 passed; 0 |
+| Installed chooong-datasift --help, python -m chooong.datasift --help | Passed; 0 |
+| .venv/bin/python scripts/bench.py --rows 250000 --batch-size 1024 | 12500 matches, approximately 0.225 s; 0; no general performance guarantee |
+| Load YAML and compile embedded Python scripts | Passed; 0; no substitute for Actionlint/CI |
+| git diff --check | Passed; 0 |
 
-Artefaktprüfung erfolgt ohne PYTHONPATH und ohne editable Installation in drei
-separaten /tmp-Umgebungen. Paket-Inventar enthält native Erweiterung, Stubs,
-py.typed und Lizenz, im sdist außerdem Cargo.lock und uv.lock; kein PoC und keine
-Bytecode-Caches. Kein Zugriff auf externe APIs, bestehende Dienste oder Datenbanken.
+Artifacts were checked without PYTHONPATH or editable installations in three separate
+/tmp environments. The package inventory contains the native extension, stubs,
+py.typed and license; the sdist also contains Cargo.lock and uv.lock. No PoC or
+bytecode caches. No access to external APIs, existing services or databases.
 
-## Einzeln abnehmbare TODOs
+## Individually verifiable TODOs
 
-### D06 — Linux-CI
+### D06 — Linux CI
 
-- Basis: 97d4f59614c5294ab50253213a920390da44323d; auf dem finalen PR-HEAD prüfen.
-- Soll: vollständige CI auf dem vorhandenen Linux-x64-Runner besteht, ohne
-  Orchestrator-, PostgreSQL- oder RabbitMQ-Abhängigkeiten.
-- Dateien: beide .github/workflows/*.yml, pyproject.toml, datasift-core/Cargo.toml.
-- Schritte: Nutzer prüft den automatisch gestarteten PR-Lauf; Actionlint auf
-  beiden Workflows ausführen. Kein manuelles Starten oder Polling durch den Agenten.
-- Negativ-/Replay-Belege: bestehende 60 Tests, einschließlich Fehlermasken,
-  Truncation, atomarer Fehlerausgabe, Concurrency und unabhängiger Wiederholung.
-- Befehle: alle quality/package-Kommandos aus ci.yml; Actionlint, falls verfügbar.
-- Kriterium: beide Python-Versionen sowie Wheel-/sdist-Tests grün, keine ausgelassenen Jobs.
-- Abhängigkeit: vorhandener Runner mit uv, Rust/Cargo, C-Linker und Netzwerkzugriff.
-- Consumer-Auswirkung: Linux-Installierbarkeit; kein Registry-Release beauftragt.
+- Base: 97d4f59614c5294ab50253213a920390da44323d; check the final PR HEAD.
+- Target: full CI passes on the existing Linux x64 runner without Orchestrator,
+  PostgreSQL or RabbitMQ dependencies.
+- Files: both .github/workflows/*.yml, pyproject.toml, datasift-core/Cargo.toml.
+- Steps: user checks the automatically started PR run; run Actionlint on both
+  workflows. No manual triggering or polling by the agent.
+- Negative/replay evidence: existing 60 tests, including invalid masks,
+  truncation, atomic failure output, concurrency and independent repetition.
+- Commands: all quality/package commands from ci.yml; Actionlint if available.
+- Acceptance: both Python versions and wheel/sdist tests pass; no skipped jobs.
+- Dependency: existing runner with uv, Rust/Cargo, C linker and network access.
+- Consumer impact: Linux installability; no registry release requested.
 
-### D07 — Unabhängiges Re-Review
+### D07 — Independent re-review
 
-- Basis: 97d4f59614c5294ab50253213a920390da44323d; vollständiger finaler PR-Diff.
-- Soll: Contract, Ressourcengrenzen, Lifecycle, Fehlerpfade und Datenintegrität
-  anhand Code und Tests unabhängig beurteilt; keine Eigenmeldung als Schließung.
-- Dateien: alle im Abdeckungsprotokoll genannten produktiven Dateien und Tests.
-- Schritte: Diff vollständig lesen, dynamische Headerauflösung, typbewusste
-  Vergleiche, Worker-Abbruch, XML-Fehler und atomare Ausgabe nachvollziehen.
-- Negativ-/Replay-Tests: test_contract.py, test_cli.py und Rust-Unit-Tests ausführen.
-- Befehle: README-Qualitätsbefehle und isolierte Artefaktprüfungen wiederholen.
-- Kriterium: keine offenen P1/P2-Befunde, belegte D01–D05-Schließung durch Reviewer.
-- Abhängigkeit: unabhängiger Reviewer; Consumer sind CLI, Benchmark und Python-API.
+- Base: 97d4f59614c5294ab50253213a920390da44323d; complete final PR diff.
+- Target: independent assessment of contract, resource limits, lifecycle, error
+  paths and data integrity using code and tests; self-reporting does not close findings.
+- Files: all production files and tests in the coverage record.
+- Steps: read the full diff; trace dynamic header resolution, type-aware
+  comparisons, worker cancellation, XML errors and atomic output.
+- Negative/replay tests: run test_contract.py, test_cli.py and Rust unit tests.
+- Commands: repeat README quality commands and isolated artifact checks.
+- Acceptance: no open P1/P2 findings; reviewer documents closure of D01–D05.
+- Dependency: independent reviewer; consumers are CLI, benchmark and Python API.
 
-### D08 — Zustimmung für Push und PR
+### D08 — Consent for push and PR
 
-- Basis: 97d4f59614c5294ab50253213a920390da44323d; finalen lokalen HEAD verwenden.
-- Soll: genau diesen Feature-Branch an das konfigurierte Repository
-  `chooong-group/chooong.datasift` übertragen und genau einen PR nach main erstellen.
-- Dateien: vollständiger geprüfter Branch-Diff; keine zusätzlichen Änderungen.
-- Schritte: ausdrückliche Nutzerzustimmung einholen; danach `git push --set-upstream
-  origin feat/datasift-package`, dann `gh pr create --base main --head
-  feat/datasift-package --body-file <geprüfte PR-Beschreibung>`.
-- Negativ-/Replay-Prüfung: ohne Zustimmung kein erneuter Übertragungsversuch;
-  nach Zustimmung vorhandene PRs prüfen, keinen doppelten PR erstellen.
-- Verifikation: `git status --short`, lokaler HEAD und PR-HEAD stimmen überein;
-  Diff gegen Basis unverändert, genau eine PR-URL vorhanden. CI nicht pollen.
-- Kriterium: Push und PR erfolgreich; danach stoppen, kein Merge/Tag/Release.
-- Abhängigkeit: explizite Freigabe der durch Auto-Review beanstandeten Datenweitergabe.
-- Consumer-Auswirkung: Review-Zugriff auf Code; keine Änderung von Laufzeit-Consumern.
+- Base: 97d4f59614c5294ab50253213a920390da44323d; use the final local HEAD.
+- Target: transfer this feature branch to `chooong-group/chooong.datasift`
+  and create exactly one PR against main.
+- Files: complete reviewed branch diff; no additional changes.
+- Steps: obtain explicit user consent; then `git push --set-upstream
+  origin feat/datasift-package`, followed by `gh pr create --base main --head
+  feat/datasift-package --body-file <reviewed-PR-description>`.
+- Negative/replay check: no retry without consent; check existing PRs after
+  consent to avoid creating a duplicate.
+- Verification: `git status --short`, matching local/PR HEADs, unchanged diff
+  against base and exactly one PR URL. Do not poll CI.
+- Acceptance: successful push and PR; then stop without merge/tag/release.
+- Dependency: explicit approval of the data transfer flagged by automatic review.
+- Consumer impact: reviewer access to code; no runtime consumer changes.
