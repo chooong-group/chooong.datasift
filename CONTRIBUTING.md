@@ -28,6 +28,9 @@ git diff --check
 
 ## Tests and review
 
+The [core README](datasift-core/README.md#test-structure) describes the Rust test
+suites. Run them with Cargo; repository-level pytest tests cover the Python API and CLI.
+
 Use synthetic workbooks and the existing ZIP/XML fixtures. Never commit personal
 data, credentials or generated NDJSON. Cover meaningful failures, including
 preserving existing CLI output after a failed scan. Keep Python annotations

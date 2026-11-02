@@ -63,7 +63,7 @@ anchors or explicit sources. Comments/totals/separators use explicit rules.
 Recovery requires caller-confirmed destinations and a trusted journal hash;
 see the [commit and recovery contract](docs/cli.md#file-output).
 
-The Rust core lives in `datasift-core/`; Python sources are in `src/chooong/datasift/`.
+The [Rust core](datasift-core/README.md) lives in `datasift-core/`; Python sources are in `src/chooong/datasift/`.
 For development, run `uv sync --frozen`; checks and build commands are in
 [Contributing](CONTRIBUTING.md).
 [Changelog](CHANGELOG.md) · [License](LICENSE)

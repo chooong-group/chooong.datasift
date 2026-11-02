@@ -4,6 +4,8 @@
 
 ### Added
 
+- A core README and structured Rust tests for input decoding, discovery, validation,
+  exact values and real-file export failures, with isolated temporary fixtures.
 - Native CSV input, deterministic multi-file scanning, optional predicates,
   independent discovery anchors and ordered literal/regex/wildcard projection.
 - Required/default/type rules, exact Decimal/Money and temporal conversions,
