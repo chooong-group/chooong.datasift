@@ -33,6 +33,82 @@ python -m pip install .
 Compatible maintainer-built wheels need no compiler. Pydantic is the only direct
 Python runtime dependency; no external service is needed.
 
+## Features
+
+### Input formats
+
+- Read **XLSX, XLSM and CSV** files without loading entire worksheets into a DataFrame.
+- Process multiple files and wildcard paths in deterministic order.
+- Scan individual Excel worksheets or all worksheets in a workbook.
+- Configure CSV encodings, delimiters and quoting, including multiline fields.
+- Read cached Excel formula results without executing formulas or macros.
+
+### Table discovery
+
+- Automatically discover tables that do not start at A1.
+- Detect multiple tables within a worksheet, including adjacent and vertically separated tables.
+- Support multiline headers, merged cells and repeated header rows.
+- Normalize column names with trimming, case conversion, Unicode normalization, whitespace handling and aliases.
+- Resolve duplicate column names with deterministic suffixes.
+- Locate tables using header anchors independently of filter conditions.
+- Define explicit table sources with column mappings, row ranges and excluded rows.
+- Apply independent rules to different table sources.
+- Detect ambiguous layouts instead of silently guessing table boundaries.
+
+### Filtering and column selection
+
+- Define filters using JSON or typed Python models.
+- Combine conditions with **AND, OR and NOT**.
+- Compare values using equality, inequality, ordering and list membership.
+- Filter text using substring, prefix, suffix and regular-expression matching.
+- Check for empty values and specific data types.
+- Select output columns independently of filter conditions.
+- Select columns by name, wildcard or regular expression.
+- Control output column order without modifying the source.
+- Filter and select data directly in the native Rust engine.
+
+### Validation and data types
+
+- Enforce **required fields** and reject records with missing values.
+- Replace missing values with configurable defaults.
+- Validate column types and optionally convert values.
+- Support strings, integers, floats, booleans, Decimal, money, dates and datetimes.
+- Parse localized numeric and monetary values.
+- Preserve exact decimal and monetary values without implicit rounding.
+- Handle Excel date systems, ISO dates and timezone-aware datetimes.
+- Apply validation independently of output column selection.
+- Preserve original values and detailed rejection reasons for invalid records.
+
+### Row processing and streaming
+- Classify rows as data, headers, repeated headers, empty rows, comments, totals or separators.
+- Include or exclude row classes using configurable rules.
+- Stream results in bounded batches with backpressure.
+- Iterate over matching rows or receive matched and rejected records in a single ordered stream.
+- Return immutable, typed Python row objects.
+- Support early cancellation and explicit iterator cleanup.
+- Report row counts, conversions, defaults, rejections and discovered table schemas.
+
+### Export and reliability
+
+- Export matching and rejected records to **NDJSON or Parquet**.
+- Write output directly from Rust without Python-side row serialization.
+- Preserve source metadata and rejection details in exported records.
+- Preserve existing output files when scanning or serialization fails.
+- Use journaled commits and verified recovery for interrupted file replacements.
+- Continue processing independent tables after schema errors.
+- Optionally continue processing remaining input files after file errors while reporting incomplete results.
+- Enforce documented parser, schema, expression and resource limits.
+
+### Python API and CLI
+
+- Use the same filter configuration through Python and the command-line interface.
+- Validate JSON masks with Pydantic and generate JSON Schema.
+- Access matching rows, batches, detailed scan records and scan statistics.
+- Inspect discovered tables, column bindings and diagnostics.
+- Use CLI output files, stdout streaming and JSON execution reports.
+- Support CPython **3.12, 3.13 and 3.14** with a native Rust extension.
+
+
 ## Example
 
 This example creates its own input:
@@ -56,6 +132,7 @@ Path("transactions.csv").write_text(
     "Country,Amount,Note\nDE,1500,first\nAT,2000,second\nDE,900,third\n",
     encoding="utf-8",
 )
+
 mask = FilterMask(
     sheet=None,
     header=HeaderConfig(anchors=("Country", "Amount")),
@@ -65,9 +142,14 @@ mask = FilterMask(
         NumericCondition(column="Amount", op=Operator.GTE, value=1000),
     )),
 )
+
 rows = [dict(row) for row in iter_matching_rows("transactions.csv", mask)]
 assert rows == [{"Country": "DE", "Amount": 1500}]
-Path("mask.json").write_text(mask.model_dump_json(by_alias=True), encoding="utf-8")
+
+Path("mask.json").write_text(
+    mask.model_dump_json(by_alias=True),
+    encoding="utf-8",
+)
 ```
 
 Run the same filter from the CLI:
@@ -75,6 +157,69 @@ Run the same filter from the CLI:
 ```bash
 chooong-datasift transactions.csv mask.json --output matches.ndjson
 ```
+
+## Column selection and validation
+
+DataSift separates row filtering, column selection and validation. Use `select` to choose output columns, `types` to convert values and `required` to reject records with missing values.
+
+```python
+from pathlib import Path
+
+from chooong.datasift import (
+    DataType,
+    FilterMask,
+    HeaderConfig,
+    NumericCondition,
+    Operator,
+    TypeRule,
+    iter_matching_rows,
+)
+
+Path("orders.csv").write_text(
+    "Country,Amount,Reference\n"
+    "DE,1500,INV-001\n"
+    "DE,2200,\n"
+    "AT,1900,INV-003\n"
+    "DE,900,INV-004\n",
+    encoding="utf-8",
+)
+
+mask = FilterMask(
+    sheet=None,
+    header=HeaderConfig(anchors=("Country", "Amount", "Reference")),
+    select=("Reference", "Amount"),
+    required=("Reference",),
+    types={
+        "Amount": TypeRule(type=DataType.INTEGER, convert=True),
+    },
+    where=NumericCondition(
+        column="Amount",
+        op=Operator.GTE,
+        value=1000,
+    ),
+)
+
+rows = [dict(row) for row in iter_matching_rows("orders.csv", mask)]
+
+assert rows == [
+    {"Reference": "INV-001", "Amount": 1500},
+    {"Reference": "INV-003", "Amount": 1900},
+]
+```
+
+The mask applies three independent operations:
+
+- **Column selection:** `select` returns only `Reference` and `Amount`, in that order. `Country` is excluded.
+- **Type conversion:** `types` converts CSV text in `Amount` to integers before numeric comparison.
+- **Required fields:** `required` rejects records where `Reference` is missing or empty.
+
+The `where` condition matches amounts greater than or equal to 1000.
+
+The record with amount 2200 is rejected because its reference is missing. The record with amount 900 does not match the filter. Neither appears in the matching results.
+
+Rejected records remain available through `scan_batches`, including their original values and rejection reasons.
+
+See the [filter reference](docs/api/filters.md) for the complete configuration and the [validation guide](docs/guides/validation.md) for handling rejected records.
 
 ## Documentation and limits
 
