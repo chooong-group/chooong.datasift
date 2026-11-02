@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   build:
-    if: ${{ false && vars.PAGES_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    if: ${{ vars.PAGES_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -23,7 +23,7 @@ jobs:
         with:
           path: site
   deploy:
-    if: ${{ false && vars.PAGES_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    if: ${{ vars.PAGES_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
