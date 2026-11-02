@@ -12,7 +12,8 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use zip::ZipArchive;
 
-use crate::filter::{column_index, tables_from_row, Config, Expr, HeaderLookup};
+use crate::engine::{Sink, Statistics};
+use crate::filter::{column_index, Config};
 use crate::Message;
 
 const MAX_XML_METADATA_BYTES: u64 = 16 * 1024 * 1024;
@@ -21,7 +22,7 @@ const MAX_CELL_TEXT_BYTES: usize = 2 * 1024 * 1024;
 const MAX_COLS: usize = 16_384;
 const MAX_ROWS: u32 = 1_048_576;
 
-use crate::value::CellValue;
+use crate::value::{CellValue, Merge};
 
 /// quick-xml reports EOF even when enclosing tags remain open.
 fn validate_depth(event: &Event<'_>, depth: &mut usize) -> Result<(), String> {
@@ -161,6 +162,9 @@ fn safe_target(base: &str, target: &str) -> Result<String, String> {
 struct WorkbookPaths {
     worksheets: Vec<String>,
     shared_strings: Option<String>,
+    date1904: bool,
+    names: HashMap<String, String>,
+    styles: Option<String>,
 }
 
 /// Resolve selected worksheets through OOXML relationships, preserving workbook order.
@@ -174,6 +178,8 @@ fn workbook_paths(
     let mut depth = 0_usize;
     let mut relationship_ids = Vec::new();
     let mut available = Vec::new();
+    let mut date1904 = false;
+    let mut sheet_names = HashMap::new();
 
     loop {
         let event = reader
@@ -187,8 +193,17 @@ fn workbook_paths(
                         relationship_ids
                             .push(attribute(e, b"r:id")?.ok_or("Arbeitsblatt ohne r:id")?);
                     }
+                    if let Some(id) = attribute(e, b"r:id")? {
+                        sheet_names.insert(id, name.clone());
+                    }
                     available.push(name);
                 }
+            }
+            Event::Start(ref e) | Event::Empty(ref e)
+                if xml_tag(e.name().as_ref()) == b"workbookPr" =>
+            {
+                date1904 =
+                    attribute(e, b"date1904")?.is_some_and(|s| matches!(s.as_str(), "1" | "true"));
             }
             Event::Decl(ref e) => validate_declaration(e)?,
             Event::DocType(_) => return Err("DTD ist in XLSX nicht erlaubt".into()),
@@ -214,6 +229,7 @@ fn workbook_paths(
     let mut depth = 0_usize;
     let mut by_id = HashMap::new();
     let mut shared_strings = None;
+    let mut styles = None;
 
     loop {
         let event = reader
@@ -246,6 +262,9 @@ fn workbook_paths(
                         return Err("Doppelte Workbook-Relation".into());
                     }
                 }
+                if kind.ends_with("/styles") {
+                    styles = Some(safe_target("xl/", &target)?);
+                }
                 if kind.ends_with("/sharedStrings") {
                     shared_strings = Some(safe_target("xl/", &target)?);
                 }
@@ -258,17 +277,25 @@ fn workbook_paths(
         buf.clear();
     }
     let mut worksheets = Vec::new();
+    let mut names = HashMap::new();
     for id in &relationship_ids {
         if let Some(path) = by_id
             .remove(id)
             .ok_or("Worksheet-Relation nicht gefunden")?
         {
+            names.insert(
+                path.clone(),
+                sheet_names.get(id).cloned().unwrap_or_default(),
+            );
             worksheets.push(path);
         }
     }
     Ok(WorkbookPaths {
         worksheets,
         shared_strings,
+        date1904,
+        names,
+        styles,
     })
 }
 
@@ -358,7 +385,69 @@ fn column_from_cell_reference(reference: &str) -> Result<usize, String> {
     column_index(&reference[..letters].to_ascii_uppercase())
 }
 
-fn finish_cell(
+pub(crate) struct RawCell<'a> {
+    pub kind: &'a str,
+    pub value: &'a str,
+    pub inline: &'a str,
+    pub style: usize,
+}
+
+impl Sink<'_> {
+    pub fn read_cell(
+        &self,
+        row: u32,
+        col: usize,
+        cell: crate::xlsx::RawCell<'_>,
+        strings: &[String],
+    ) -> Result<Option<CellValue>, String> {
+        let crate::xlsx::RawCell {
+            kind,
+            value,
+            inline,
+            style,
+        } = cell;
+        if self.selects_cell(row, col) {
+            if matches!(kind, "n" | "")
+                && !value.trim().is_empty()
+                && (!self.config.rules.types.is_empty()
+                    || self.needs_exact_numbers()
+                    || self.styles.get(style).is_some_and(|f| !f.is_empty()))
+            {
+                // Validate syntax, retain the original OOXML decimal lexeme.
+                crate::xlsx::finish_cell(kind, value, inline, strings)?;
+                let raw = value.trim().to_owned();
+                if let Some(format) = self.styles.get(style).filter(|f| !f.is_empty()) {
+                    return Ok(Some(CellValue::StyledNumber {
+                        raw,
+                        format: format.clone(),
+                    }));
+                }
+                return Ok(Some(CellValue::NumberText(raw)));
+            }
+            return crate::xlsx::finish_cell(kind, value, inline, strings).map(Some);
+        }
+        if self.config.source.is_some() || self.config.sources.is_some() {
+            return Ok(None);
+        }
+        let label = match kind {
+            "inlineStr" => Some(inline),
+            "s" => value
+                .trim()
+                .parse::<usize>()
+                .ok()
+                .and_then(|i| strings.get(i))
+                .map(String::as_str),
+            "str" | "e" | "d" => Some(value),
+            _ => None,
+        };
+        let h = &self.config.rules.header;
+        Ok(label
+            .filter(|l| self.config.header_labels.contains(&h.normalize(l)))
+            .map(|l| CellValue::Text(l.to_owned())))
+    }
+}
+
+pub(crate) fn finish_cell(
     kind: &str,
     value: &str,
     inline: &str,
@@ -378,7 +467,12 @@ fn finish_cell(
                 .map(CellValue::Text)
                 .ok_or_else(|| format!("Shared-String-Index {idx} ist nicht vorhanden"))
         }
-        "str" | "e" | "d" => {
+        "d" => Ok(if value.is_empty() {
+            CellValue::Empty
+        } else {
+            CellValue::IsoDate(value.to_owned())
+        }),
+        "str" | "e" => {
             if value.is_empty() {
                 Ok(CellValue::Empty)
             } else {
@@ -391,209 +485,129 @@ fn finish_cell(
             "" => Ok(CellValue::Empty),
             _ => Err(format!("Ungültiger Bool-Wert {raw:?}")),
         },
-        "" | "n" => {
-            if raw.is_empty() {
-                return Ok(CellValue::Empty);
-            }
-            if let Ok(integer) = raw.parse::<i64>() {
-                return Ok(CellValue::Integer(integer));
-            }
-            let number = raw
-                .parse::<f64>()
-                .map_err(|_| format!("Ungültiger Excel-Zahlenwert {raw:?}"))?;
-            if !number.is_finite() {
-                return Err("Nicht-endlicher Excel-Zahlenwert".into());
-            }
-            Ok(CellValue::Float(number))
-        }
+        "" | "n" => CellValue::number(raw),
         other => Err(format!("Nicht unterstützter Excel-Zelltyp {other:?}")),
     }
 }
 
-struct Table {
-    headers: Vec<(String, usize)>,
-    predicate: Expr,
-    header_row: u32,
-    first: usize,
-    last: usize,
+fn load_styles(archive: &mut ZipArchive<File>, path: Option<&str>) -> Result<Vec<String>, String> {
+    let name = path.unwrap_or("xl/styles.xml");
+    if path.is_none() && archive.by_name(name).is_err() {
+        return Ok(vec![]);
+    }
+    let xml = xml_part(archive, name, MAX_XML_METADATA_BYTES)?;
+    let mut reader = Reader::from_reader(xml.as_slice());
+    let mut buf = Vec::new();
+    let mut depth = 0;
+    let mut formats = HashMap::new();
+    let mut styles = Vec::new();
+    let mut in_xfs = false;
+    loop {
+        let e = reader
+            .read_event_into(&mut buf)
+            .map_err(|_| "Ungültiges styles.xml")?;
+        validate_depth(&e, &mut depth)?;
+        match e {
+            Event::Start(ref e) if xml_tag(e.name().as_ref()) == b"cellXfs" => in_xfs = true,
+            Event::End(ref e) if xml_tag(e.name().as_ref()) == b"cellXfs" => in_xfs = false,
+            Event::Empty(ref e) | Event::Start(ref e)
+                if xml_tag(e.name().as_ref()) == b"numFmt" =>
+            {
+                if let (Some(id), Some(code)) =
+                    (attribute(e, b"numFmtId")?, attribute(e, b"formatCode")?)
+                {
+                    formats.insert(id, code);
+                }
+            }
+            Event::Empty(ref e) | Event::Start(ref e)
+                if in_xfs && xml_tag(e.name().as_ref()) == b"xf" =>
+            {
+                let id = attribute(e, b"numFmtId")?.unwrap_or_default();
+                let builtin = match id.as_str() {
+                    "14" | "15" | "16" | "17" => "yyyy-mm-dd",
+                    "18" | "19" | "20" | "21" | "22" => "yyyy-mm-dd hh:mm:ss",
+                    "45" | "46" | "47" => "hh:mm:ss",
+                    "5" | "6" | "7" | "8" | "42" | "44" => "currency",
+                    _ => "",
+                };
+                styles.push(
+                    formats
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or_else(|| builtin.to_owned()),
+                );
+            }
+            Event::DocType(_) => return Err("DTD nicht erlaubt".into()),
+            Event::Decl(ref e) => validate_declaration(e)?,
+            Event::Eof => break,
+            _ => (),
+        }
+        buf.clear();
+    }
+    Ok(styles)
 }
-
-struct Sink<'a> {
-    config: &'a Config,
-    sender: &'a SyncSender<Message>,
-    cancelled: &'a Arc<AtomicBool>,
-    batch_size: usize,
-    headers: Option<Vec<(String, usize)>>,
-    selected_positions: Option<HashSet<usize>>,
-    tables: Vec<Table>,
-    buffer: Vec<Vec<CellValue>>,
-}
-
-impl Sink<'_> {
-    fn prepare_headers(
-        &mut self,
-        (names, lookup): HeaderLookup,
-        number: u32,
-    ) -> Result<(), String> {
-        let predicate = Expr::compile(&self.config.predicate, &lookup)?;
-        let names: Vec<_> = names
-            .into_iter()
-            .filter(|(name, _)| self.config.required_columns.contains(name))
-            .collect();
-        let first = names
-            .iter()
-            .map(|(_, index)| *index)
-            .min()
-            .ok_or("Leeres Tabellenschema")?;
-        let last = names
-            .iter()
-            .map(|(_, index)| *index)
-            .max()
-            .ok_or("Leeres Tabellenschema")?;
-        // A later overlapping header starts a new vertical table in that span.
-        self.tables
-            .retain(|table| table.last < first || table.first > last);
-        if self.headers.is_none() {
-            self.use_headers(
-                names
-                    .iter()
-                    .enumerate()
-                    .map(|(index, (name, _))| (name.clone(), index))
-                    .collect(),
-            )?;
-        }
-        self.tables.push(Table {
-            headers: names,
-            predicate,
-            header_row: number,
-            first,
-            last,
-        });
-        self.tables.sort_by_key(|table| table.first);
-        self.selected_positions = Some(
-            self.tables
-                .iter()
-                .flat_map(|table| table.headers.iter().map(|(_, index)| *index))
-                .collect(),
-        );
-        Ok(())
-    }
-
-    fn use_headers(&mut self, headers: Vec<(String, usize)>) -> Result<(), String> {
-        if self.headers.as_ref() != Some(&headers) {
-            self.flush()?;
-            self.sender
-                .send(Message::Ready(headers.clone()))
-                .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
-            self.headers = Some(headers);
-        }
-        Ok(())
-    }
-
-    fn selects_cell(&self, row: u32, column: usize) -> bool {
-        self.config
-            .source
-            .as_ref()
-            .is_none_or(|source| source.contains_row(row))
-            && self
-                .selected_positions
-                .as_ref()
-                .is_none_or(|positions| positions.contains(&column))
-    }
-
-    fn read_cell(
-        &self,
-        row: u32,
-        column: usize,
-        kind: &str,
-        value: &str,
-        inline: &str,
-        strings: &[String],
-    ) -> Result<Option<CellValue>, String> {
-        if self.selects_cell(row, column) {
-            return finish_cell(kind, value, inline, strings).map(Some);
-        }
-        if self.config.source.is_some() {
-            return Ok(None);
-        }
-        // Outside active tables only valid text labels can begin another schema.
-        // Invalid unselected values remain outside the extraction scope.
-        let label = match kind {
-            "inlineStr" => Some(inline),
-            "s" => value
-                .trim()
-                .parse::<usize>()
-                .ok()
-                .and_then(|index| strings.get(index))
-                .map(String::as_str),
-            "str" | "e" | "d" => Some(value),
-            _ => None,
-        };
-        Ok(label
-            .filter(|label| self.config.header_labels.contains(*label))
-            .map(|label| CellValue::Text(label.to_owned())))
-    }
-
-    fn on_row(&mut self, number: u32, row: Vec<CellValue>) -> Result<(), String> {
-        if self.cancelled.load(Ordering::Relaxed) {
-            return Ok(());
-        }
-        if let Some(source) = &self.config.source {
-            if !source.contains_row(number) {
-                return Ok(());
+fn load_merges(archive: &mut ZipArchive<File>, worksheet: &str) -> Result<Vec<Merge>, String> {
+    let member = archive.by_name(worksheet).map_err(|_| "Worksheet fehlt")?;
+    let mut reader = Reader::from_reader(BufReader::new(member));
+    let mut buf = Vec::new();
+    let mut result = Vec::new();
+    let mut depth = 0;
+    loop {
+        let e = reader
+            .read_event_into(&mut buf)
+            .map_err(|_| "Ungültiges Tabellen-XML")?;
+        validate_depth(&e, &mut depth)?;
+        match e {
+            Event::Empty(ref e) | Event::Start(ref e)
+                if xml_tag(e.name().as_ref()) == b"mergeCell" =>
+            {
+                if result.len() >= 16384 {
+                    return Err("Zu viele verbundene Bereiche".into());
+                }
+                let reference = attribute(e, b"ref")?.ok_or("Merge ohne ref")?;
+                let (first, last) = reference.split_once(':').ok_or("Ungültiger Merge")?;
+                fn row(s: &str) -> Result<u32, String> {
+                    s.trim_start_matches(|c: char| c.is_ascii_uppercase())
+                        .parse()
+                        .map_err(|_| "Ungültige Merge-Zeile".into())
+                }
+                let m = Merge {
+                    first_col: column_from_cell_reference(first)?,
+                    last_col: column_from_cell_reference(last)?,
+                    first_row: row(first)?,
+                    last_row: row(last)?,
+                };
+                if m.first_col > m.last_col || m.first_row > m.last_row || m.last_row > MAX_ROWS {
+                    return Err("Ungültiger Merge-Bereich".into());
+                }
+                result.push(m);
             }
-        } else {
-            for headers in tables_from_row(&row, &self.config.required_columns)? {
-                self.prepare_headers(headers, number)?;
-            }
+            Event::Eof => break,
+            Event::DocType(_) => return Err("DTD nicht erlaubt".into()),
+            _ => (),
         }
-        for index in 0..self.tables.len() {
-            let table = &self.tables[index];
-            if table.header_row == number || !table.predicate.matches(&row) {
-                continue;
-            }
-            let headers = table
-                .headers
-                .iter()
-                .enumerate()
-                .map(|(position, (name, _))| (name.clone(), position))
-                .collect();
-            let values = table
-                .headers
-                .iter()
-                .map(|(_, position)| row.get(*position).cloned().unwrap_or(CellValue::Empty))
-                .collect();
-            self.use_headers(headers)?;
-            self.buffer.push(values);
-            if self.buffer.len() >= self.batch_size {
-                self.flush()?;
-            }
-        }
-        Ok(())
+        buf.clear();
     }
-
-    fn flush(&mut self) -> Result<(), String> {
-        if !self.buffer.is_empty() {
-            self.sender
-                .send(Message::Batch(std::mem::take(&mut self.buffer)))
-                .map_err(|_| "Der Python-Verbraucher wurde geschlossen".to_string())?;
-        }
-        Ok(())
-    }
+    Ok(result)
 }
 
 /// This entire function runs on a dedicated Rust thread; ZipArchive and borrowed
 /// worksheet ZipFile never escape it. Bounded channels prevent unbounded buffering.
+#[allow(clippy::too_many_arguments)]
 pub fn scan(
     path: &Path,
     config: &Config,
     batch_size: usize,
     sender: &SyncSender<Message>,
     cancelled: &Arc<AtomicBool>,
+    events: bool,
+    rejects: bool,
+    stats: &mut Statistics,
 ) -> Result<(), String> {
     let input = File::open(path).map_err(|e| format!("Kann XLSX nicht öffnen: {e}"))?;
     let mut archive = ZipArchive::new(input).map_err(|e| format!("Ungültiges XLSX/ZIP: {e}"))?;
     let paths = workbook_paths(&mut archive, config.sheet.as_deref())?;
+    let styles = load_styles(&mut archive, paths.styles.as_deref())?;
     let shared = load_shared_strings(&mut archive, paths.shared_strings.as_deref())?;
     if config.sheet.is_none() {
         sender
@@ -604,20 +618,40 @@ pub fn scan(
         if cancelled.load(Ordering::Relaxed) {
             return Ok(());
         }
-        let mut sink = Sink {
+        let mut sink = Sink::new(
             config,
             sender,
             cancelled,
             batch_size,
-            headers: None,
-            selected_positions: None,
-            tables: Vec::new(),
-            buffer: Vec::with_capacity(batch_size),
+            events,
+            rejects,
+            path.to_string_lossy().into_owned(),
+            paths
+                .names
+                .get(&worksheet)
+                .cloned()
+                .unwrap_or_else(|| worksheet.clone()),
+            paths.date1904,
+            stats,
+        );
+        sink.initialize()?;
+        let merges = if config.rules.header.merged_fill
+            || config
+                .source
+                .iter()
+                .chain(config.sources.iter().flatten())
+                .any(|s| s.rules.as_ref().is_some_and(|r| r.header.merged_fill))
+        {
+            load_merges(&mut archive, &worksheet)?
+        } else {
+            Vec::new()
         };
-        if let Some(source) = &config.source {
-            sink.prepare_headers(source.headers()?, 0)?;
-        }
+        sink.merges = merges;
+        sink.styles = styles.clone();
         scan_worksheet(&mut archive, &worksheet, &shared, &mut sink)?;
+        if !sink.has_headers() {
+            sink.diagnostic("NO_SCHEMA", None)?;
+        }
     }
     Ok(())
 }
@@ -643,6 +677,7 @@ fn scan_worksheet(
     let mut in_phonetic = false;
     let mut field = Field::None;
     let mut cell_kind = String::new();
+    let mut style = 0_usize;
     let mut raw_value = String::new();
     let mut inline_value = String::new();
     let mut cell_col = 0_usize;
@@ -690,6 +725,10 @@ fn scan_worksheet(
                         return Err("Doppelte oder unsortierte Zellen in einer Excel-Zeile".into());
                     }
                     next_cell_col = cell_col + 1;
+                    style = attribute(e, b"s")?
+                        .map(|s| s.parse::<usize>().map_err(|_| "Ungültiger Zellstil"))
+                        .transpose()?
+                        .unwrap_or(0);
                     raw_value.clear();
                     inline_value.clear();
                     in_cell = true;
@@ -762,9 +801,12 @@ fn scan_worksheet(
                         .read_cell(
                             row_num,
                             cell_col,
-                            &cell_kind,
-                            &raw_value,
-                            &inline_value,
+                            RawCell {
+                                kind: &cell_kind,
+                                value: &raw_value,
+                                inline: &inline_value,
+                                style,
+                            },
                             shared,
                         )
                         .map_err(|error| {
@@ -793,13 +835,13 @@ fn scan_worksheet(
                 if in_row || in_cell {
                     return Err("Tabellen-XML ist unvollständig".into());
                 }
-                if sink.headers.is_none() && sink.config.sheet.is_some() {
+                sink.finish()?;
+                if !sink.has_headers() && sink.config.sheet.is_some() && !sink.stats.schema_errors {
                     return Err(
                         "Keine Kopfzeile mit allen Maskenspalten gefunden (Unbekannte Spalte)"
                             .into(),
                     );
                 }
-                sink.flush()?;
                 return Ok(());
             }
             _ => (),
@@ -907,7 +949,7 @@ mod tests {
         );
         assert_eq!(
             finish_cell("d", "2026-10-31", "", &[]).unwrap(),
-            CellValue::Text("2026-10-31".into())
+            CellValue::IsoDate("2026-10-31".into())
         );
     }
 }

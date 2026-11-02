@@ -7,23 +7,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import resource
+import sys
 import tempfile
 import time
 import zipfile
 from pathlib import Path
 
 from chooong.datasift import iter_matching_batches
-
-MASK = {
-    "sheet": None,
-    "where": {
-        "all": [
-            {"column": "Land", "op": "eq", "value": "DE"},
-            {"column": "Umsatz", "op": "gte", "value": 9000},
-        ]
-    },
-}
-
 
 MAX_DATA_ROWS = 1_048_575
 
@@ -101,6 +92,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rows", type=int, default=2_000_000)
     parser.add_argument("--batch-size", type=int, default=1024)
+    parser.add_argument("--min-amount", type=int, default=9000)
     args = parser.parse_args()
     if args.rows < 1:
         parser.error("--rows must be positive")
@@ -109,9 +101,18 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="xlsx-bench-") as directory:
         path = Path(directory) / "bench.xlsx"
         generate(path, args.rows)
+        mask = {
+            "sheet": None,
+            "where": {
+                "all": [
+                    {"column": "Land", "op": "eq", "value": "DE"},
+                    {"column": "Umsatz", "op": "gte", "value": args.min_amount},
+                ]
+            },
+        }
         start = time.perf_counter()
         matched = sum(
-            len(batch) for batch in iter_matching_batches(path, MASK, batch_size=args.batch_size)
+            len(batch) for batch in iter_matching_batches(path, mask, batch_size=args.batch_size)
         )
         elapsed = time.perf_counter() - start
         print(
@@ -122,6 +123,10 @@ def main() -> None:
                     "seconds": round(elapsed, 3),
                     "rows_per_second": round(args.rows / max(elapsed, 1e-10)),
                     "compressed_file_bytes": path.stat().st_size,
+                    "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                    * (1 if sys.platform == "darwin" else 1024),
+                    "batch_size": args.batch_size,
+                    "min_amount": args.min_amount,
                 },
                 indent=2,
             )

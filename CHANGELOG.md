@@ -4,6 +4,13 @@
 
 ### Added
 
+- Native CSV input, deterministic multi-file scanning, optional predicates,
+  independent discovery anchors and ordered literal/regex/wildcard projection.
+- Required/default/type rules, exact Decimal/Money and temporal conversions,
+  configurable headers, multiple sources and explicit row classification.
+- One-pass matched/rejected streaming, source metadata, explain/statistics,
+  native NDJSON/Parquet exports and journaled two-file commit/recovery.
+
 - English README and MkDocs documentation, contribution guide and issue/PR templates.
 - Native five-platform ABI3 wheel matrix, source-distribution installation checks,
   checksum-bound fixture evidence and a complete-set release gate. Remote platform
@@ -24,6 +31,16 @@
 
 ### Changed
 
+- **Breaking change:** `recover_export` requires a separately trusted
+  `journal_sha256` and an explicit `rejected_output` for two-file recovery.
+  Untrusted journals no longer authorize destination paths.
+- Schema failures now quarantine affected tables, continue independent tables,
+  and finish both iterator APIs with `SCHEMA_MISMATCH` and `complete=false`.
+  Exports preserve both prior outputs after any schema error.
+- Free discovery uses the same bounded confirmation rule for every region;
+  ambiguous text layouts require anchors or explicit sources. Comment, total
+  and separator classification is explicitly configuration driven.
+
 - Consolidated user documentation into six guides; moved release instructions to
   `.github/RELEASING.md` and validation reports to the PR.
 
@@ -43,6 +60,12 @@
 
 ### Fixed
 
+- Continue independent tables after projection, binding or normalization errors.
+- Discover different adjacent/stacked free schemas and multiline headers with
+  explicit diagnostics for ambiguous candidates.
+
+- Use supported `uv run --no-sync` in native CI/release checks; retain dependency-only `uv sync --no-install-project`.
+
 - XML line endings in shared/inline strings and CDATA are normalized, preserving
   multiline header matches after saving in Excel.
 - Unselected fields and the earlier local `__column_*` extras are not extracted.
@@ -56,3 +79,10 @@
   upload or deployment is enabled by this preparation.
 - Historical `rust_xlsx_filter/` PoC; implementation lives in `src/chooong/datasift`
   and `native`, with earlier code retained in Git history.
+
+### Security
+
+- Bind recovery to caller destinations and a trusted journal digest; reject
+  symlinks, hardlinks and special files. Pin directory/file handles, verify
+  private snapshots, and recheck target, lock and journal changes before commit.
+  Output directories must remain protected from untrusted concurrent writers.

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.95"
 license = "Apache-2.0"
-description = "Streaming XLSX JSON filter with native Rust evaluation and PyO3 bindings"
+description = "Native streaming Excel/CSV validation and NDJSON/Parquet export with PyO3 bindings"
 repository = "https://github.com/chooong-group/chooong.datasift"
 homepage = "https://github.com/chooong-group/chooong.datasift"
 documentation = "https://github.com/chooong-group/chooong.datasift/tree/main/docs"
@@ -18,5 +18,28 @@ pyo3 = { version = "0.27.1", features = ["abi3-py313"] }
 quick-xml = "0.38.4"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order", "arbitrary_precision"] }
 regex = "1.12"
+# Native format adapters and exact values; no Python processing dependencies.
+csv = "1.4"
+encoding_rs = "0.8"
+rust_decimal = { version = "1.39", default-features = false, features = ["std", "serde-with-str"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
+unicode-normalization = "0.1"
+iso_currency = "0.5"
+glob = "0.3"
+# Bind recovery journals to the exact staged bytes; never infer rename success.
+sha2 = "0.10"
+# Directory capabilities and private snapshots protect recovery from path substitution.
+cap-std = "3.4.5"
+cap-fs-ext = "3.4.5"
+cap-tempfile = "3.4.5"
+parquet = { version = "58", default-features = false, features = ["arrow", "snap"] }
+arrow-array = "58"
+arrow-schema = "58"
+arrow-buffer = "58"
+
+[profile.release]
+# Rust 1.95's Mach-O debuginfo stripping can misalign LINKEDIT on macOS 27.
+# Preserve the linker output; the pinned toolchain must produce loadable wheels.
+strip = "none"

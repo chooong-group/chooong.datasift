@@ -10,6 +10,6 @@ runs:
     - shell: bash
       run: uv sync --frozen --no-install-project --python 3.13
     - shell: bash
-      run: uv run --frozen --no-install-project python -c 'import sysconfig; print(sysconfig.get_path("scripts"))' >> "$GITHUB_PATH"
+      run: uv run --frozen --no-sync python -c 'import sysconfig; print(sysconfig.get_path("scripts"))' >> "$GITHUB_PATH"
     - shell: bash
       run: rustup show
