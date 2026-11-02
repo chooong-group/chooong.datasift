@@ -37,17 +37,17 @@ Fehler, beschädigte Dateien dürfen weiterhin keine Teilausgabe veröffentliche
 
 | Datei / direkter Consumer | Stand |
 | --- | --- |
-| native/src/filter.rs | GEPRÜFT, Headerauflösung und neue positionsabhängige Namensbildung |
-| native/src/lib.rs | GEPRÜFT, Ready-/Batch-Verarbeitung, typisierte PyO3-Zellkonvertierung |
-| native/src/xlsx.rs | GEPRÜFT, Guard entfernt, übrige XML-/Archiv-Validierung erhalten |
-| native/src/value.rs | GEPRÜFT, Zelltypen unverändert |
+| datasift-core/src/filter.rs | GEPRÜFT, Headerauflösung und neue positionsabhängige Namensbildung |
+| datasift-core/src/lib.rs | GEPRÜFT, Ready-/Batch-Verarbeitung, typisierte PyO3-Zellkonvertierung |
+| datasift-core/src/xlsx.rs | GEPRÜFT, Guard entfernt, übrige XML-/Archiv-Validierung erhalten |
+| datasift-core/src/value.rs | GEPRÜFT, Zelltypen unverändert |
 | src/chooong/datasift/_reader.py, __main__.py, _models.py | GEPRÜFT, direkte Consumer und Row-Vertrag unverändert |
 | tests/test_contract.py | GEPRÜFT, synthetische OOXML-Regressionen und echter CLI-Pfad |
 | tests/test_cli.py, tests/test_engine.py | GEPRÜFT, bestehende Fehler-/Atomicity-/Filtertests unverändert |
 | scripts/bench.py, examples/filter.json | GEPRÜFT, direkte Consumer unverändert |
 | README.md, docs/contract.md, CHANGELOG.md | GEPRÜFT, Ausgabevertrag und Änderung dokumentiert |
 | docs/verification.md | GEPRÜFT, Nachtrag und historischer Prüfstand getrennt |
-| pyproject.toml, native/Cargo.toml, beide CI-Workflows, Pre-Commit | GEPRÜFT, unverändert; Ruff-Regeln unverändert |
+| pyproject.toml, datasift-core/Cargo.toml, beide CI-Workflows, Pre-Commit | GEPRÜFT, unverändert; Ruff-Regeln unverändert |
 | Externe Consumer | Keine Cross-Repo-Änderungen; keine externe Integrationszusage |
 
 ## Ausgeführte Prüfungen
@@ -58,9 +58,9 @@ Erfolgreiche abschließende Befehle mit Exit-Code 0:
 - `.venv/bin/ruff check src tests scripts`; `.venv/bin/ruff format --check src tests scripts`.
 - `.venv/bin/mypy src`: 5 Quelldateien ohne Fehler.
 - `.venv/bin/pytest --cov --cov-report=term-missing`: 66 bestanden, 99,47 % Python-Coverage.
-- `cargo fmt --manifest-path native/Cargo.toml -- --check`.
-- `cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings`.
-- `cargo test --manifest-path native/Cargo.toml --locked`: 6 bestanden.
+- `cargo fmt --manifest-path datasift-core/Cargo.toml -- --check`.
+- `cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings`.
+- `cargo test --manifest-path datasift-core/Cargo.toml --locked`: 6 bestanden.
 - `.venv/bin/chooong-datasift daten.xlsx examples/filter.json --output treffer.ndjson`:
   121 Treffer, ein Zusatzwert in passenden Zeilen erhalten, vollständiger unabhängiger
   ElementTree-Abgleich gegen die Originaldatei erfolgreich; Eingabe-Hash unverändert.

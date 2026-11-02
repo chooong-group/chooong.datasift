@@ -34,7 +34,7 @@ Changelog = "https://github.com/chooong-group/chooong.datasift/blob/main/CHANGEL
 chooong-datasift = "chooong.datasift.__main__:main"
 
 [tool.maturin]
-manifest-path = "native/Cargo.toml"
+manifest-path = "datasift-core/Cargo.toml"
 module-name = "chooong.datasift.rust"
 python-source = "src"
 features = ["pyo3/extension-module"]

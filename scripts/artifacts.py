@@ -267,7 +267,7 @@ def digest(path: Path) -> str:
 def context(arguments: Arguments) -> Context:
     repo = arguments.repo.resolve()
     project_file = ProjectFile.model_validate(tomllib.loads((repo / "pyproject.toml").read_text()))
-    cargo = CargoFile.model_validate(tomllib.loads((repo / "native/Cargo.toml").read_text()))
+    cargo = CargoFile.model_validate(tomllib.loads((repo / "datasift-core/Cargo.toml").read_text()))
     rust = RustFile.model_validate(tomllib.loads((repo / "rust-toolchain.toml").read_text()))
     project = project_file.project
     if cargo.package.version != project.version or cargo.package.license != project.license:
@@ -305,7 +305,7 @@ def ensure_reviewed_inputs(repo: Path, config: MaturinConfig) -> None:
     for name in untracked:
         if any(fnmatchcase(name, pattern) for pattern in config.exclude):
             continue
-        if name.startswith(("src/", "native/")) or any(
+        if name.startswith(("src/", "datasift-core/")) or any(
             fnmatchcase(name, pattern) for pattern in included
         ):
             raise ValueError("Uncommitted inputs cannot be bound to a release commit")
@@ -462,9 +462,9 @@ def validate_artifact(path: Path, ctx: Context, receipt_kind: Kind, identifier: 
                     raise ValueError("sdist license file mismatch")
             for suffix in (
                 "/pyproject.toml",
-                "/native/Cargo.toml",
-                "/native/src/lib.rs",
-                "/native/Cargo.lock",
+                "/datasift-core/Cargo.toml",
+                "/datasift-core/src/lib.rs",
+                "/datasift-core/Cargo.lock",
                 "/rust-toolchain.toml",
                 "/uv.lock",
                 "/src/chooong/datasift/models.py",

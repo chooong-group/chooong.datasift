@@ -18,9 +18,9 @@ uv run --frozen ruff format --check src tests scripts examples
 uv run --frozen mypy src
 uv run --frozen mypy --strict scripts/artifacts.py scripts/verify_publish.py scripts/bench.py examples/create_sample.py
 uv run --frozen pytest --cov --cov-report=term-missing
-cargo fmt --manifest-path native/Cargo.toml -- --check
-cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings
-cargo test --manifest-path native/Cargo.toml --locked
+cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
+cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings
+cargo test --manifest-path datasift-core/Cargo.toml --locked
 uv run --frozen mkdocs build --strict
 uv build
 uv run --frozen twine check dist/*

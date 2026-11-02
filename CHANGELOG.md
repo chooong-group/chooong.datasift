@@ -31,6 +31,8 @@
 
 ### Changed
 
+- Rename the Rust source directory and Cargo package to `datasift-core`; update build and release tooling.
+
 - **Breaking change:** `recover_export` requires a separately trusted
   `journal_sha256` and an explicit `rejected_output` for two-file recovery.
   Untrusted journals no longer authorize destination paths.
@@ -78,7 +80,7 @@
 - Automatic tag-triggered GitLab publishing and its CI-run polling. No replacement
   upload or deployment is enabled by this preparation.
 - Historical `rust_xlsx_filter/` PoC; implementation lives in `src/chooong/datasift`
-  and `native`, with earlier code retained in Git history.
+  and `datasift-core`, with earlier code retained in Git history.
 
 ### Security
 

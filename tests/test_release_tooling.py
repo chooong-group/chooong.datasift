@@ -75,7 +75,7 @@ def release_checkout(tmp_path: Path) -> Path:
     repo.mkdir()
     for name in (
         "pyproject.toml",
-        "native/Cargo.toml",
+        "datasift-core/Cargo.toml",
         "rust-toolchain.toml",
         ".github/release-targets.json",
         "scripts/artifacts.py",
@@ -132,9 +132,9 @@ def synthetic_bundle(tmp_path: Path, release_checkout: Path) -> SyntheticBundle:
             with tarfile.open(artifact, "w:gz") as archive:
                 for filename in (
                     "pyproject.toml",
-                    "native/Cargo.toml",
-                    "native/src/lib.rs",
-                    "native/Cargo.lock",
+                    "datasift-core/Cargo.toml",
+                    "datasift-core/src/lib.rs",
+                    "datasift-core/Cargo.lock",
                     "rust-toolchain.toml",
                     "uv.lock",
                     "src/chooong/datasift/models.py",
@@ -241,7 +241,7 @@ def test_gate_rejects_inputs_outside_the_bound_commit(
     synthetic_bundle: SyntheticBundle, untracked: bool
 ) -> None:
     bundle = synthetic_bundle
-    target = bundle.repo / ("src/injected.py" if untracked else "native/Cargo.toml")
+    target = bundle.repo / ("src/injected.py" if untracked else "datasift-core/Cargo.toml")
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("a") as handle:
         handle.write("\n# Unreviewed input\n")
@@ -271,7 +271,7 @@ def test_gate_rejects_incomplete_or_inconsistent_source_distributions(
                 parts.append((member, stream.read()))
         with tarfile.open(artifact, "w:gz") as archive:
             for member, content in parts:
-                if failure == "source_input" and member.name.endswith("/native/src/lib.rs"):
+                if failure == "source_input" and member.name.endswith("/datasift-core/src/lib.rs"):
                     continue
                 if failure == "license" and member.name.endswith("/LICENSE"):
                     content = b"Incorrect synthetic license"
