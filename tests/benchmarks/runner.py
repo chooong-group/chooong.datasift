@@ -45,12 +45,16 @@ def processor() -> str:
     return platform.processor() or "unknown"
 
 
+def probe_interpreter(executable: Path) -> Probe:
+    return Probe.model_validate_json(
+        subprocess.check_output([str(executable), "-I", "-c", PROBE], text=True)
+    )
+
+
 def environment(
     executable: Path, profile: BuildProfile, reference: str | None = None
 ) -> Environment:
-    probe = Probe.model_validate_json(
-        subprocess.check_output([str(executable), "-I", "-c", PROBE], text=True)
-    )
+    probe = probe_interpreter(executable)
     if not probe.native_origin.endswith((".so", ".pyd")):
         raise ValueError("Benchmark interpreter must load an installed native extension")
     digest = hashlib.sha256()
