@@ -24,13 +24,14 @@ def test_workflows_are_read_only_for_forks_and_publication_is_hard_disabled() ->
     assert publish["permissions"]["id-token"] == "write"
     assert not (workflows / "release-gitlab-pypi.yml").exists()
     pages = yaml.load((workflows / "docs-pages.yml").read_text(), Loader=yaml.BaseLoader)
-    assert pages["jobs"]["build"]["if"].startswith("${{ false &&")
+    assert set(pages["on"]) == {"workflow_dispatch"}
     ci = yaml.load((workflows / "ci.yml").read_text(), Loader=yaml.BaseLoader)
     assert set(ci["on"]) == {"push", "pull_request"}
     assert all("if" not in job for job in ci["jobs"].values())
-    assert pages["jobs"]["deploy"]["if"].startswith("${{ false &&")
     assert "vars.PYPI_PUBLISH_ENABLED == 'true'" in publish["if"]
     for job in pages["jobs"].values():
-        assert "vars.PAGES_DEPLOY_ENABLED == 'true'" in job["if"]
+        assert job["if"] == (
+            "${{ vars.PAGES_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' }}"
+        )
     benchmark = yaml.load((workflows / "benchmarks.yml").read_text(), Loader=yaml.BaseLoader)
     assert set(benchmark["on"]) == {"workflow_dispatch"}
