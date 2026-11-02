@@ -135,3 +135,26 @@ fn sha256_matches_known_vectors_for_bytes_and_files() {
     let mut file = File::open(path).unwrap();
     assert_eq!(file_digest(&mut file).unwrap(), expected);
 }
+
+#[cfg(unix)]
+#[test]
+fn directory_sync_stays_anchored_when_parent_path_is_replaced() {
+    let directory = TestDir::new();
+    let parent = directory.path().join("output");
+    fs::create_dir(&parent).unwrap();
+    let target = parent.join("matched.ndjson");
+    fs::write(&target, b"old").unwrap();
+    let destination = Destination::open(&target).unwrap();
+    destination.sync().unwrap();
+
+    let original = directory.path().join("original");
+    fs::rename(&parent, &original).unwrap();
+    fs::write(&parent, b"replacement is not a directory").unwrap();
+    destination.sync().unwrap();
+    assert!(destination.validate().is_err());
+    assert_eq!(fs::read(original.join("matched.ndjson")).unwrap(), b"old");
+    assert_eq!(
+        fs::read(&parent).unwrap(),
+        b"replacement is not a directory"
+    );
+}

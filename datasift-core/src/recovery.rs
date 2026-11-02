@@ -167,10 +167,11 @@ impl Destination {
     }
     fn sync(&self) -> Result<(), String> {
         #[cfg(unix)]
+        // Linux directory capabilities use O_PATH, which cannot be fsynced.
+        // Reopen the held directory for reading without resolving its ambient path.
         self.dir
-            .try_clone()
-            .map_err(|_| "Cannot clone directory")?
-            .into_std_file()
+            .open(".")
+            .map_err(|_| "Cannot open directory for fsync")?
             .sync_all()
             .map_err(|_| "Directory fsync failed")?;
         Ok(())

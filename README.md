@@ -48,7 +48,8 @@ Python runtime dependency; no external service is needed.
 - Automatically discover tables that do not start at A1.
 - Detect multiple tables within a worksheet, including adjacent and vertically separated tables.
 - Support multiline headers, merged cells and repeated header rows.
-- Normalize column names with trimming, case conversion, Unicode normalization, whitespace handling and aliases.
+- Normalize column names with trimming, case conversion, Unicode normalization, whitespace handling
+  and aliases.
 - Resolve duplicate column names with deterministic suffixes.
 - Locate tables using header anchors independently of filter conditions.
 - Define explicit table sources with column mappings, row ranges and excluded rows.
@@ -160,7 +161,8 @@ chooong-datasift transactions.csv mask.json --output matches.ndjson
 
 ## Column selection and validation
 
-DataSift separates row filtering, column selection and validation. Use `select` to choose output columns, `types` to convert values and `required` to reject records with missing values.
+DataSift separates row filtering, column selection and validation. Use `select` to choose output
+columns, `types` to convert values and `required` to reject records with missing values.
 
 ```python
 from pathlib import Path
@@ -215,11 +217,17 @@ The mask applies three independent operations:
 
 The `where` condition matches amounts greater than or equal to 1000.
 
-The record with amount 2200 is rejected because its reference is missing. The record with amount 900 does not match the filter. Neither appears in the matching results.
+The record with amount 2200 is rejected because its reference is missing. The record with amount 900
+does not match the filter. Neither appears in the matching results.
 
-Rejected records remain available through `scan_batches`, including their original values and rejection reasons.
+Rejected records remain available through `scan_batches`, including their original values and
+rejection reasons.
 
-See the [filter reference](docs/api/filters.md) for the complete configuration and the [validation guide](docs/guides/validation.md) for handling rejected records.
+See the [filter reference][filter-reference] for the complete configuration and the
+[validation guide][validation-guide] for handling rejected records.
+
+[filter-reference]: https://github.com/chooong-group/chooong.datasift/blob/main/docs/api/filters.md
+[validation-guide]: https://github.com/chooong-group/chooong.datasift/blob/main/docs/guides/validation.md
 
 ## Documentation and limits
 
