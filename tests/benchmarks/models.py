@@ -34,7 +34,7 @@ class Mode(StrEnum):
 
 
 class Model(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
 
 class Case(Model):

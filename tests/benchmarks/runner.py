@@ -16,6 +16,7 @@ from tests.benchmarks.models import (
     Case,
     Environment,
     Measurement,
+    Mode,
     Report,
     Result,
     Summary,
@@ -136,7 +137,7 @@ class Session:
 
     def _sample(self, executable: Path, case: Case, source: Path) -> Measurement:
         with tempfile.TemporaryDirectory(dir=self.directory) as temporary:
-            suffix = ".parquet" if case.mode == "parquet" else ".ndjson"
+            suffix = ".parquet" if case.mode == Mode.PARQUET else ".ndjson"
             output = Path(temporary) / ("matched" + suffix)
             started = time.perf_counter()
             process_start_ns = time.time_ns()

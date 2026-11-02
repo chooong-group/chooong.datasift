@@ -3,6 +3,7 @@
 import csv
 import random
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
@@ -12,7 +13,19 @@ MAX_DATA_ROWS = 1_048_575
 HEADERS = ("ID", "Amount", "Country", "Flag", "Date")
 
 
-def records(case: Case) -> Iterator[tuple[str, str, str, str, str]]:
+@dataclass(frozen=True, slots=True)
+class GeneratedRow:
+    identifier: str
+    amount: str
+    country: str
+    flag: str
+    date: str
+
+    def cells(self) -> tuple[str, str, str, str, str]:
+        return self.identifier, self.amount, self.country, self.flag, self.date
+
+
+def records(case: Case) -> Iterator[GeneratedRow]:
     randomizer = random.Random(case.seed)
     for index in range(case.rows):
         identifier = f"row-{index}"
@@ -25,7 +38,7 @@ def records(case: Case) -> Iterator[tuple[str, str, str, str, str]]:
             elif index % 20 == 19:
                 identifier = ""
         country = "DE" if index % 100 < case.hit_percent else "AT"
-        yield identifier, amount, country, "true", "2026-01-01"
+        yield GeneratedRow(identifier, amount, country, "true", "2026-01-01")
 
 
 def _cell(column: str, row: int, value: str) -> str:
@@ -108,7 +121,7 @@ def _excel(path: Path, case: Case) -> None:
                 )
                 count = min(MAX_DATA_ROWS, case.rows - sheet * MAX_DATA_ROWS)
                 for row in range(2, count + 2):
-                    values = next(source)
+                    values = next(source).cells()
                     output.write(
                         (
                             f'<row r="{row}">'
@@ -126,6 +139,6 @@ def generate(path: Path, case: Case) -> None:
         with path.open("x", encoding="utf-8", newline="") as output:
             writer = csv.writer(output, lineterminator="\n")
             writer.writerow(HEADERS)
-            writer.writerows(records(case))
+            writer.writerows(row.cells() for row in records(case))
     else:
         _excel(path, case)

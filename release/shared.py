@@ -13,6 +13,8 @@ from urllib.request import urlopen
 from packaging.version import Version
 from pydantic import BaseModel, ConfigDict
 
+from scripts.artifacts import CargoFile, ProjectFile
+
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "chooong-group/chooong.datasift"
 RELEASE_FILES = (
@@ -25,8 +27,19 @@ RELEASE_FILES = (
 
 
 class _Index(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", frozen=True)
     releases: dict[str, object]
+
+
+class LockedPackage(BaseModel):
+    model_config = ConfigDict(extra="ignore", frozen=True)
+    name: str
+    version: str
+
+
+class Lockfile(BaseModel):
+    model_config = ConfigDict(extra="ignore", frozen=True)
+    package: tuple[LockedPackage, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,10 +64,9 @@ def git(repo: Path, *args: str) -> str:
 
 
 def current_version(repo: Path) -> str:
-    value: object = tomllib.loads((repo / "pyproject.toml").read_text())["project"]["version"]
-    if not isinstance(value, str):
-        raise ValueError("Project version must be a string")
-    return value
+    return ProjectFile.model_validate(
+        tomllib.loads((repo / "pyproject.toml").read_text())
+    ).project.version
 
 
 def validate_version(value: str) -> str:
@@ -95,16 +107,16 @@ def release_notes(repo: Path, version: str) -> str:
 def verify_prepared(repo: Path, version: str) -> None:
     if current_version(repo) != version:
         raise ValueError("Project version differs from the prepared release")
-    cargo = tomllib.loads((repo / "datasift-core/Cargo.toml").read_text())
-    if cargo["package"]["version"] != version:
+    cargo = CargoFile.model_validate(tomllib.loads((repo / "datasift-core/Cargo.toml").read_text()))
+    if cargo.package.version != version:
         raise ValueError("Cargo version differs from the prepared release")
     for name, package in (
         ("uv.lock", "chooong-datasift"),
         ("datasift-core/Cargo.lock", "datasift-core"),
     ):
-        lock = tomllib.loads((repo / name).read_text())
-        entries = [entry for entry in lock["package"] if entry["name"] == package]
-        if len(entries) != 1 or entries[0]["version"] != version:
+        lock = Lockfile.model_validate(tomllib.loads((repo / name).read_text()))
+        entries = [entry for entry in lock.package if entry.name == package]
+        if len(entries) != 1 or entries[0].version != version:
             raise ValueError(f"{name} is not synchronized")
     release_notes(repo, version)
 

@@ -571,6 +571,20 @@ def validate_probe(probe: Probe, ctx: Context, kind: Kind, identifier: str, pyth
         raise ValueError("Cross-compilation is not a native runtime test")
 
 
+def source_snapshot(repo: Path, commit: str, destination: Path) -> None:
+    destination.mkdir(parents=True)
+    with tempfile.TemporaryFile() as content:
+        subprocess.run(
+            ["git", "archive", "--format=tar", commit],
+            cwd=repo,
+            stdout=content,
+            check=True,
+        )
+        content.seek(0)
+        with tarfile.open(fileobj=content) as archive:
+            archive.extractall(destination, filter="data")
+
+
 def test_artifact(ctx: Context, args: Arguments) -> None:
     if args.kind is None or args.target is None:
         raise ValueError("test requires --kind and --target")
@@ -592,10 +606,12 @@ def test_artifact(ctx: Context, args: Arguments) -> None:
     runs: list[TestRun] = []
     with tempfile.TemporaryDirectory(prefix="datasift-artifact-test-") as temporary:
         temporary_path = Path(temporary)
+        source = temporary_path / "source"
+        source_snapshot(ctx.repo, ctx.commit, source)
         requirements = temporary_path / "requirements.txt"
         subprocess.run(
             [uv, "export", "--frozen", "--no-emit-project", "--output-file", str(requirements)],
-            cwd=ctx.repo,
+            cwd=source,
             stdout=subprocess.DEVNULL,
             check=True,
         )
@@ -646,18 +662,18 @@ def test_artifact(ctx: Context, args: Arguments) -> None:
                     "-m",
                     "pytest",
                     "-c",
-                    str(ctx.repo / "pyproject.toml"),
+                    str(source / "pyproject.toml"),
                     "-m",
                     "not benchmark",
                     "-p",
                     "no:cacheprovider",
                     "--cov=chooong.datasift",
                     "--cov-config",
-                    str(ctx.repo / "pyproject.toml"),
+                    str(source / "pyproject.toml"),
                     "--cov-report=term-missing",
                     "--junitxml",
                     str(junit),
-                    str(ctx.repo / "tests"),
+                    str(source / "tests"),
                 ],
                 cwd=temporary_path,
                 env=env,

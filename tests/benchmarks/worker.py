@@ -10,9 +10,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from chooong.datasift import (
+    AllOf,
+    AnyOf,
+    DataType,
+    Expression,
     FilterMask,
+    HeaderConfig,
+    Not,
+    Operator,
     RecordKind,
+    ScalarCondition,
     Statistics,
+    TextCondition,
+    TypeRule,
     export,
     iter_matching_batches,
     rust,
@@ -60,35 +70,37 @@ else:
 
 
 def mask(case: Case) -> FilterMask:
-    predicate: dict[str, object] = {"column": "Country", "op": "eq", "value": "DE"}
+    predicate: Expression = ScalarCondition(column="Country", op=Operator.EQ, value="DE")
     if case.filter == Filter.LOGIC:
-        predicate = {
-            "all": [
-                {"any": [{"column": "Country", "op": "eq", "value": "XX"}, predicate]},
-                {"not": {"column": "ID", "op": "starts_with", "value": "never-"}},
-            ]
-        }
+        predicate = AllOf(
+            conditions=(
+                AnyOf(
+                    conditions=(
+                        ScalarCondition(column="Country", op=Operator.EQ, value="XX"),
+                        predicate,
+                    )
+                ),
+                Not(condition=TextCondition(column="ID", op=Operator.STARTS_WITH, value="never-")),
+            )
+        )
     elif case.filter == Filter.REGEX:
-        predicate = {"column": "Country", "op": "regex", "value": "^DE$"}
-    config: dict[str, object] = {
-        "sheet": None,
-        "header": {"anchors": ["ID", "Amount", "Country"]},
-        "select": ["ID", "Amount", "Country"],
-        "where": predicate,
-    }
+        predicate = TextCondition(column="Country", op=Operator.REGEX, value="^DE$")
+    types: dict[str, TypeRule] = {}
     if case.filter in {Filter.DECIMAL, Filter.MONEY, Filter.VALIDATION}:
-        kind = "money" if case.filter == Filter.MONEY else "decimal"
-        config["types"] = {
-            "Amount": {
-                "type": kind,
-                "convert": True,
-                **({"currency": "EUR"} if kind == "money" else {}),
-            }
-        }
-    if case.filter == Filter.VALIDATION:
-        config["required"] = ["ID", "Amount"]
-        config["defaults"] = {"Amount": "0.00"}
-    return FilterMask.model_validate(config)
+        types["Amount"] = TypeRule(
+            type=DataType.MONEY if case.filter == Filter.MONEY else DataType.DECIMAL,
+            convert=True,
+            currency="EUR" if case.filter == Filter.MONEY else None,
+        )
+    return FilterMask(
+        sheet=None,
+        header=HeaderConfig(anchors=("ID", "Amount", "Country")),
+        select=("ID", "Amount", "Country"),
+        where=predicate,
+        types=types,
+        required=("ID", "Amount") if case.filter == Filter.VALIDATION else (),
+        defaults={"Amount": "0.00"} if case.filter == Filter.VALIDATION else {},
+    )
 
 
 @dataclass(frozen=True, slots=True)

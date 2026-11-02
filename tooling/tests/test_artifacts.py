@@ -3,6 +3,7 @@
 import io
 import json
 import tarfile
+from pathlib import Path
 
 import pytest
 
@@ -154,3 +155,22 @@ def test_gate_rejects_invalid_evidence_without_creating_publishable_output(
     result = _gate(bundle)
     assert result.returncode != 0, result.stdout
     assert not bundle.output.exists()
+
+
+def test_artifact_test_sources_remain_bound_to_the_recorded_commit(
+    release_checkout: Path,
+    tmp_path: Path,
+) -> None:
+    from release.shared import git
+    from scripts.artifacts import source_snapshot
+
+    original = (release_checkout / "tests/fixtures/excel.py").read_bytes()
+    commit = git(release_checkout, "rev-parse", "HEAD")
+    (release_checkout / "tests/fixtures/excel.py").write_bytes(b"synthetic concurrent edit")
+    snapshot = tmp_path / "snapshot"
+    source_snapshot(release_checkout, commit, snapshot)
+    assert (snapshot / "tests/fixtures/excel.py").read_bytes() == original
+    assert (
+        release_checkout / "tests/fixtures/excel.py"
+    ).read_bytes() == b"synthetic concurrent edit"
+    assert not (snapshot / ".git").exists()
