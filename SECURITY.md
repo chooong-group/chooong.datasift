@@ -8,16 +8,15 @@ branch; do not infer support for a published version from the source version num
 
 ## Reporting
 
-The repository's [issue tracker](https://github.com/chooong-group/chooong.datasift/issues)
-is available to users with repository access. Use it only for reports that contain
-no confidential details, credentials or personal data. Include a minimal synthetic
-reproducer and the affected commit/version.
+Email [github@chooong.com](mailto:github@chooong.com) for confidential
+vulnerability reports. Include the affected version or commit, impact and a
+minimal synthetic reproducer. Do not include credentials, personal data or
+production workbooks. Do not send exploit details through public issues.
 
-No private reporting address or private vulnerability-reporting channel is
-currently documented. Do not submit sensitive exploit details through public
-issues or include them in uploaded workbooks. A private reporting route must be
-established by the maintainers before sharing confidential material; this policy
-does not invent a contact address or response-time commitment.
+The maintainers review reports through this mailbox. No response-time or
+security-fix deadline is promised. Use the
+[issue tracker](https://github.com/chooong-group/chooong.datasift/issues)
+for non-sensitive bugs only.
 
 ## Processing untrusted files
 

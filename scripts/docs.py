@@ -291,7 +291,7 @@ def check_external(links: tuple[str, ...]) -> None:
             with urlopen(request, timeout=15) as response:
                 if response.status != HTTPStatus.OK:
                     raise ValueError(f"External link returned {response.status}: {link}")
-        else:
+        elif urlsplit(link).scheme != "mailto":
             raise ValueError(f"Unsupported external link: {link}")
 
 

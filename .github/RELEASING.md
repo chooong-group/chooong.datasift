@@ -89,3 +89,37 @@ an explicit reviewed change to the literal `false` guards,
 `PAGES_DEPLOY_ENABLED=true` and an authorized GitHub Pages environment. Do not
 change repository visibility, organization settings or budget guards as a shortcut.
 The package Documentation URL stays on GitHub until Pages is reachable and authorized.
+
+## Publisher identity
+
+Configure a pending PyPI Trusted Publisher for distribution `chooong.datasift`
+with owner `chooong-group`, repository `chooong.datasift`, workflow `release.yml`
+and environment `pypi`. The workflow filename is case-sensitive. Configure this
+in the owning PyPI account; a repository setting cannot establish PyPI ownership.
+Use OIDC rather than adding a PyPI API token to GitHub secrets.
+
+Before activation, configure a maintainer reviewer in the `pypi` environment.
+Owner self-review may be enabled when explicitly approved by the release owner.
+Restrict deployments to version tags (`v*`, type `tag`), not branch `main`.
+The workflow independently checks exact version, approved commit and main ancestry;
+the tag pattern alone is not release authorization. Verify the reviewer and tag
+rules through GitHub settings after saving them. If the repository plan cannot
+enforce approval, keep publishing disabled until an approved protection mechanism
+is available. Do not upgrade billing or relax checks to bypass that limitation.
+
+## First public release review
+
+Review all reachable branches, commit messages, authors, PR bodies/comments,
+review attachments and historical workflow logs/artifacts before changing
+visibility. Squash merging a PR removes neither old PR records nor commits still
+reachable through branches or GitHub PR refs. Deleting a working-tree document
+also does not erase its history. Resolve sensitive findings with the owner before
+exposure; secret rotation and GitHub support may be necessary. Never rewrite
+history or delete records as an automatic preparation step.
+
+Keep the changelog as the release-note source. Prepare the versioned section only
+under a separate release authorization; review its text before the publisher
+creates the GitHub Release. Do not add CI logs, process ledgers or local paths to
+user-facing release notes. Update unreleased installation instructions and badges
+only after verifying actual availability. Keep README/package links on repository
+documentation until the Pages site is deployed and checked anonymously.

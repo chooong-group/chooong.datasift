@@ -68,3 +68,11 @@ Review docs, examples, metadata and user-relevant [changelog](https://github.com
 changes together. The runtime/Python model is authoritative; never change the
 engine silently to make prose pass. [Release procedures](https://github.com/chooong-group/chooong.datasift/blob/main/.github/RELEASING.md)
 require explicit publication approval. Contributions use [Apache-2.0](https://github.com/chooong-group/chooong.datasift/blob/main/LICENSE).
+
+The documentation uses Material for MkDocs for search, responsive navigation and
+system/light/dark appearance. `docs/stylesheets/chooong.css` adapts the palettes
+from Chooong's `src/styles.css`; `docs/assets/brand/` contains the original Chooong
+logos and favicon. Keep logo files unchanged and use the bright logo in light
+appearance and the dark logo in dark appearance. Inter and Roboto Mono are loaded
+through the theme's Google Fonts integration; the browser uses system fallbacks
+when that service is unavailable. The documentation needs no application frontend.

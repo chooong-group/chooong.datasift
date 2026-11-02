@@ -35,5 +35,13 @@ This filename is for Apple Silicon macOS; use the actual artifact for your machi
 The release configuration targets Linux x86_64/ARM64, macOS x86_64/ARM64 and
 Windows x86_64. A configured target is not evidence of a published or tested wheel.
 
+## Compatibility
+
+This is an alpha API. Until 1.0, minor releases may change Python APIs or mask
+semantics; changes are recorded in the changelog. Pin the package version and
+validate masks and representative inputs before upgrading. Internal modules and
+human-readable error messages are not stable interfaces. CPython 3.12–3.14 is
+supported; PyPy and free-threaded builds are not declared supported.
+
 Continue with the [quickstart](quickstart.md). No server, database, Excel
 installation or Python DataFrame library is needed.

@@ -13,6 +13,7 @@ from scripts.docs import (
     Directive,
     Fence,
     check_examples,
+    check_external,
     check_links,
     check_navigation,
     check_readme,
@@ -143,3 +144,9 @@ def test_pypi_readme_renders_and_rejects_relative_links(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text("# Project\n\n[Guide](docs/index.md)\n")
     with pytest.raises(ValueError, match="must be absolute"):
         check_readme(tmp_path)
+
+
+def test_external_link_check_accepts_contact_links_without_sending_mail() -> None:
+    check_external(("mailto:github@chooong.com",))
+    with pytest.raises(ValueError, match="Unsupported external link"):
+        check_external(("file:///not-an-external-link",))

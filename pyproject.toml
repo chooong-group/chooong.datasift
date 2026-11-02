@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.12,<3.15"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{name = "Chooong"}]
+authors = [{name = "Marcus Steinbach"}]
+maintainers = [{name = "Chooong"}]
 dependencies = ["pydantic>=2.12,<3"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -47,7 +48,7 @@ include = [
     {path = "release/**/*.py", format = "sdist"},
     {path = "scripts/**/*.py", format = "sdist"},
     {path = ".github/release-targets.json", format = "sdist"},
-    {path = "docs/**/*.md", format = "sdist"},
+    {path = "docs/**/*", format = "sdist"},
     {path = ".github/workflows/*.yml", format = "sdist"},
     {path = ".github/actions/**/*.yml", format = "sdist"},
     {path = "mkdocs.yml", format = "sdist"},
@@ -64,6 +65,7 @@ exclude = [".data/**", "*.xlsx", "*.xlsm", "*.xls", "*.ndjson", "AGENTS.md", "do
 [dependency-groups]
 dev = [
     "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.7,<10",
     "packaging>=25,<27",
     "PyYAML>=6,<7",
     "mypy>=1.10,<3",
