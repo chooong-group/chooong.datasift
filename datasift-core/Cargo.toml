@@ -15,9 +15,9 @@ name = "rust"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.27.1", features = ["abi3-py312"] }
-quick-xml = "0.38.4"
-zip = { version = "2.4", default-features = false, features = ["deflate"] }
+pyo3 = { version = "0.30.1", features = ["abi3-py312"] }
+quick-xml = "0.42.0"
+zip = { version = "9.1", default-features = false, features = ["deflate"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order", "arbitrary_precision"] }
 regex = "1.12"
@@ -27,18 +27,18 @@ encoding_rs = "0.8"
 rust_decimal = { version = "1.39", default-features = false, features = ["std", "serde-with-str"] }
 chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
 unicode-normalization = "0.1"
-iso_currency = "0.5"
+iso_currency = "0.7"
 glob = "0.3"
 # Bind recovery journals to the exact staged bytes; never infer rename success.
-sha2 = "0.10"
+sha2 = "0.11"
 # Directory capabilities and private snapshots protect recovery from path substitution.
-cap-std = "3.4.5"
-cap-fs-ext = "3.4.5"
-cap-tempfile = "3.4.5"
-parquet = { version = "58", default-features = false, features = ["arrow", "snap"] }
-arrow-array = "58"
-arrow-schema = "58"
-arrow-buffer = "58"
+cap-std = "4.0.3"
+cap-fs-ext = "4.0.3"
+cap-tempfile = "4.0.3"
+parquet = { version = "60", default-features = false, features = ["arrow", "snap"] }
+arrow-array = "60"
+arrow-schema = "60"
+arrow-buffer = "60"
 
 [profile.release]
 # Rust 1.95's Mach-O debuginfo stripping can misalign LINKEDIT on macOS 27.
