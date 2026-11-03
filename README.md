@@ -26,8 +26,6 @@ regions in Excel and CSV without fixed coordinates in the mask. Start with the
 
 Requires CPython 3.12–3.14.
 
-<!-- check: syntax -->
-
 ```bash
 python -m pip install chooong.datasift
 ```

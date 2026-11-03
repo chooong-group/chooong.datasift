@@ -5,8 +5,6 @@ named `chooong.datasift`; the CLI is `chooong-datasift`.
 
 ## Install with pip
 
-<!-- check: syntax -->
-
 ```bash
 python -m pip install chooong.datasift
 ```
@@ -25,8 +23,6 @@ Install Rust using the toolchain specified in
 [`rust-toolchain.toml`](https://github.com/chooong-group/chooong.datasift/blob/main/rust-toolchain.toml),
 Cargo and a native linker. Windows source builds need MSVC build tools.
 From a source checkout or an extracted source distribution:
-
-<!-- check: syntax -->
 
 ```bash
 python -m pip install .

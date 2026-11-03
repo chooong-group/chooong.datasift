@@ -20,8 +20,6 @@ and worker ownership. The root Maturin configuration controls packaging.
 Install Rust 1.95.0 (pinned in [`rust-toolchain.toml`](../rust-toolchain.toml)),
 CPython 3.12, 3.13 or 3.14, uv and a native linker. Run from the repository root:
 
-<!-- check: syntax -->
-
 ```bash
 uv sync --frozen
 cargo test --manifest-path datasift-core/Cargo.toml --locked
@@ -31,8 +29,6 @@ uv run --frozen pytest
 ```
 
 Run a focused Rust suite by module name:
-
-<!-- check: syntax -->
 
 ```bash
 cargo test --manifest-path datasift-core/Cargo.toml --locked encoding::tests

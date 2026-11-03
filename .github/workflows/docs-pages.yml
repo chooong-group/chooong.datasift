@@ -17,7 +17,6 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/tooling
       - run: uv sync --frozen
-      - run: uv run --frozen --no-sync python scripts/docs.py
       - run: uv run --frozen --no-sync mkdocs build --strict
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

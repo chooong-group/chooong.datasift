@@ -222,8 +222,6 @@ positions.
 
 Create `layout.xlsx`, sheet `Data`, with these worksheet positions:
 
-<!-- workbook: layout.xlsx -->
-
 ```csv
 ,,Customer,Amount,Previous,,Customer,Amount
 ,,Name,Current,Prior,,Name,Current

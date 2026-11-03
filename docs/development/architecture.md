@@ -18,7 +18,6 @@ No Python DataFrame or record serializer sits in the native export path.
 | `datasift-core/src/discovery.rs`, `engine.rs` | Region discovery and shared row pipeline |
 | `datasift-core/src/filter.rs`, `rules.rs`, `value.rs` | Rule compilation, exact conversion and domain values |
 | `datasift-core/src/output.rs`, `recovery.rs` | Native serializers and verified journaled commit |
-| `scripts/` | Documentation checks and benchmark entry point |
 | `.github/workflows/` | CI, native package builds, tag releases and documentation deployment |
 
 Maturin builds `datasift-core` into the internal `chooong.datasift.rust` extension

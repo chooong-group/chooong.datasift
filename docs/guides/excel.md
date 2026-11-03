@@ -19,8 +19,6 @@ Create `offset.xlsx`, sheet `Data`, with the following cells. The first three
 rows and first two columns are blank. The two tables start at C4 and F4.
 This CSV representation shows the complete worksheet, including blank positions:
 
-<!-- workbook: offset.xlsx -->
-
 ```csv
 ,,,,,,
 ,,,,,,

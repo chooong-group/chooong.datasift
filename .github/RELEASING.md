@@ -2,11 +2,12 @@
 
 ## Validate
 
-CI runs Ruff, mypy, Python and Rust tests, documentation checks and Maturin builds.
+CI runs Ruff, mypy, Python and Rust tests, MkDocs and Maturin builds.
 The five native wheel targets are Linux x86_64/ARM64, macOS x86_64/ARM64 and
-Windows x86_64. Each ABI3 wheel is installed and tested with CPython 3.12, 3.13 and
-3.14 on its native runner. The sdist is built, installed and tested on Linux with
-CPython 3.13. CI uploads the wheels and sdist as ordinary Actions artifacts.
+Windows x86_64. Each ABI3 wheel is installed with CPython 3.12, 3.13 and 3.14 on its native
+runner. Import, a CSV scan through the public API and CLI startup are smoke-tested.
+The sdist is separately built and installed on Linux with CPython 3.13 and receives
+the same smoke checks. Functional tests run once in the quality job. CI uploads the wheels and sdist as ordinary Actions artifacts.
 
 Builds use the Maturin version from `pyproject.toml`, the pinned Rust toolchain and
 locked Cargo dependencies. Linux builds use Zig 0.15.2 with the manylinux_2_28

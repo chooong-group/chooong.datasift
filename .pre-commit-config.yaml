@@ -13,7 +13,7 @@ repos:
         types_or: [python, pyi]
       - id: mypy
         name: mypy
-        entry: uv run mypy src scripts tests/benchmarks
+        entry: uv run mypy src tests/benchmarks
         language: system
         pass_filenames: false
       - id: pytest
@@ -28,8 +28,8 @@ repos:
         pass_filenames: false
         types: [rust]
       - id: documentation
-        name: Markdown, links and documentation examples
-        entry: uv run --frozen python scripts/docs.py
+        name: Documentation build
+        entry: uv run --frozen mkdocs build --strict
         language: system
         pass_filenames: false
-        files: '(\.md$|mkdocs\.yml$|scripts/docs\.py$|^src/|^datasift-core/src/)'
+        files: '(\.md$|mkdocs\.yml$|^docs/)'

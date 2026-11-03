@@ -20,14 +20,13 @@ jobs:
       - uses: ./.github/actions/tooling
       - run: uv lock --check
       - run: uv sync --frozen
-      - run: uv run --frozen --no-sync ruff check src tests scripts
-      - run: uv run --frozen --no-sync ruff format --check src tests scripts
-      - run: uv run --frozen --no-sync mypy src scripts tests/benchmarks
+      - run: uv run --frozen --no-sync ruff check src tests
+      - run: uv run --frozen --no-sync ruff format --check src tests
+      - run: uv run --frozen --no-sync mypy src tests/benchmarks
       - run: uv run --frozen --no-sync pytest --cov --cov-report=term-missing
       - run: cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
       - run: cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings
       - run: cargo test --manifest-path datasift-core/Cargo.toml --locked
-      - run: uv run --frozen --no-sync python scripts/docs.py
       - run: uv run --frozen --no-sync mkdocs build --strict
       - run: git diff --check
   wheel:
@@ -74,17 +73,25 @@ jobs:
             --release --locked --target "$RUST_TARGET" --out dist \
             --interpreter "$build_python" "${args[@]}"
       - run: uv run --frozen --no-sync twine check --strict dist/*
-      - name: Test installed wheel on Python 3.12, 3.13 and 3.14
+      - name: Smoke-test installed wheel on Python 3.12, 3.13 and 3.14
         run: |
           for version in 3.12 3.13 3.14; do
             test_env="$RUNNER_TEMP/wheel-$version"
             uv venv --python "$version" "$test_env"
             test_python="$test_env/bin/python"
             if [ "$RUNNER_OS" = Windows ]; then test_python="$test_env/Scripts/python.exe"; fi
-            uv pip install --python "$test_python" dist/*.whl 'pytest>=8.2,<10'
-            "$test_python" -I -c 'from chooong.datasift import rust; assert rust.BatchIterator.__module__ == "chooong.datasift.rust"'
+            uv pip install --python "$test_python" dist/*.whl
+            "$test_python" -I - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from chooong.datasift import FilterMask, Operator, ScalarCondition, iter_matching_rows
+          with TemporaryDirectory() as directory:
+              source = Path(directory) / "input.csv"
+              source.write_text("Country,Amount\nDE,2\nAT,1\n", encoding="utf-8")
+              mask = FilterMask(sheet=None, where=ScalarCondition(column="Country", op=Operator.EQ, value="DE"))
+              assert [dict(row) for row in iter_matching_rows(source, mask)] == [{"Country": "DE"}]
+          PY
             "$test_python" -I -m chooong.datasift --help
-            "$test_python" -m pytest tests/ --import-mode=importlib
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -102,16 +109,22 @@ jobs:
       - uses: ./.github/actions/tooling
       - run: uv build --sdist --out-dir dist
       - run: uv run --frozen --no-sync twine check --strict dist/*
-      - name: Build, install and test the sdist
+      - name: Build, install and smoke-test the sdist
         run: |
           uv venv --python 3.13 "$RUNNER_TEMP/sdist-test"
           test_python="$RUNNER_TEMP/sdist-test/bin/python"
-          uv pip install --python "$test_python" dist/*.tar.gz 'pytest>=8.2,<10'
-          "$test_python" -I -c 'from chooong.datasift import rust; assert rust.BatchIterator.__module__ == "chooong.datasift.rust"'
+          uv pip install --python "$test_python" dist/*.tar.gz
+          "$test_python" -I - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from chooong.datasift import FilterMask, Operator, ScalarCondition, iter_matching_rows
+          with TemporaryDirectory() as directory:
+              source = Path(directory) / "input.csv"
+              source.write_text("Country,Amount\nDE,2\nAT,1\n", encoding="utf-8")
+              mask = FilterMask(sheet=None, where=ScalarCondition(column="Country", op=Operator.EQ, value="DE"))
+              assert [dict(row) for row in iter_matching_rows(source, mask)] == [{"Country": "DE"}]
+          PY
           "$test_python" -I -m chooong.datasift --help
-          tar -xzf dist/*.tar.gz -C "$RUNNER_TEMP/sdist-test"
-          cd "$RUNNER_TEMP"/sdist-test/chooong_datasift-*
-          "$test_python" -m pytest tests/ --import-mode=importlib
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist-sdist

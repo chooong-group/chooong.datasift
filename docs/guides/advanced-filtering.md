@@ -8,8 +8,6 @@ explicit conversion; Excel native numbers can be compared directly.
 
 Create `orders.csv` and `orders.json`:
 
-<!-- file: orders.csv -->
-
 ```csv
 ID,Country,Amount,Status,Customer
 one,DE,1500,Open,ABC Berlin
@@ -19,8 +17,6 @@ four,DE,500,Open,ABC Small
 five,DE,2500,Closed,ABC Closed
 six,DE,2000,Open,XYZ Other
 ```
-
-<!-- file: orders.json -->
 
 ```json
 {
