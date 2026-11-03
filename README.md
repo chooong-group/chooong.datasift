@@ -274,4 +274,7 @@ owns parsing and the row pipeline. For development, use `uv sync --frozen` and
 [Changelog](https://github.com/chooong-group/chooong.datasift/blob/main/CHANGELOG.md) ·
 [Security](https://github.com/chooong-group/chooong.datasift/blob/main/SECURITY.md) ·
 [Apache-2.0 license](https://github.com/chooong-group/chooong.datasift/blob/main/LICENSE) ·
+[Third-party notices][third-party-notices] ·
 [Support development](https://github.com/sponsors/marcus-steinbach)
+
+[third-party-notices]: https://github.com/chooong-group/chooong.datasift/blob/main/THIRD_PARTY_NOTICES.txt

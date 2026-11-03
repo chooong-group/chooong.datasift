@@ -13,17 +13,12 @@ repos:
         types_or: [python, pyi]
       - id: mypy
         name: mypy
-        entry: uv run mypy src scripts release tests/benchmarks
+        entry: uv run mypy src scripts tests/benchmarks
         language: system
         pass_filenames: false
       - id: pytest
         name: pytest
         entry: uv run pytest
-        language: system
-        pass_filenames: false
-      - id: tooling-tests
-        name: release tooling tests
-        entry: uv run pytest tooling/tests/
         language: system
         pass_filenames: false
       - id: rust-format

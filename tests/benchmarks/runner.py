@@ -9,12 +9,12 @@ import tempfile
 import time
 from pathlib import Path
 
-from scripts.artifacts import PROBE, Probe
 from tests.benchmarks.generate import generate
 from tests.benchmarks.models import (
     BuildProfile,
     Case,
     Environment,
+    Interpreter,
     Measurement,
     Mode,
     Report,
@@ -45,9 +45,20 @@ def processor() -> str:
     return platform.processor() or "unknown"
 
 
-def probe_interpreter(executable: Path) -> Probe:
-    return Probe.model_validate_json(
-        subprocess.check_output([str(executable), "-I", "-c", PROBE], text=True)
+def probe_interpreter(executable: Path) -> Interpreter:
+    return Interpreter.model_validate_json(
+        subprocess.check_output(
+            [
+                str(executable),
+                "-I",
+                "-c",
+                "import json, pathlib, platform; from chooong.datasift import rust; "
+                "print(json.dumps(dict(python=platform.python_version(), "
+                "system=platform.system(), machine=platform.machine(), "
+                "native_origin=str(pathlib.Path(rust.__file__).resolve()))))",
+            ],
+            text=True,
+        )
     )
 
 
@@ -73,9 +84,9 @@ def environment(
         digest.update(name.encode())
         digest.update(content)
     return Environment(
-        system=probe.system.value,
+        system=probe.system,
         os_version=platform.platform(),
-        machine=probe.machine.value,
+        machine=probe.machine,
         processor=processor(),
         cpu_count=os.cpu_count(),
         python=probe.python,

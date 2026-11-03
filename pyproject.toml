@@ -9,7 +9,7 @@ description = "Native streaming Excel/CSV discovery, validation, filtering and N
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 license = "Apache-2.0"
-license-files = ["LICENSE", "THIRD_PARTY_NOTICES.txt", "licenses/third-party/*.txt"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.txt", "licenses/rust-std.html"]
 authors = [{name = "Marcus Steinbach"}]
 maintainers = [{name = "Chooong"}]
 dependencies = ["pydantic>=2.12,<3"]
@@ -70,10 +70,7 @@ include = [
     {path = "tests/**/*.py", format = "sdist"},
     {path = "tests/benchmarks/README.md", format = "sdist"},
     {path = ".github/RELEASING.md", format = "sdist"},
-    {path = "tooling/**/*.py", format = "sdist"},
-    {path = "release/**/*.py", format = "sdist"},
     {path = "scripts/**/*.py", format = "sdist"},
-    {path = ".github/release-targets.json", format = "sdist"},
     {path = "docs/**/*", format = "sdist"},
     {path = ".github/workflows/*.yml", format = "sdist"},
     {path = ".github/actions/**/*.yml", format = "sdist"},
@@ -86,7 +83,7 @@ include = [
     {path = "uv.lock", format = "sdist"},
 ]
 
-exclude = ["compliance/**", ".data/**", "*.xlsx", "*.xlsm", "*.xls", "*.ndjson", "AGENTS.md", "docs/*verification.md"]
+exclude = [".data/**", "*.xlsx", "*.xlsm", "*.xls", "*.ndjson", "AGENTS.md", "docs/*verification.md"]
 
 [dependency-groups]
 dev = [

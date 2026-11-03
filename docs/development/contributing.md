@@ -21,11 +21,10 @@ uv sync --frozen
 <!-- check: syntax -->
 
 ```bash
-uv run --frozen ruff check src tests tooling scripts release
-uv run --frozen ruff format --check src tests tooling scripts release
-uv run --frozen mypy --strict src scripts release tests/benchmarks
+uv run --frozen ruff check src tests scripts
+uv run --frozen ruff format --check src tests scripts
+uv run --frozen mypy --strict src scripts tests/benchmarks
 uv run --frozen pytest tests/ -m "not benchmark" --cov --cov-report=term-missing
-uv run --frozen pytest tooling/tests/
 cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
 cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings
 cargo test --manifest-path datasift-core/Cargo.toml --locked
@@ -37,8 +36,7 @@ git diff --check
 ```
 
 Python tests are grouped by behavior; deterministic ZIP/XML/CSV fixtures live in
-`tests/fixtures/`. Tooling tests under `tooling/tests/` run separately without live
-external APIs. Rust unit/pipeline suites are described in the
+`tests/fixtures/`. Rust unit/pipeline suites are described in the
 [core README](https://github.com/chooong-group/chooong.datasift/blob/main/datasift-core/README.md#test-structure).
 Cover real failures and replay, including preserving prior outputs on scan failure.
 Keep annotations complete and imports absolute; do not weaken lint/type rules.
@@ -57,7 +55,7 @@ validated; schemas remain generated from the public models.
 
 Installation, build and owner-only release shell blocks carry `check: syntax`:
 these are parsed, not executed by the example runner. Their real commands are
-covered by local development/build checks or isolated release-tooling tests;
+covered by local development/build checks;
 examples never publish or deploy. `--python PATH` runs examples against an installed
 candidate wheel. `--external` checks external HTTP links with bounded timeouts;
 private project links resolve to checked repository paths instead of requiring
@@ -67,7 +65,7 @@ not disable offline checks. CI runs the offline checks reproducibly.
 Review docs, examples, metadata and user-relevant [changelog](https://github.com/chooong-group/chooong.datasift/blob/main/CHANGELOG.md)
 changes together. The runtime/Python model is authoritative; never change the
 engine silently to make prose pass. [Release procedures](https://github.com/chooong-group/chooong.datasift/blob/main/.github/RELEASING.md)
-require explicit publication approval. Contributions use [Apache-2.0](https://github.com/chooong-group/chooong.datasift/blob/main/LICENSE).
+describe the tag-triggered publisher. Contributions use [Apache-2.0](https://github.com/chooong-group/chooong.datasift/blob/main/LICENSE).
 
 The documentation uses Material for MkDocs for search, responsive navigation and
 system/light/dark appearance. `docs/stylesheets/chooong.css` adapts the palettes

@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Format(StrEnum):
@@ -35,6 +35,24 @@ class Mode(StrEnum):
 
 class Model(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+
+
+class Interpreter(Model):
+    python: str
+    system: str
+    machine: str
+    native_origin: str
+
+    @field_validator("machine")
+    @classmethod
+    def normalize_machine(cls, value: str) -> str:
+        match value.lower():
+            case "amd64" | "x86_64":
+                return "x86_64"
+            case "aarch64" | "arm64":
+                return "arm64"
+            case _:
+                return value
 
 
 class Case(Model):

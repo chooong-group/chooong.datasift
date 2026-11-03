@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- Simplify CI and tag-triggered PyPI releases while retaining native wheels for
+  Linux x86_64/ARM64, macOS x86_64/ARM64 and Windows x86_64.
+- Consolidate bundled third-party license notices and remove custom release tooling.
+
 ## 0.1.0
 
 ### Added
