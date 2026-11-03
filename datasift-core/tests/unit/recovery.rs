@@ -121,6 +121,21 @@ fn parent_path_replacement_cannot_redirect_commit() {
     assert_eq!(fs::read(original.join("result.ndjson")).unwrap(), b"old");
 }
 
+#[test]
+fn sha256_matches_known_vectors_for_bytes_and_files() {
+    assert_eq!(
+        digest(b""),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+    let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    assert_eq!(digest(b"abc"), expected);
+    let directory = TestDir::new();
+    let path = directory.path().join("digest.txt");
+    fs::write(&path, b"abc").unwrap();
+    let mut file = File::open(path).unwrap();
+    assert_eq!(file_digest(&mut file).unwrap(), expected);
+}
+
 #[cfg(unix)]
 #[test]
 fn directory_sync_stays_anchored_when_parent_path_is_replaced() {
