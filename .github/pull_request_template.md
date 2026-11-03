@@ -7,11 +7,11 @@ Describe the trigger, resulting behavior and any public-contract impact.
 ## Validation
 
 List commands, results and the actual platforms/artifacts tested. Mark missing
-checks UNVERIFIED; synthetic release fixtures do not qualify native platforms.
+checks UNVERIFIED.
 
 - [ ] Relevant failures, replay and data integrity checked
 - [ ] Documentation/examples and user-relevant changelog reviewed
-- [ ] Lint/type/build constraints and publishing/deployment authorization guards preserved
+- [ ] Lint/type/build checks and publishing/deployment permissions reviewed
 - [ ] No secrets, local workbooks, generated output or `.data/` contents included
 
 ## Remaining requirements

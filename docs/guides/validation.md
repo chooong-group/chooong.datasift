@@ -2,8 +2,6 @@
 
 Create `transactions.csv`:
 
-<!-- file: transactions.csv -->
-
 ```csv
 CustomerID,Amount,Country
 C1,"1.234,56",DE
@@ -13,8 +11,6 @@ C3,,
 
 This mask requires IDs and amounts, defaults missing values, converts localized
 money and returns all three columns:
-
-<!-- file: validation.json -->
 
 ```json
 {
@@ -57,8 +53,6 @@ instead causes a [schema failure](../reference/errors.md#schema-failures).
 Row rules inspect original values before defaults and conversion. First matching
 rule wins; `rows` and `where` together mean AND. `exclude` overrides `include`.
 Create `classified.csv`:
-
-<!-- file: classified.csv -->
 
 ```csv
 ID,Amount

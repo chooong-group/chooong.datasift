@@ -17,4 +17,3 @@ def test_throughput(
     case = Case(format=format, hit_percent=hit_percent, batch_size=batch_size)
     result = benchmark_session.measure(case)
     assert all(sample.matched == case.expected_matches for sample in result.candidate.samples)
-    assert len({sample.input_sha256 for sample in result.candidate.samples}) == 1

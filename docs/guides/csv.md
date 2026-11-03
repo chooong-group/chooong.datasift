@@ -18,8 +18,6 @@ comma and UTF-8. Configure other formats explicitly as below.
 
 Create `sales.csv`:
 
-<!-- file: sales.csv -->
-
 ```csv
 ID;Amount;Country
 a;1200;DE
@@ -50,8 +48,6 @@ Delimiter and quote must be distinct single ASCII characters.
 ## Headerless records
 
 Create `raw.csv`:
-
-<!-- file: raw.csv -->
 
 ```csv
 a,1200

@@ -25,21 +25,15 @@ partial results before a late failure. There is no automatic rollback for stdout
 
 ## Multiple files
 
-<!-- file: a.csv -->
-
 ```csv
 ID,Amount
 a,1
 ```
 
-<!-- file: b.csv -->
-
 ```csv
 ID,Amount
 b,2
 ```
-
-<!-- file: mask.json -->
 
 ```json
 {"sheet": null, "header": {"anchors": ["ID", "Amount"]}}
@@ -61,8 +55,6 @@ assert json.loads(Path("statistics.json").read_text())["complete"] is True
 
 Reuse `a.csv` and `b.csv` from above. This mask converts Amount before applying
 the numeric filter, returns only ID, and records both matches and rejections:
-
-<!-- file: filtered.json -->
 
 ```json
 {

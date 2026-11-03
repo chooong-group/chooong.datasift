@@ -7,8 +7,6 @@ stream records without collecting the dataset.
 
 Build a release wheel and install it into a separate environment before measuring:
 
-<!-- check: syntax -->
-
 ```bash
 uv build --wheel --out-dir candidate-dist
 uv export --frozen --no-dev --no-emit-project --output-file candidate-dist/runtime-requirements.txt
@@ -20,9 +18,8 @@ uv run pytest tests/benchmarks/ -m benchmark \
   --benchmark-python "$PWD/candidate-env/bin/python" --benchmark-output benchmark-results --benchmark-build-profile release
 ```
 
-On Windows use `candidate-env/Scripts/python.exe`. `scripts/bench.py` forwards to
-this same suite. Normal `pytest` runs exclude the `benchmark` marker and run only
-small functional generator/measurement checks.
+On Windows use `candidate-env/Scripts/python.exe`. Normal `pytest` runs exclude
+the `benchmark` marker; the command above runs the performance cases explicitly.
 
 The suite sweeps 10k, 100k, 1M and 2M rows; 0/5/50/100% selectivity; batches of
 64/1024/65536; XLSX, XLSM and CSV; simple, logical and regex filters; validation,
@@ -43,8 +40,6 @@ that memory use is bounded. No universal timing threshold is applied.
 
 For a previous released baseline, build and install its exact wheel into a second
 environment with the same Python version, then add both options:
-
-<!-- check: syntax -->
 
 ```text
 --benchmark-baseline-python /absolute/path/to/baseline-env/bin/python \

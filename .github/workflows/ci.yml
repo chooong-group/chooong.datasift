@@ -3,14 +3,131 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 permissions:
   contents: read
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
-  checks:
-    uses: ./.github/workflows/checks.yml
-  distributions:
-    needs: checks
-    uses: ./.github/workflows/artifacts.yml
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - run: uv lock --check
+      - run: uv sync --frozen
+      - run: uv run --frozen --no-sync ruff check src tests
+      - run: uv run --frozen --no-sync ruff format --check src tests
+      - run: uv run --frozen --no-sync mypy src tests/benchmarks
+      - run: uv run --frozen --no-sync pytest --cov --cov-report=term-missing
+      - run: cargo fmt --manifest-path datasift-core/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path datasift-core/Cargo.toml --locked --all-targets -- -D warnings
+      - run: cargo test --manifest-path datasift-core/Cargo.toml --locked
+      - run: uv run --frozen --no-sync mkdocs build --strict
+      - run: git diff --check
+  wheel:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - runner: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+      RUST_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - name: Build native ABI3 wheel
+        run: |
+          uv python install 3.12
+          build_python=$(uv python find 3.12)
+          rustup target add "$RUST_TARGET"
+          maturin=$(uv run --frozen --no-sync python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["build-system"]["requires"][0])')
+          tools=()
+          args=()
+          if [ "$RUNNER_OS" = Linux ]; then
+            tools+=(--with ziglang==0.15.2)
+            args+=(--zig --compatibility manylinux_2_28 --auditwheel check)
+          fi
+          uvx --python 3.12 --from "$maturin" "${tools[@]}" maturin build \
+            --release --locked --target "$RUST_TARGET" --out dist \
+            --interpreter "$build_python" "${args[@]}"
+      - run: uv run --frozen --no-sync twine check --strict dist/*
+      - name: Smoke-test installed wheel on Python 3.12, 3.13 and 3.14
+        run: |
+          for version in 3.12 3.13 3.14; do
+            test_env="$RUNNER_TEMP/wheel-$version"
+            uv venv --python "$version" "$test_env"
+            test_python="$test_env/bin/python"
+            if [ "$RUNNER_OS" = Windows ]; then test_python="$test_env/Scripts/python.exe"; fi
+            uv pip install --python "$test_python" dist/*.whl
+            "$test_python" -I - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from chooong.datasift import FilterMask, Operator, ScalarCondition, iter_matching_rows
+          with TemporaryDirectory() as directory:
+              source = Path(directory) / "input.csv"
+              source.write_text("Country,Amount\nDE,2\nAT,1\n", encoding="utf-8")
+              mask = FilterMask(sheet=None, where=ScalarCondition(column="Country", op=Operator.EQ, value="DE"))
+              assert [dict(row) for row in iter_matching_rows(source, mask)] == [{"Country": "DE"}]
+          PY
+            "$test_python" -I -m chooong.datasift --help
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 7
+  sdist:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tooling
+      - run: uv build --sdist --out-dir dist
+      - run: uv run --frozen --no-sync twine check --strict dist/*
+      - name: Build, install and smoke-test the sdist
+        run: |
+          uv venv --python 3.13 "$RUNNER_TEMP/sdist-test"
+          test_python="$RUNNER_TEMP/sdist-test/bin/python"
+          uv pip install --python "$test_python" dist/*.tar.gz
+          "$test_python" -I - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from chooong.datasift import FilterMask, Operator, ScalarCondition, iter_matching_rows
+          with TemporaryDirectory() as directory:
+              source = Path(directory) / "input.csv"
+              source.write_text("Country,Amount\nDE,2\nAT,1\n", encoding="utf-8")
+              mask = FilterMask(sheet=None, where=ScalarCondition(column="Country", op=Operator.EQ, value="DE"))
+              assert [dict(row) for row in iter_matching_rows(source, mask)] == [{"Country": "DE"}]
+          PY
+          "$test_python" -I -m chooong.datasift --help
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
